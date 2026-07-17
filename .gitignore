@@ -1,0 +1,42 @@
+# ---- Segredos e ambiente (NUNCA commitar — §4.1) ----
+.env
+.env.*
+!.env.example
+infra/secrets/*
+!infra/secrets/.gitkeep
+*.pem
+*.key
+
+# ---- Python / backend ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ---- Node / frontend ----
+node_modules/
+dist/
+.vite/
+*.local
+
+# ---- Base de dados / backups / dumps (§4.2) ----
+*.sql.gz
+*.dump
+dumps/
+*.backup
+
+# ---- Docker ----
+docker-compose.override.yml
+
+# ---- Editores / SO ----
+.idea/
+.vscode/
+*.swp
+.DS_Store
