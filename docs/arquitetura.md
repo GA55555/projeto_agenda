@@ -25,6 +25,7 @@
 - **Backend:** Python + FastAPI (Uvicorn)
 - **Frontend:** TypeScript (React ou Vue.js) — SPA servida por Nginx
 - **Base de dados:** PostgreSQL + `pgvector` (relacional + vetorial)
+- **Administração da BD:** **sem GUI** — acesso via `psql` (`docker compose exec postgres psql`). Decisão deliberada de menor exposição: nenhum console web, zero superfície de ataque adicional, 0 MB de RAM. Acesso privilegiado tratado como caminho *break-glass* (ver §2.1.1).
 - **Automação:** n8n (já instalado no servidor)
 - **IA:** LLMs da OpenAI (`text-embedding-3-small`, geração de resumos)
 
@@ -54,6 +55,8 @@ Orçamento operacional disponível para a nova aplicação: **~3.5–4 GB**.
 | **Backend** (FastAPI / Uvicorn) | **1.0 GB** | Pegada de memória do Python é elevada; impõe GC rigoroso e trava fugas prolongadas. |
 | **Frontend** (Nginx / estáticos) | **100 MB** | SPA — apenas servidor de ficheiros estáticos, consumo residual. |
 | Serviços de base (SO, n8n, Homer, Portainer, page cache) | **~4.6 GB** (não limitado) | Margem de segurança para o SO, automações e o indispensável cache de disco do Linux. |
+
+> ℹ️ **Administração da BD sem contentor extra:** não há pgAdmin/CloudBeaver. O acesso administrativo é feito por `psql` dentro do contentor do Postgres (`docker compose exec`), sem custo de RAM nem porta web exposta.
 
 > ⚠️ **Regra:** contentores Docker sem limite explícito consomem toda a RAM disponível e provocam a atuação arbitrária do OOM Killer. **Nenhum contentor da aplicação sobe sem `mem_limit` definido.**
 
@@ -116,6 +119,17 @@ Confiar o isolamento apenas a filtros na camada aplicacional (`WHERE psicologa_i
    `SET LOCAL` garante que a identidade só vale naquela transação, impedindo que o `tenant_id` transite entre requisições num pool de ligações partilhado.
 
 Com isto, um `SELECT * FROM prontuarios` genérico devolve apenas os registos do locatário ativo — qualquer erro de programação é neutralizado pela base de dados.
+
+#### 2.1.1. Acesso privilegiado (psql) e o *bypass* natural do RLS
+
+O PostgreSQL **ignora as políticas de RLS** para o **superusuário**, para roles com `BYPASSRLS` e para o **dono (owner) da tabela** (salvo `FORCE ROW LEVEL SECURITY`). O acesso administrativo via `psql` costuma usar um role de superusuário — portanto **vê todos os locatários**. É caminho legítimo de administração, mas de altíssimo risco de exposição de PII de menores. Regras obrigatórias:
+
+1. **Role de aplicação sem privilégio.** O backend liga-se com um role dedicado (`agenda_app`) que **não é superusuário nem dono das tabelas clínicas**. As tabelas são criadas/possuídas por um role de migração separado. Só assim o RLS atua sobre a aplicação.
+2. **`FORCE ROW LEVEL SECURITY`** em todas as tabelas com dados clínicos, para que **nem o dono da tabela** escape à política sem intenção explícita:
+   ```sql
+   ALTER TABLE prontuarios FORCE ROW LEVEL SECURITY;
+   ```
+3. **Acesso administrativo é *break-glass*.** O `psql` como superusuário fica restrito ao administrador do servidor (via `docker compose exec`, sem porta exposta), credenciais via secrets (§4.1). Toda consulta administrativa que atravessa locatários é, por definição, uma operação sensível sob a LGPD (princípio da menor exposição, §0.3). Para inspeção rotineira, preferir o role `agenda_app` (sujeito ao RLS) em vez do superusuário.
 
 ### 2.2. Consentimento e conformidade com o ECA
 
@@ -190,6 +204,7 @@ O cálculo vetorial incide só sobre o pequeno subconjunto filtrado → execuç�
 
 - **Multi-stage builds obrigatórios.** Ferramentas de compilação em C e pacotes de dev usados só na fase de build; excluídos da imagem final. Imagens `slim`/`alpine` → menor pegada no SSD, arranque mais rápido, menos vetores de ataque.
 - **Segredos nunca no código.** Chaves de API (OpenAI), parâmetros JWT e credenciais da BD via **Docker Secrets** ou ficheiros `.env` com permissões restritas ao admin. Protege contra intrusão no repositório ou acesso ilegítimo ao Portainer.
+- **Sem console de administração web.** Não há pgAdmin/CloudBeaver exposto. Administração da BD apenas por `psql` via `docker compose exec` (shell interno do servidor) — elimina uma superfície de ataque inteira. O `psql` como superusuário ignora o RLS (§2.1.1) e é reservado a *break-glass*.
 
 ### 4.2. Fluxos documentais e webhooks via n8n
 
@@ -212,6 +227,8 @@ A lógica pesada de formatação/exportação é **descarregada do FastAPI para 
 - [ ] Nenhum PII vai ao LLM sem passar pelo túnel de pseudonimização; dicionário nunca persistido (§2.3)?
 - [ ] Consultas vetoriais sempre pré-filtradas por `tenant_id` + `paciente_id` (§3.2)?
 - [ ] Sem índice vetorial prematuro (§3.1)?
+- [ ] Role de app sem privilégio + `FORCE ROW LEVEL SECURITY` nas tabelas clínicas (§2.1.1)?
+- [ ] Sem console web de administração; acesso privilegiado só por `psql` via `docker compose exec` (§2.1.1, §4.1)?
 - [ ] Segredos fora do código; multi-stage build; webhook n8n autenticado (§4)?
 
 ---

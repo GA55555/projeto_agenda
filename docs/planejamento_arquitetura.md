@@ -49,16 +49,17 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 **Regras de ouro aplicáveis:** §1.1 (hard limits), §4.1 (multi-stage, segredos).
 
 ### Tarefas
-- [ ] `git init` e `.gitignore` (ignorar `.env`, `__pycache__`, `node_modules`, dumps).
+- [x] `git init` e `.gitignore` (ignorar `.env`, `__pycache__`, `node_modules`, dumps). Remote: `github.com/GA55555/projeto_agenda`.
 - [x] Estrutura de pastas: `backend/`, `frontend/`, `infra/`, `docs/`.
 - [x] Mover `arquitetura.md` e `planejamento_arquitetura.md` para `docs/`.
 - [ ] `docker-compose.yml` base com os 3 serviços (postgres, backend, frontend) e **`mem_limit` explícito** em cada um (§1.1).
+- [ ] **Sem contentor de administração** (pgAdmin/CloudBeaver): admin da BD por `psql` via `docker compose exec` (decisão de menor exposição, §2.1.1/§4.1).
 - [x] `.env.example` documentando todas as variáveis (sem valores reais).
 - [ ] Configurar Docker Secrets ou `.env` com permissões restritas ao admin.
 - [x] `README.md` de bootstrap (como subir o ambiente local).
 
 ### Definition of Done
-- `docker compose up` sobe os 3 contentores sem exceder o orçamento de RAM.
+- `docker compose up` sobe os 3 contentores (postgres, backend, frontend) sem exceder o orçamento de RAM.
 - Nenhum segredo commitado; `.env` está no `.gitignore`.
 
 ---
@@ -75,9 +76,11 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 - [ ] Ferramenta de migrations (Alembic).
 - [ ] Migration inicial: tabela `tenants` (clínicas/psicólogas) com `id UUID`.
 - [ ] Toda tabela clínica nasce com coluna `tenant_id UUID NOT NULL`.
+- [ ] **Dois roles distintos:** role de migração (dono das tabelas) × role de app (`agenda_app`, **sem** superusuário/ownership) — pré-requisito para o RLS atuar sobre a aplicação (§2.1.1).
 - [ ] Ativar RLS + política `isolamento_tenant` usando `current_setting('app.current_tenant_id')::uuid` (§2.1).
+- [ ] **`FORCE ROW LEVEL SECURITY`** nas tabelas clínicas, para que nem o dono escape à política (§2.1.1).
 - [ ] Índices B-Tree sobre `tenant_id` e `paciente_id` (pré-filtragem, §3.2).
-- [ ] **Teste de isolamento:** dois tenants; provar que um não vê os dados do outro nem com `SELECT *` genérico.
+- [ ] **Teste de isolamento:** dois tenants; provar (ligado como `agenda_app`, não superusuário) que um não vê os dados do outro nem com `SELECT *` genérico. Documentar que o superusuário/`psql` ignora o RLS por desenho (§2.1.1).
 
 ### Definition of Done
 - Teste automatizado de *cross-tenant leakage* passa (retorno vazio para tenant errado).
@@ -236,7 +239,7 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 ### Tarefas
 - [ ] Rodar o **Checklist de Conformidade (§5)** ponta a ponta.
 - [ ] Teste de carga leve validando os `mem_limit` (sem OOM Killer).
-- [ ] Revisão de segredos, permissões de arquivos, exposição de portas.
+- [ ] Revisão de segredos, permissões de arquivos, exposição de portas (confirmar que **não há console web de administração** e que o acesso privilegiado é só por `psql`/`exec` — §2.1.1/§4.1).
 - [ ] Observabilidade mínima (logs, uso de RAM por contentor).
 - [ ] Verificação de conformidade LGPD/ECA/CFP (consentimento, sigilo, auditoria).
 - [ ] Documentar procedimento de restore e plano de contingência.
@@ -254,7 +257,9 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 > Mantenha conciso — este é o resumo que será lido no início das próximas sessões.
 
 - 2026-07-17 — [Fase 0] Criados `arquitetura.md` (regras de ouro) e `planejamento_arquitetura.md` (este roadmap). Projeto ainda sem `git init`.
-- 2026-07-17 — [Fase 0] Docs movidos para `docs/`. Estrutura rígida de diretórios criada: backend por domínio/módulo (`core/`, `db/`, `middleware/`, `api/`, `modules/` × 11 domínios), `frontend/`, `infra/`, `tests/`. Criados `.gitignore`, `.env.example`, `README.md`. **Decisão:** backend organizado por domínio/módulo (não por camada). Falta `git init` + `docker-compose.yml` + `postgresql.conf`.
+- 2026-07-17 — [Fase 0] Docs movidos para `docs/`. Estrutura rígida de diretórios criada: backend por domínio/módulo (`core/`, `db/`, `middleware/`, `api/`, `modules/` × 11 domínios), `frontend/`, `infra/`, `tests/`. Criados `.gitignore`, `.env.example`, `README.md`. **Decisão:** backend organizado por domínio/módulo (não por camada).
+- 2026-07-17 — [Fase 0] `git init` (branch `main`), primeiro commit e push para `github.com/GA55555/projeto_agenda`. Falta `docker-compose.yml` (§1.1) + `postgresql.conf` (§1.2) + Dockerfiles para fechar a fase.
+- 2026-07-17 — [Docs] Avaliada administração da BD. **Decisão: sem GUI** — acesso por `psql` via `docker compose exec` (menor exposição, §0.3; 0 MB, §1.1). pgAdmin descartado. Mantida a **§2.1.1 (nova regra)**: role de app sem privilégio + `FORCE ROW LEVEL SECURITY`; o superusuário/`psql` ignora o RLS por desenho e é *break-glass*. Docs (§0.2, §1.1, §2.1.1, §4.1, §5) e Fases 0/1/9 reconciliados. Debian já constava.
 
 ---
 

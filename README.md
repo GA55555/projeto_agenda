@@ -14,6 +14,7 @@ saúde de menores — conformidade **LGPD / ECA / CFP**.
 - **Backend:** Python + FastAPI (Uvicorn, 2 workers)
 - **Frontend:** SPA (React/Vue — a decidir, Fase 7) servida por Nginx
 - **Base de dados:** PostgreSQL + `pgvector`
+- **Admin BD:** sem GUI — `psql` via `docker compose exec` (menor exposição, §2.1.1)
 - **Automação:** n8n · **IA:** OpenAI (`text-embedding-3-small`)
 
 ## Estrutura do repositório
@@ -37,7 +38,7 @@ saúde de menores — conformidade **LGPD / ECA / CFP**.
 ├── infra/
 │   ├── postgres/              # postgresql.conf afinado + init/ (§1.2)
 │   ├── secrets/               # Docker Secrets (fora do versionamento)
-│   └── docker-compose.yml     # 3 serviços com mem_limit (§1.1)
+│   └── docker-compose.yml     # postgres, backend, frontend — com mem_limit (§1.1)
 ├── .env.example               # todas as variáveis (sem valores reais)
 └── .gitignore
 ```
