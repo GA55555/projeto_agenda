@@ -17,10 +17,10 @@ dependencies = [
     "sqlalchemy>=2.0",
     "psycopg[binary]>=3.2",      # driver PostgreSQL
     "alembic>=1.13",             # migrations (Fase 1)
-    "pydantic>=2.7",
+    "pydantic[email]>=2.7",      # inclui email-validator (EmailStr)
     "pydantic-settings>=2.3",    # Settings via env (§4.1)
     "pyjwt>=2.8",                # JWT (§2.1/§4.1)
-    "passlib[bcrypt]>=1.7",      # hash de senha
+    "bcrypt>=4.1",               # hash de senha (uso direto; passlib incompat.)
     "python-multipart>=0.0.9",   # form data (login)
 ]
 

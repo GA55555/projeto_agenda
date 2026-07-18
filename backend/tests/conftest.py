@@ -6,6 +6,9 @@ acessivel (ex.: rodando fora do servidor), o teste e SKIPPADO, nao falha.
 """
 import os
 
+# Segredo de teste (deterministico, >=32 bytes) antes de qualquer import de settings.
+os.environ.setdefault("JWT_SECRET_KEY", "test-secret-0123456789-abcdefghij-KLMNOP")
+
 import pytest
 
 

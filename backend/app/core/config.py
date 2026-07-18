@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     app_db_password: str = ""
     database_url: str = ""  # runtime (agenda_app); usado a partir da Fase 2
 
+    # ---- JWT (§2.1/§4.1) ----
+    jwt_secret_key: str = ""
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = 30
+
     @property
     def admin_database_url(self) -> str:
         """Ligacao com privilegio para rodar migrations (agenda_admin)."""

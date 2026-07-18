@@ -17,7 +17,7 @@
 | Fase corrente | **Fase 2 — Backend Core (FastAPI)** |
 | Última atualização | 2026-07-18 |
 | Bloqueios ativos | Nenhum |
-| Próximo passo imediato | Fase 2: sessão/pool (agenda_app), middleware que injeta `SET LOCAL` por request, autenticação JWT |
+| Próximo passo imediato | Validar Fase 2 no servidor: rebuild → `alembic upgrade head` (0002) → `criar-tenant-usuario` → login + `/tenants/atual` |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
@@ -29,7 +29,7 @@
 | --- | --- | --- | --- |
 | 0 | Fundações & Infra Base | Esqueleto do repositório, Docker e limites de RAM | ✅ Concluído |
 | 1 | Base de Dados & Multitenancy | PostgreSQL + pgvector + RLS funcionando | ✅ Concluído |
-| 2 | Backend Core (FastAPI) | API base, auth, injeção de tenant | ⬜ Não iniciado |
+| 2 | Backend Core (FastAPI) | API base, auth, injeção de tenant | 🟡 Construído (validar no servidor) |
 | 3 | Modelo de Domínio & Consentimento | Pacientes, responsáveis, TCLE, auditoria | ⬜ Não iniciado |
 | 4 | Pipeline de Pseudonimização | Túnel opaco anonimizar/desanonimizar (Aho-Corasick) | ⬜ Não iniciado |
 | 5 | IA Vetorial & RAG | Embeddings, filtragem híbrida, chunking | ⬜ Não iniciado |
@@ -98,18 +98,24 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 
 **Regras de ouro aplicáveis:** §1.3 (lazy loading, 2 workers, uvloop, GC), §2.1 (`SET LOCAL`), §4.1 (JWT via secrets).
 
+**Decisão:** **tenant = psicóloga** (fronteira de isolamento). `usuarios` = control-plane (email global, sem RLS); tabelas clínicas mantêm RLS+FORCE.
+
 ### Tarefas
-- [ ] Estrutura FastAPI + SQLAlchemy + pool de ligações dimensionado para `max_connections=50`.
-- [ ] Dockerfile **multi-stage** `slim`; entrypoint `uvicorn --workers 2 --loop uvloop` (§1.3).
-- [ ] `gc.set_threshold(700, 10, 10)` no arranque (§1.3).
-- [ ] Autenticação (JWT), login das psicólogas.
-- [ ] **Dependência/middleware que executa `SET LOCAL app.current_tenant_id` dentro da transação** de cada request autenticado (§2.1).
-- [ ] Convenção de imports: bibliotecas pesadas (Presidio, spaCy) **só dentro das funções** (§1.3).
-- [ ] Healthcheck endpoint.
+- [x] Estrutura FastAPI + SQLAlchemy + pool (`pool_size=5, max_overflow=5`) como `agenda_app` (`app/db/session.py`).
+- [x] Dockerfile **multi-stage** `slim`; `uvicorn --workers 2 --loop uvloop` (§1.3). *(Fase 0)*
+- [x] `gc.set_threshold(700, 10, 10)` no arranque (§1.3). *(Fase 0)*
+- [x] Autenticação JWT, login das psicólogas (`core/security.py` bcrypt+JWT, `modules/auth/*`, `POST /auth/login`, `GET /auth/me`).
+- [x] **Dependência `get_tenant_session` que executa `SET LOCAL` (via `set_config` local) dentro da transação** de cada request autenticado (`app/db/deps.py`) (§2.1).
+- [x] Tabela `usuarios` (migration `0002`) + CLI `criar-tenant-usuario` (bootstrap).
+- [x] `GET /tenants/atual` (prova RLS pela API) + convenção de imports lazy documentada (§1.3).
+- [x] Healthcheck: `/health` (liveness) + `/health/ready` (SELECT 1).
 
 ### Definition of Done
-- Request autenticado só enxerga dados do seu tenant (RLS + `SET LOCAL` validados juntos).
-- Backend arranca com ≤ 2 workers e respeita `mem_limit` de 1 GB.
+- Request autenticado só enxerga dados do seu tenant (RLS + `SET LOCAL` validados juntos). ⏳ *validar no servidor (login 2 psicólogas → `/tenants/atual`)*
+- Backend arranca com ≤ 2 workers e respeita `mem_limit` de 1 GB. ✅
+
+> **Construído 2026-07-18; pendente validação no servidor** (rebuild + `alembic upgrade head` [0002] + `criar-tenant-usuario` + login). Sem reset de volume (migration aditiva). Validado local: unit tests (hash/JWT) + rotas montadas + `/health` 200.
+> **Bug corrigido:** `passlib` 1.7 × `bcrypt` ≥4.1 → migrado para a lib `bcrypt` direta.
 
 ---
 
@@ -263,6 +269,7 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 - 2026-07-17 — [Fase 0] Criados `arquitetura.md` (regras de ouro) e `planejamento_arquitetura.md` (este roadmap). Projeto ainda sem `git init`.
 - 2026-07-17 — [Fase 0] Docs movidos para `docs/`. Estrutura rígida de diretórios criada: backend por domínio/módulo (`core/`, `db/`, `middleware/`, `api/`, `modules/` × 11 domínios), `frontend/`, `infra/`, `tests/`. Criados `.gitignore`, `.env.example`, `README.md`. **Decisão:** backend organizado por domínio/módulo (não por camada).
 - 2026-07-17 — [Fase 0] `git init` (branch `main`), primeiro commit e push para `github.com/GA55555/projeto_agenda`. Falta `docker-compose.yml` (§1.1) + `postgresql.conf` (§1.2) + Dockerfiles para fechar a fase.
+- 2026-07-18 — [Fase 2] Construída (validar no servidor). **Decisão: tenant = psicóloga.** Sessão/pool como `agenda_app`; auth JWT (bcrypt+PyJWT); `get_tenant_session` injeta `SET LOCAL` por transação; migration `0002` (`usuarios`, control-plane); CLI `criar-tenant-usuario`; `GET /tenants/atual` prova RLS pela API; `/health/ready`. **Bug corrigido:** passlib×bcrypt≥4.1 → lib `bcrypt` direta. Validado local: unit tests + rotas + `/health` 200.
 - 2026-07-18 — [Fase 1] ✅ **Concluída e validada no servidor.** `alembic upgrade head` aplicou `0001` (tabela `tenants` + RLS `FORCE`); `verify_rls.sql` → `RLS OK` (isolamento T1/T2 + fail-closed provados); role `agenda_app` sem Superuser/Bypass RLS. Isolamento multitenant garantido no motor da BD (§2.1).
 - 2026-07-17 — [Fase 1] Construída (validar no servidor): Alembic (`env.py` usa role admin via settings); migration `0001` cria `tenants` + RLS `tenant_isolation` **FORCE**, fail-closed; helper único `app/db/rls.py`; role `agenda_app` (`NOSUPERUSER NOBYPASSRLS`) via init `02-roles.sh`; `config.py` com URLs admin/app; teste `test_rls_isolation.py` + `verify_rls.sql` (SET ROLE). Validado local: imports + render do SQL de RLS OK. **Deploy exige `docker compose down -v`** (dados descartáveis) p/ o init criar o role.
 - 2026-07-17 — [Fase 0] ✅ **Fase 0 concluída e validada no servidor Debian.** `docker compose up` sobe postgres (`healthy`, ~52 MB) + backend (`healthy`), extensão `vector` 0.8.5, `/health`→200. Ajuste: `BACKEND_HOST_PORT=8010` (Portainer ocupa a 8000). Repo do servidor reconciliado (`master`→`main`, remote `origin` adicionado).
