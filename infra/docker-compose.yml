@@ -48,7 +48,9 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "127.0.0.1:8000:8000"          # exposto so ao localhost do servidor
+      # Porta do HOST configuravel (evita conflitos com outros servicos, ex. Portainer:8000).
+      # Publicada apenas no localhost do servidor (§4.1). Porta interna continua 8000.
+      - "127.0.0.1:${BACKEND_HOST_PORT:-8000}:8000"
     networks: [internal]
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)\""]
