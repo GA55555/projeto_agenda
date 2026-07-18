@@ -14,10 +14,10 @@
 
 | Campo | Valor |
 | --- | --- |
-| Fase corrente | **Fase 2 — Backend Core (FastAPI)** |
+| Fase corrente | **Fase 3 — Modelo de Domínio & Consentimento** |
 | Última atualização | 2026-07-18 |
 | Bloqueios ativos | Nenhum |
-| Próximo passo imediato | Validar Fase 2 no servidor: rebuild → `alembic upgrade head` (0002) → `criar-tenant-usuario` → login + `/tenants/atual` |
+| Próximo passo imediato | Planejar Fase 3: responsáveis legais, pacientes (menores), TCLE/consentimento, auditoria imutável, agendamentos |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
@@ -29,7 +29,7 @@
 | --- | --- | --- | --- |
 | 0 | Fundações & Infra Base | Esqueleto do repositório, Docker e limites de RAM | ✅ Concluído |
 | 1 | Base de Dados & Multitenancy | PostgreSQL + pgvector + RLS funcionando | ✅ Concluído |
-| 2 | Backend Core (FastAPI) | API base, auth, injeção de tenant | 🟡 Construído (validar no servidor) |
+| 2 | Backend Core (FastAPI) | API base, auth, injeção de tenant | ✅ Concluído |
 | 3 | Modelo de Domínio & Consentimento | Pacientes, responsáveis, TCLE, auditoria | ⬜ Não iniciado |
 | 4 | Pipeline de Pseudonimização | Túnel opaco anonimizar/desanonimizar (Aho-Corasick) | ⬜ Não iniciado |
 | 5 | IA Vetorial & RAG | Embeddings, filtragem híbrida, chunking | ⬜ Não iniciado |
@@ -111,10 +111,10 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 - [x] Healthcheck: `/health` (liveness) + `/health/ready` (SELECT 1).
 
 ### Definition of Done
-- Request autenticado só enxerga dados do seu tenant (RLS + `SET LOCAL` validados juntos). ⏳ *validar no servidor (login 2 psicólogas → `/tenants/atual`)*
+- Request autenticado só enxerga dados do seu tenant (RLS + `SET LOCAL` validados juntos). ✅
 - Backend arranca com ≤ 2 workers e respeita `mem_limit` de 1 GB. ✅
 
-> **Construído 2026-07-18; pendente validação no servidor** (rebuild + `alembic upgrade head` [0002] + `criar-tenant-usuario` + login). Sem reset de volume (migration aditiva). Validado local: unit tests (hash/JWT) + rotas montadas + `/health` 200.
+> ✅ **Concluído e validado no servidor 2026-07-18.** Login → JWT; `GET /tenants/atual` devolve só o tenant do JWT (RLS via `SET LOCAL`); senha errada → 401; `/health/ready` → 200. Migration `0002` aplicada; 1ª psicóloga criada via CLI.
 > **Bug corrigido:** `passlib` 1.7 × `bcrypt` ≥4.1 → migrado para a lib `bcrypt` direta.
 
 ---
@@ -269,6 +269,7 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 - 2026-07-17 — [Fase 0] Criados `arquitetura.md` (regras de ouro) e `planejamento_arquitetura.md` (este roadmap). Projeto ainda sem `git init`.
 - 2026-07-17 — [Fase 0] Docs movidos para `docs/`. Estrutura rígida de diretórios criada: backend por domínio/módulo (`core/`, `db/`, `middleware/`, `api/`, `modules/` × 11 domínios), `frontend/`, `infra/`, `tests/`. Criados `.gitignore`, `.env.example`, `README.md`. **Decisão:** backend organizado por domínio/módulo (não por camada).
 - 2026-07-17 — [Fase 0] `git init` (branch `main`), primeiro commit e push para `github.com/GA55555/projeto_agenda`. Falta `docker-compose.yml` (§1.1) + `postgresql.conf` (§1.2) + Dockerfiles para fechar a fase.
+- 2026-07-18 — [Fase 2] ✅ **Concluída e validada no servidor.** Login → JWT; `/tenants/atual` só o tenant do JWT (RLS via `SET LOCAL`); senha errada → 401; `/health/ready` → 200. 1ª psicóloga criada via CLI. Bug passlib×bcrypt corrigido.
 - 2026-07-18 — [Fase 2] Construída (validar no servidor). **Decisão: tenant = psicóloga.** Sessão/pool como `agenda_app`; auth JWT (bcrypt+PyJWT); `get_tenant_session` injeta `SET LOCAL` por transação; migration `0002` (`usuarios`, control-plane); CLI `criar-tenant-usuario`; `GET /tenants/atual` prova RLS pela API; `/health/ready`. **Bug corrigido:** passlib×bcrypt≥4.1 → lib `bcrypt` direta. Validado local: unit tests + rotas + `/health` 200.
 - 2026-07-18 — [Fase 1] ✅ **Concluída e validada no servidor.** `alembic upgrade head` aplicou `0001` (tabela `tenants` + RLS `FORCE`); `verify_rls.sql` → `RLS OK` (isolamento T1/T2 + fail-closed provados); role `agenda_app` sem Superuser/Bypass RLS. Isolamento multitenant garantido no motor da BD (§2.1).
 - 2026-07-17 — [Fase 1] Construída (validar no servidor): Alembic (`env.py` usa role admin via settings); migration `0001` cria `tenants` + RLS `tenant_isolation` **FORCE**, fail-closed; helper único `app/db/rls.py`; role `agenda_app` (`NOSUPERUSER NOBYPASSRLS`) via init `02-roles.sh`; `config.py` com URLs admin/app; teste `test_rls_isolation.py` + `verify_rls.sql` (SET ROLE). Validado local: imports + render do SQL de RLS OK. **Deploy exige `docker compose down -v`** (dados descartáveis) p/ o init criar o role.
