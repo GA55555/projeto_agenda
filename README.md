@@ -56,15 +56,40 @@ Cada pacote em `backend/app/modules/<dominio>/` segue o mesmo formato rígido:
 | `dependencies.py` | Dependências FastAPI do domínio |
 | `exceptions.py` | Exceções do domínio |
 
-## Bootstrap do ambiente local
+## Bootstrap no servidor (Debian 12)
 
-> ⚠️ Passos completos serão preenchidos ao fim da Fase 0 (docker-compose +
-> postgresql.conf). Rascunho do fluxo pretendido:
+Pré-requisitos no servidor: `git`, Docker Engine + plugin Compose v2.
 
 ```bash
-cp .env.example .env            # preencher segredos
-# docker compose -f infra/docker-compose.yml up --build
+# 1. Obter o repositório
+git clone https://github.com/GA55555/projeto_agenda.git
+cd projeto_agenda
+
+# 2. Criar o .env (fora do versionamento) a partir do exemplo
+cp .env.example .env
+
+# 3. Gerar segredos fortes DIRETAMENTE no servidor e injetar no .env
+PG_PW=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | cut -c1-32)
+JWT=$(openssl rand -hex 32)
+sed -i \
+  -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${PG_PW}|" \
+  -e "s|^JWT_SECRET_KEY=.*|JWT_SECRET_KEY=${JWT}|" \
+  .env
+
+# 4. Restringir o .env ao dono (§4.1)
+chmod 600 .env
+
+# 5. Subir (o .env fica na raiz; o compose em infra/ → usar --env-file)
+cd infra
+docker compose --env-file ../.env up --build -d
+
+# 6. Verificar
+docker compose ps                       # ambos healthy?
+docker compose exec postgres psql -U agenda_admin -d agenda -c '\dx'   # extensão vector?
+curl -s http://127.0.0.1:8000/health    # {"status":"ok"}
 ```
+
+> Segredos são gerados **no próprio servidor** e nunca entram no git (`.env` está no `.gitignore`).
 
 ## Estado do projeto
 
