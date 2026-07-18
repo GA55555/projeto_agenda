@@ -14,10 +14,10 @@
 
 | Campo | Valor |
 | --- | --- |
-| Fase corrente | **Fase 1 — Base de Dados & Multitenancy** |
-| Última atualização | 2026-07-17 |
+| Fase corrente | **Fase 2 — Backend Core (FastAPI)** |
+| Última atualização | 2026-07-18 |
 | Bloqueios ativos | Nenhum |
-| Próximo passo imediato | Validar Fase 1 no servidor: `down -v` (reset do volume) → `up` (init cria `agenda_app`) → `alembic upgrade head` → `verify_rls.sql` |
+| Próximo passo imediato | Fase 2: sessão/pool (agenda_app), middleware que injeta `SET LOCAL` por request, autenticação JWT |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
@@ -28,7 +28,7 @@
 | # | Fase | Objetivo central | Status |
 | --- | --- | --- | --- |
 | 0 | Fundações & Infra Base | Esqueleto do repositório, Docker e limites de RAM | ✅ Concluído |
-| 1 | Base de Dados & Multitenancy | PostgreSQL + pgvector + RLS funcionando | 🟡 Construído (validar no servidor) |
+| 1 | Base de Dados & Multitenancy | PostgreSQL + pgvector + RLS funcionando | ✅ Concluído |
 | 2 | Backend Core (FastAPI) | API base, auth, injeção de tenant | ⬜ Não iniciado |
 | 3 | Modelo de Domínio & Consentimento | Pacientes, responsáveis, TCLE, auditoria | ⬜ Não iniciado |
 | 4 | Pipeline de Pseudonimização | Túnel opaco anonimizar/desanonimizar (Aho-Corasick) | ⬜ Não iniciado |
@@ -85,10 +85,10 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 - [x] **Teste de isolamento:** `tests/integration/test_rls_isolation.py` (pytest) + `infra/postgres/checks/verify_rls.sql` (psql, via `SET ROLE agenda_app`) — provam isolamento T1/T2 e fail-closed.
 
 ### Definition of Done
-- Teste automatizado de *cross-tenant leakage* passa (retorno vazio para tenant errado). ⏳ *validar no servidor*
+- Teste automatizado de *cross-tenant leakage* passa (retorno vazio para tenant errado). ✅
 - **Nenhum** índice vetorial criado (Pesquisa Exata, §3.1). ✅
 
-> **Construído 2026-07-17; pendente validação no servidor** (aplicar migration + rodar `verify_rls.sql`). Requer **reset do volume** do Postgres para o init `02-roles.sh` criar o `agenda_app` (dados atuais são descartáveis).
+> ✅ **Concluído e validado no servidor 2026-07-18.** `alembic upgrade head` aplicou `0001`; `verify_rls.sql` → **`RLS OK`** (T1 vê só T1, T2 só T2, sem contexto = vazio/fail-closed). Role `agenda_app` confirmado sem Superuser/Bypass RLS.
 
 ---
 
@@ -263,6 +263,7 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 - 2026-07-17 — [Fase 0] Criados `arquitetura.md` (regras de ouro) e `planejamento_arquitetura.md` (este roadmap). Projeto ainda sem `git init`.
 - 2026-07-17 — [Fase 0] Docs movidos para `docs/`. Estrutura rígida de diretórios criada: backend por domínio/módulo (`core/`, `db/`, `middleware/`, `api/`, `modules/` × 11 domínios), `frontend/`, `infra/`, `tests/`. Criados `.gitignore`, `.env.example`, `README.md`. **Decisão:** backend organizado por domínio/módulo (não por camada).
 - 2026-07-17 — [Fase 0] `git init` (branch `main`), primeiro commit e push para `github.com/GA55555/projeto_agenda`. Falta `docker-compose.yml` (§1.1) + `postgresql.conf` (§1.2) + Dockerfiles para fechar a fase.
+- 2026-07-18 — [Fase 1] ✅ **Concluída e validada no servidor.** `alembic upgrade head` aplicou `0001` (tabela `tenants` + RLS `FORCE`); `verify_rls.sql` → `RLS OK` (isolamento T1/T2 + fail-closed provados); role `agenda_app` sem Superuser/Bypass RLS. Isolamento multitenant garantido no motor da BD (§2.1).
 - 2026-07-17 — [Fase 1] Construída (validar no servidor): Alembic (`env.py` usa role admin via settings); migration `0001` cria `tenants` + RLS `tenant_isolation` **FORCE**, fail-closed; helper único `app/db/rls.py`; role `agenda_app` (`NOSUPERUSER NOBYPASSRLS`) via init `02-roles.sh`; `config.py` com URLs admin/app; teste `test_rls_isolation.py` + `verify_rls.sql` (SET ROLE). Validado local: imports + render do SQL de RLS OK. **Deploy exige `docker compose down -v`** (dados descartáveis) p/ o init criar o role.
 - 2026-07-17 — [Fase 0] ✅ **Fase 0 concluída e validada no servidor Debian.** `docker compose up` sobe postgres (`healthy`, ~52 MB) + backend (`healthy`), extensão `vector` 0.8.5, `/health`→200. Ajuste: `BACKEND_HOST_PORT=8010` (Portainer ocupa a 8000). Repo do servidor reconciliado (`master`→`main`, remote `origin` adicionado).
 - 2026-07-17 — [Fase 0/1] Rota 1: `infra/postgres/postgresql.conf` afinado (§1.2, sem log de statements p/ evitar PII) + `init/01-extensions.sql` (pgvector, sem índice §3.1); backend `pyproject.toml` + `Dockerfile` multi-stage slim (§4.1) + app mínimo runnable (`/health`, GC §1.3); `infra/docker-compose.yml` (postgres 1.5GB + backend 1GB, `mem_limit` §1.1; BD sem porta exposta; backend só no localhost). Validado local: app boota e `/health`→200. Docker não roda neste WSL; `docker compose up` fica p/ o servidor Debian (requer criar `.env`).
