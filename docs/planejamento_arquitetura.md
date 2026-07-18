@@ -23,6 +23,24 @@
 
 ---
 
+## 🖥️ Operação & Deploy (contexto do servidor)
+
+> Contexto que **não** se deduz do código — ler antes de mexer no ambiente.
+
+- **Repositório:** `github.com/GA55555/projeto_agenda`, branch **`main`**. Dev local em WSL (`/home/hades/dev/agenda_de_atendimentos`) → commit/push. **Servidor só faz `git pull`** (nunca commitar/pushar do servidor).
+- **Servidor:** Debian (`hadesserver`), Docker 29 + Compose v2. Projeto em `~/vscode/config/workspace/projeto_agenda`. Já roda outros serviços (Portainer, n8n, code-server, homarr, pgAdmin de outro projeto).
+- **Comandos Docker rodam de dentro de `infra/`** com `--env-file ../.env` (o compose está em `infra/`, o `.env` na raiz). Ex.: `cd infra && docker compose --env-file ../.env up -d`.
+- **Portas:** backend publicado em `127.0.0.1:8010` (`BACKEND_HOST_PORT` — a 8000 é do Portainer). Postgres **sem** porta exposta. Sem GUI de admin (só `psql` via `exec`, §2.1.1).
+- **`.env` (fora do git, `chmod 600`):** segredos gerados **no servidor** (`POSTGRES_PASSWORD`, `APP_DB_PASSWORD`, `JWT_SECRET_KEY`, `DATABASE_URL` com a senha do `agenda_app`). Ao adicionar variáveis novas ao `.env.example`, lembrar que o `.env` do servidor **não** é atualizado pelo `git pull` — editar à mão.
+- **Deploy padrão de código:** `git pull` → `docker compose --env-file ../.env up -d --build [backend]` → `docker compose --env-file ../.env exec backend alembic upgrade head`.
+- **⚠️ Roles/init:** mudanças em `infra/postgres/init/*` (ex.: novo role) só reaplicam com **`docker compose --env-file ../.env down -v`** (recria o volume `pgdata`). Migrations aditivas **não** precisam. Dados atuais são **descartáveis** (só há 1 tenant de teste).
+- **Bootstrap de usuário:** `docker compose --env-file ../.env exec backend python -m app.cli criar-tenant-usuario --nome ... --email ... --senha ...`.
+- **Dados atuais:** 1 psicóloga de teste — `teste@clinica.local` / senha `SenhaForte123` (slug `teste`). Descartável.
+- **Provas rápidas:** RLS na BD → `infra/postgres/checks/verify_rls.sql`; liveness `GET /health`; readiness `GET /health/ready`; login `POST /api/v1/auth/login` (form `username`/`password`).
+- **Validação local (WSL, sem Docker):** `py_compile` + venv de teste (imports + `pytest tests/unit`). Testes de **integração** e `docker compose up` só rodam **no servidor** (têm BD). `pytest` não está na imagem de produção (é dep `[dev]`).
+
+---
+
 ## 🗺️ Visão Geral das Fases
 
 | # | Fase | Objetivo central | Status |
