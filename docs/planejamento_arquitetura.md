@@ -17,7 +17,7 @@
 | Fase corrente | **Fase 0 — Fundações** |
 | Última atualização | 2026-07-17 |
 | Bloqueios ativos | Nenhum |
-| Próximo passo imediato | Fase 0: `git init` + `docker-compose.yml` com `mem_limit` (§1.1) e `postgresql.conf` afinado (§1.2) |
+| Próximo passo imediato | Validar `docker compose up` no servidor Debian (criar `.env`); depois iniciar Fase 1 (Alembic, roles, RLS + `FORCE`) |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
@@ -27,7 +27,7 @@
 
 | # | Fase | Objetivo central | Status |
 | --- | --- | --- | --- |
-| 0 | Fundações & Infra Base | Esqueleto do repositório, Docker e limites de RAM | ⬜ Não iniciado |
+| 0 | Fundações & Infra Base | Esqueleto do repositório, Docker e limites de RAM | 🟡 Em progresso (validar no servidor) |
 | 1 | Base de Dados & Multitenancy | PostgreSQL + pgvector + RLS funcionando | ⬜ Não iniciado |
 | 2 | Backend Core (FastAPI) | API base, auth, injeção de tenant | ⬜ Não iniciado |
 | 3 | Modelo de Domínio & Consentimento | Pacientes, responsáveis, TCLE, auditoria | ⬜ Não iniciado |
@@ -52,8 +52,8 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 - [x] `git init` e `.gitignore` (ignorar `.env`, `__pycache__`, `node_modules`, dumps). Remote: `github.com/GA55555/projeto_agenda`.
 - [x] Estrutura de pastas: `backend/`, `frontend/`, `infra/`, `docs/`.
 - [x] Mover `arquitetura.md` e `planejamento_arquitetura.md` para `docs/`.
-- [ ] `docker-compose.yml` base com os 3 serviços (postgres, backend, frontend) e **`mem_limit` explícito** em cada um (§1.1).
-- [ ] **Sem contentor de administração** (pgAdmin/CloudBeaver): admin da BD por `psql` via `docker compose exec` (decisão de menor exposição, §2.1.1/§4.1).
+- [x] `docker-compose.yml` base (postgres + backend, `mem_limit` explícito §1.1). Frontend comentado como TODO da Fase 7.
+- [x] **Sem contentor de administração** (pgAdmin/CloudBeaver): admin da BD por `psql` via `docker compose exec` (decisão de menor exposição, §2.1.1/§4.1).
 - [x] `.env.example` documentando todas as variáveis (sem valores reais).
 - [ ] Configurar Docker Secrets ou `.env` com permissões restritas ao admin.
 - [x] `README.md` de bootstrap (como subir o ambiente local).
@@ -71,8 +71,8 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 **Regras de ouro aplicáveis:** §1.1 (1.5 GB), §1.2 (postgresql.conf), §2.1 (RLS), §3.1 (sem índice vetorial).
 
 ### Tarefas
-- [ ] Imagem Postgres com extensão `pgvector` (`CREATE EXTENSION vector`).
-- [ ] `postgresql.conf` afinado: `shared_buffers` 512MB–1GB, `work_mem` 4–16MB, `maintenance_work_mem` 128MB, `max_connections` 50 (§1.2).
+- [x] Imagem Postgres com extensão `pgvector` (`CREATE EXTENSION vector`). *(adiantado na Fase 0: imagem `pgvector/pgvector:pg16` + `infra/postgres/init/01-extensions.sql`)*
+- [x] `postgresql.conf` afinado: `shared_buffers` 512MB, `work_mem` 8MB, `maintenance_work_mem` 128MB, `max_connections` 50 (§1.2). *(adiantado na Fase 0: `infra/postgres/postgresql.conf`)*
 - [ ] Ferramenta de migrations (Alembic).
 - [ ] Migration inicial: tabela `tenants` (clínicas/psicólogas) com `id UUID`.
 - [ ] Toda tabela clínica nasce com coluna `tenant_id UUID NOT NULL`.
@@ -259,6 +259,7 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 - 2026-07-17 — [Fase 0] Criados `arquitetura.md` (regras de ouro) e `planejamento_arquitetura.md` (este roadmap). Projeto ainda sem `git init`.
 - 2026-07-17 — [Fase 0] Docs movidos para `docs/`. Estrutura rígida de diretórios criada: backend por domínio/módulo (`core/`, `db/`, `middleware/`, `api/`, `modules/` × 11 domínios), `frontend/`, `infra/`, `tests/`. Criados `.gitignore`, `.env.example`, `README.md`. **Decisão:** backend organizado por domínio/módulo (não por camada).
 - 2026-07-17 — [Fase 0] `git init` (branch `main`), primeiro commit e push para `github.com/GA55555/projeto_agenda`. Falta `docker-compose.yml` (§1.1) + `postgresql.conf` (§1.2) + Dockerfiles para fechar a fase.
+- 2026-07-17 — [Fase 0/1] Rota 1: `infra/postgres/postgresql.conf` afinado (§1.2, sem log de statements p/ evitar PII) + `init/01-extensions.sql` (pgvector, sem índice §3.1); backend `pyproject.toml` + `Dockerfile` multi-stage slim (§4.1) + app mínimo runnable (`/health`, GC §1.3); `infra/docker-compose.yml` (postgres 1.5GB + backend 1GB, `mem_limit` §1.1; BD sem porta exposta; backend só no localhost). Validado local: app boota e `/health`→200. Docker não roda neste WSL; `docker compose up` fica p/ o servidor Debian (requer criar `.env`).
 - 2026-07-17 — [Docs] Avaliada administração da BD. **Decisão: sem GUI** — acesso por `psql` via `docker compose exec` (menor exposição, §0.3; 0 MB, §1.1). pgAdmin descartado. Mantida a **§2.1.1 (nova regra)**: role de app sem privilégio + `FORCE ROW LEVEL SECURITY`; o superusuário/`psql` ignora o RLS por desenho e é *break-glass*. Docs (§0.2, §1.1, §2.1.1, §4.1, §5) e Fases 0/1/9 reconciliados. Debian já constava.
 
 ---

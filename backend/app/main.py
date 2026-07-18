@@ -1,5 +1,24 @@
-"""Ponto de entrada da aplicacao FastAPI (montagem de routers, middleware, GC).
+"""Ponto de entrada da aplicacao FastAPI.
 
-Regras de ouro: §1.3 (gc.set_threshold, 2 workers uvloop), §2.1
-Fase do roadmap: Fase 2
+Bootstrap minimo da Fase 0 (montagem do app + GC + healthcheck).
+A Fase 2 expande: middleware de tenant (SET LOCAL), routers dos modulos,
+autenticacao. Ver §1.3 (GC, workers) e §2.1.
+
+Regras de ouro: §1.3
+Fase do roadmap: Fase 0 (bootstrap) -> Fase 2
 """
+import gc
+
+from fastapi import FastAPI
+
+# Servico de longa duracao: varreduras mais frequentes mantem a RAM linear (§1.3).
+gc.set_threshold(700, 10, 10)
+
+app = FastAPI(
+    title="Agenda de Atendimentos API",
+    version="0.1.0",
+)
+
+from app.api.health import router as health_router  # noqa: E402
+
+app.include_router(health_router)
