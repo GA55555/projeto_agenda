@@ -17,7 +17,7 @@
 | Fase corrente | **Fase 1 — Base de Dados & Multitenancy** |
 | Última atualização | 2026-07-17 |
 | Bloqueios ativos | Nenhum |
-| Próximo passo imediato | Fase 1: Alembic + role `agenda_app` (NOSUPERUSER) + tabela `tenants` + RLS com `FORCE` + teste de isolamento |
+| Próximo passo imediato | Validar Fase 1 no servidor: `down -v` (reset do volume) → `up` (init cria `agenda_app`) → `alembic upgrade head` → `verify_rls.sql` |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
@@ -28,7 +28,7 @@
 | # | Fase | Objetivo central | Status |
 | --- | --- | --- | --- |
 | 0 | Fundações & Infra Base | Esqueleto do repositório, Docker e limites de RAM | ✅ Concluído |
-| 1 | Base de Dados & Multitenancy | PostgreSQL + pgvector + RLS funcionando | ⬜ Não iniciado |
+| 1 | Base de Dados & Multitenancy | PostgreSQL + pgvector + RLS funcionando | 🟡 Construído (validar no servidor) |
 | 2 | Backend Core (FastAPI) | API base, auth, injeção de tenant | ⬜ Não iniciado |
 | 3 | Modelo de Domínio & Consentimento | Pacientes, responsáveis, TCLE, auditoria | ⬜ Não iniciado |
 | 4 | Pipeline de Pseudonimização | Túnel opaco anonimizar/desanonimizar (Aho-Corasick) | ⬜ Não iniciado |
@@ -75,18 +75,20 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 ### Tarefas
 - [x] Imagem Postgres com extensão `pgvector` (`CREATE EXTENSION vector`). *(adiantado na Fase 0: imagem `pgvector/pgvector:pg16` + `infra/postgres/init/01-extensions.sql`)*
 - [x] `postgresql.conf` afinado: `shared_buffers` 512MB, `work_mem` 8MB, `maintenance_work_mem` 128MB, `max_connections` 50 (§1.2). *(adiantado na Fase 0: `infra/postgres/postgresql.conf`)*
-- [ ] Ferramenta de migrations (Alembic).
-- [ ] Migration inicial: tabela `tenants` (clínicas/psicólogas) com `id UUID`.
-- [ ] Toda tabela clínica nasce com coluna `tenant_id UUID NOT NULL`.
-- [ ] **Dois roles distintos:** role de migração (dono das tabelas) × role de app (`agenda_app`, **sem** superusuário/ownership) — pré-requisito para o RLS atuar sobre a aplicação (§2.1.1).
-- [ ] Ativar RLS + política `isolamento_tenant` usando `current_setting('app.current_tenant_id')::uuid` (§2.1).
-- [ ] **`FORCE ROW LEVEL SECURITY`** nas tabelas clínicas, para que nem o dono escape à política (§2.1.1).
-- [ ] Índices B-Tree sobre `tenant_id` e `paciente_id` (pré-filtragem, §3.2).
-- [ ] **Teste de isolamento:** dois tenants; provar (ligado como `agenda_app`, não superusuário) que um não vê os dados do outro nem com `SELECT *` genérico. Documentar que o superusuário/`psql` ignora o RLS por desenho (§2.1.1).
+- [x] Ferramenta de migrations (Alembic): `alembic.ini`, `migrations/env.py` (URL admin via settings, nunca no ini), template.
+- [x] Migration inicial `0001`: tabela `tenants` (`id UUID` default `gen_random_uuid()`, `nome`, `slug`, `ativo`, timestamps).
+- [x] Padrão `tenant_id` + RLS centralizado no helper `app/db/rls.py` (fonte única), pronto para as tabelas clínicas da Fase 3.
+- [x] **Dois roles distintos:** `agenda_admin` (migração/owner, superusuário) × `agenda_app` (`NOSUPERUSER NOBYPASSRLS`, provisionado no init `02-roles.sh`) — RLS atua sobre a aplicação (§2.1.1).
+- [x] Ativar RLS + política `tenant_isolation` com `current_setting('app.current_tenant_id')` — **fail-closed** (`nullif` → sem contexto retorna vazio) (§2.1).
+- [x] **`FORCE ROW LEVEL SECURITY`** aplicado via helper (nem o dono escapa) (§2.1.1).
+- [ ] Índices B-Tree sobre `tenant_id` e `paciente_id` — junto das tabelas clínicas (Fase 3, §3.2).
+- [x] **Teste de isolamento:** `tests/integration/test_rls_isolation.py` (pytest) + `infra/postgres/checks/verify_rls.sql` (psql, via `SET ROLE agenda_app`) — provam isolamento T1/T2 e fail-closed.
 
 ### Definition of Done
-- Teste automatizado de *cross-tenant leakage* passa (retorno vazio para tenant errado).
-- **Nenhum** índice vetorial criado (Pesquisa Exata, §3.1).
+- Teste automatizado de *cross-tenant leakage* passa (retorno vazio para tenant errado). ⏳ *validar no servidor*
+- **Nenhum** índice vetorial criado (Pesquisa Exata, §3.1). ✅
+
+> **Construído 2026-07-17; pendente validação no servidor** (aplicar migration + rodar `verify_rls.sql`). Requer **reset do volume** do Postgres para o init `02-roles.sh` criar o `agenda_app` (dados atuais são descartáveis).
 
 ---
 
@@ -261,6 +263,7 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 - 2026-07-17 — [Fase 0] Criados `arquitetura.md` (regras de ouro) e `planejamento_arquitetura.md` (este roadmap). Projeto ainda sem `git init`.
 - 2026-07-17 — [Fase 0] Docs movidos para `docs/`. Estrutura rígida de diretórios criada: backend por domínio/módulo (`core/`, `db/`, `middleware/`, `api/`, `modules/` × 11 domínios), `frontend/`, `infra/`, `tests/`. Criados `.gitignore`, `.env.example`, `README.md`. **Decisão:** backend organizado por domínio/módulo (não por camada).
 - 2026-07-17 — [Fase 0] `git init` (branch `main`), primeiro commit e push para `github.com/GA55555/projeto_agenda`. Falta `docker-compose.yml` (§1.1) + `postgresql.conf` (§1.2) + Dockerfiles para fechar a fase.
+- 2026-07-17 — [Fase 1] Construída (validar no servidor): Alembic (`env.py` usa role admin via settings); migration `0001` cria `tenants` + RLS `tenant_isolation` **FORCE**, fail-closed; helper único `app/db/rls.py`; role `agenda_app` (`NOSUPERUSER NOBYPASSRLS`) via init `02-roles.sh`; `config.py` com URLs admin/app; teste `test_rls_isolation.py` + `verify_rls.sql` (SET ROLE). Validado local: imports + render do SQL de RLS OK. **Deploy exige `docker compose down -v`** (dados descartáveis) p/ o init criar o role.
 - 2026-07-17 — [Fase 0] ✅ **Fase 0 concluída e validada no servidor Debian.** `docker compose up` sobe postgres (`healthy`, ~52 MB) + backend (`healthy`), extensão `vector` 0.8.5, `/health`→200. Ajuste: `BACKEND_HOST_PORT=8010` (Portainer ocupa a 8000). Repo do servidor reconciliado (`master`→`main`, remote `origin` adicionado).
 - 2026-07-17 — [Fase 0/1] Rota 1: `infra/postgres/postgresql.conf` afinado (§1.2, sem log de statements p/ evitar PII) + `init/01-extensions.sql` (pgvector, sem índice §3.1); backend `pyproject.toml` + `Dockerfile` multi-stage slim (§4.1) + app mínimo runnable (`/health`, GC §1.3); `infra/docker-compose.yml` (postgres 1.5GB + backend 1GB, `mem_limit` §1.1; BD sem porta exposta; backend só no localhost). Validado local: app boota e `/health`→200. Docker não roda neste WSL; `docker compose up` fica p/ o servidor Debian (requer criar `.env`).
 - 2026-07-17 — [Docs] Avaliada administração da BD. **Decisão: sem GUI** — acesso por `psql` via `docker compose exec` (menor exposição, §0.3; 0 MB, §1.1). pgAdmin descartado. Mantida a **§2.1.1 (nova regra)**: role de app sem privilégio + `FORCE ROW LEVEL SECURITY`; o superusuário/`psql` ignora o RLS por desenho e é *break-glass*. Docs (§0.2, §1.1, §2.1.1, §4.1, §5) e Fases 0/1/9 reconciliados. Debian já constava.

@@ -32,6 +32,9 @@ RUN groupadd -r app && useradd -r -g app -d /app app
 WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
 COPY app ./app
+# Migrations rodam dentro do contentor (docker compose exec backend alembic ...).
+COPY alembic.ini ./
+COPY migrations ./migrations
 
 USER app
 EXPOSE 8000
