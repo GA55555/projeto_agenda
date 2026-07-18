@@ -14,10 +14,10 @@
 
 | Campo | Valor |
 | --- | --- |
-| Fase corrente | **Fase 0 — Fundações** |
+| Fase corrente | **Fase 1 — Base de Dados & Multitenancy** |
 | Última atualização | 2026-07-17 |
 | Bloqueios ativos | Nenhum |
-| Próximo passo imediato | Validar `docker compose up` no servidor Debian (criar `.env`); depois iniciar Fase 1 (Alembic, roles, RLS + `FORCE`) |
+| Próximo passo imediato | Fase 1: Alembic + role `agenda_app` (NOSUPERUSER) + tabela `tenants` + RLS com `FORCE` + teste de isolamento |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
@@ -27,7 +27,7 @@
 
 | # | Fase | Objetivo central | Status |
 | --- | --- | --- | --- |
-| 0 | Fundações & Infra Base | Esqueleto do repositório, Docker e limites de RAM | 🟡 Em progresso (validar no servidor) |
+| 0 | Fundações & Infra Base | Esqueleto do repositório, Docker e limites de RAM | ✅ Concluído |
 | 1 | Base de Dados & Multitenancy | PostgreSQL + pgvector + RLS funcionando | ⬜ Não iniciado |
 | 2 | Backend Core (FastAPI) | API base, auth, injeção de tenant | ⬜ Não iniciado |
 | 3 | Modelo de Domínio & Consentimento | Pacientes, responsáveis, TCLE, auditoria | ⬜ Não iniciado |
@@ -61,6 +61,8 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 ### Definition of Done
 - `docker compose up` sobe os 3 contentores (postgres, backend, frontend) sem exceder o orçamento de RAM.
 - Nenhum segredo commitado; `.env` está no `.gitignore`.
+
+> ✅ **Concluído 2026-07-17 no servidor Debian.** postgres + backend `healthy`; extensão `vector` ativa; `/health`→`{"status":"ok"}`. **Nota de infra:** a 8000 do host é ocupada pelo Portainer → backend publicado em `127.0.0.1:8010` via `BACKEND_HOST_PORT=8010` no `.env`. Frontend fica para a Fase 7.
 
 ---
 
@@ -259,6 +261,7 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 - 2026-07-17 — [Fase 0] Criados `arquitetura.md` (regras de ouro) e `planejamento_arquitetura.md` (este roadmap). Projeto ainda sem `git init`.
 - 2026-07-17 — [Fase 0] Docs movidos para `docs/`. Estrutura rígida de diretórios criada: backend por domínio/módulo (`core/`, `db/`, `middleware/`, `api/`, `modules/` × 11 domínios), `frontend/`, `infra/`, `tests/`. Criados `.gitignore`, `.env.example`, `README.md`. **Decisão:** backend organizado por domínio/módulo (não por camada).
 - 2026-07-17 — [Fase 0] `git init` (branch `main`), primeiro commit e push para `github.com/GA55555/projeto_agenda`. Falta `docker-compose.yml` (§1.1) + `postgresql.conf` (§1.2) + Dockerfiles para fechar a fase.
+- 2026-07-17 — [Fase 0] ✅ **Fase 0 concluída e validada no servidor Debian.** `docker compose up` sobe postgres (`healthy`, ~52 MB) + backend (`healthy`), extensão `vector` 0.8.5, `/health`→200. Ajuste: `BACKEND_HOST_PORT=8010` (Portainer ocupa a 8000). Repo do servidor reconciliado (`master`→`main`, remote `origin` adicionado).
 - 2026-07-17 — [Fase 0/1] Rota 1: `infra/postgres/postgresql.conf` afinado (§1.2, sem log de statements p/ evitar PII) + `init/01-extensions.sql` (pgvector, sem índice §3.1); backend `pyproject.toml` + `Dockerfile` multi-stage slim (§4.1) + app mínimo runnable (`/health`, GC §1.3); `infra/docker-compose.yml` (postgres 1.5GB + backend 1GB, `mem_limit` §1.1; BD sem porta exposta; backend só no localhost). Validado local: app boota e `/health`→200. Docker não roda neste WSL; `docker compose up` fica p/ o servidor Debian (requer criar `.env`).
 - 2026-07-17 — [Docs] Avaliada administração da BD. **Decisão: sem GUI** — acesso por `psql` via `docker compose exec` (menor exposição, §0.3; 0 MB, §1.1). pgAdmin descartado. Mantida a **§2.1.1 (nova regra)**: role de app sem privilégio + `FORCE ROW LEVEL SECURITY`; o superusuário/`psql` ignora o RLS por desenho e é *break-glass*. Docs (§0.2, §1.1, §2.1.1, §4.1, §5) e Fases 0/1/9 reconciliados. Debian já constava.
 
