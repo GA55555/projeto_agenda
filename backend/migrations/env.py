@@ -17,6 +17,11 @@ from app.db.base import Base
 # Importa os modulos que registam tabelas no metadata (para autogenerate futuro).
 import app.modules.tenants.models  # noqa: F401
 import app.modules.auth.models  # noqa: F401
+# Fase 3 — dominio & consentimento
+import app.modules.responsaveis.models  # noqa: F401
+import app.modules.pacientes.models  # noqa: F401
+import app.modules.consentimentos.models  # noqa: F401
+import app.modules.audit.models  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:
