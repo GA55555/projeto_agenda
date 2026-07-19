@@ -14,10 +14,10 @@
 
 | Campo | Valor |
 | --- | --- |
-| Fase corrente | **Fase 5 (IA Vetorial & RAG) construída + revisada + validada local** — aguarda **deploy/validação no servidor** |
+| Fase corrente | **Fase 5 ✅ concluída e validada no servidor** — próxima: **Fase 6 (Integração LLM / geração de evoluções)** |
 | Última atualização | 2026-07-19 |
 | Bloqueios ativos | Nenhum |
-| Próximo passo imediato | **Deploy da Fase 5**: `git pull` → `up -d --build backend` → `alembic upgrade head` (**migration `0005`**); adicionar `OPENAI_API_KEY` ao `.env` do servidor (o `git pull` não atualiza o `.env`). Validar: criar evolução exige TCLE (§2.2); chunks gerados; com chave, embeddings preenchem (§3.4). |
+| Próximo passo imediato | Planejar a **Fase 6** (§2.3 só texto mascarado sai, §3.3 prompt dinâmico, §3.4 LLM sem tool + separação instrução/dado + guard-rail em toda saída + OpenAI retenção-zero): montar prompt (nota do dia + `buscar_contexto`) anonimizado → OpenAI → desanonimizar → aprovação. Usuário quer plano + perguntas antes de codar. **Pré-req operacional:** `OPENAI_API_KEY` ativa no `.env` do servidor (hoje ausente → embeddings pendentes). |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
@@ -65,7 +65,7 @@
 | 3 | Modelo de Domínio & Consentimento | Pacientes, responsáveis, TCLE, auditoria | ✅ Concluído |
 | 3.5 | Agenda de Atendimentos | Agendamentos vinculados a paciente + tenant | ✅ Concluído |
 | 4 | Pipeline de Pseudonimização | Túnel opaco anonimizar/desanonimizar (Aho-Corasick) | ✅ Concluído |
-| 5 | IA Vetorial & RAG | Embeddings, filtragem híbrida, chunking | 🟡 Construída (validar no servidor) |
+| 5 | IA Vetorial & RAG | Embeddings, filtragem híbrida, chunking | ✅ Concluído |
 | 6 | Integração LLM (OpenAI) | Geração de evoluções via túnel de pseudonimização | ⬜ Não iniciado |
 | 7 | Frontend (SPA) | Interface das psicólogas, aprovação de evoluções | ⬜ Não iniciado |
 | 8 | Automação n8n & Backups | Webhooks, OAuth2, PDFs, pg_dump/WAL | ⬜ Não iniciado |
@@ -246,7 +246,7 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 - Query RAG nunca roda sem os filtros de tenant/paciente. ✅ *(filtro explícito no `buscar_contexto` + RLS; teste do filtro fica p/ Fase 6)*
 - Latência da busca exata < 50 ms no volume esperado. *(validar no servidor com dados)*
 
-> 🟡 **Construída, revisada e validada localmente (2026-07-19).** 42 unit tests + render offline da migration (RLS FORCE nas 2 tabelas, FK composto, **sem índice vetorial** §3.1, grants sem DELETE). Code-review de alto esforço → **#1/#2/#4 aplicados**: (#1) timeout curto no cliente OpenAI (embeddings síncronos não bloqueiam os 2 workers/pool pelo default de ~10 min); (#2) contagem de chunks via `COUNT` agregado (não materializa o vetor de 1536 dims, elimina N+1 no listar); (#4) removido `GRANT DELETE` desnecessário (menor privilégio §2.1.1). **Registrados p/ depois:** #3 (reuso de entidades/autômato por evolução), #5 (guarda de dimensão do vetor vs. modelo), #6 (teste do filtro híbrido do retrieval — Fase 6). **Aguarda deploy no servidor** (migration `0005` + `OPENAI_API_KEY` no `.env`).
+> ✅ **Concluída e validada no servidor (2026-07-19).** `alembic upgrade head` → `0005`. Provado por psql/API: RLS FORCE nas 2 tabelas (`relforcerowsecurity=t`), coluna `embedding vector(1536)`, índices só B-Tree (**sem `ivfflat`/`hnsw`**, §3.1). Smoke via API: criar evolução p/ paciente com TCLE revogado → **422** (gate §2.2); paciente com consentimento → **201** com `total_chunks:2` (chunking §3.3) e `embeddings_pendentes:2` (sem chave OpenAI ativa → **nota persiste**, degradação graciosa da decisão Fase 5). Code-review de alto esforço → **#1/#2/#4 aplicados** (timeout OpenAI; contagem via `COUNT` sem materializar o vetor; grant sem DELETE §2.1.1). **Registrados p/ depois:** #3 (reuso de entidades/autômato por evolução), #5 (guarda de dimensão do vetor vs. modelo), #6 (teste do filtro híbrido do retrieval — Fase 6).
 
 ---
 
@@ -339,6 +339,7 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 - 2026-07-17 — [Fase 0] Criados `arquitetura.md` (regras de ouro) e `planejamento_arquitetura.md` (este roadmap). Projeto ainda sem `git init`.
 - 2026-07-17 — [Fase 0] Docs movidos para `docs/`. Estrutura rígida de diretórios criada: backend por domínio/módulo (`core/`, `db/`, `middleware/`, `api/`, `modules/` × 11 domínios), `frontend/`, `infra/`, `tests/`. Criados `.gitignore`, `.env.example`, `README.md`. **Decisão:** backend organizado por domínio/módulo (não por camada).
 - 2026-07-17 — [Fase 0] `git init` (branch `main`), primeiro commit e push para `github.com/GA55555/projeto_agenda`. Falta `docker-compose.yml` (§1.1) + `postgresql.conf` (§1.2) + Dockerfiles para fechar a fase.
+- 2026-07-19 — [Fase 5] ✅ **Concluída e validada no servidor.** `alembic upgrade head` → `0005`. RLS FORCE nas 2 tabelas, `embedding vector(1536)`, **sem índice vetorial** (§3.1). Smoke API: gate §2.2 (TCLE revogado → **422**); criação → **201** com `total_chunks:2` e `embeddings_pendentes:2` (sem chave OpenAI → nota persiste, degradação graciosa). Deixado no servidor um paciente de teste COM consentimento ativo: `b0707184-d983-4301-b4cc-dac552494284` ("Crianca RAG") — útil p/ testes da Fase 6.
 - 2026-07-19 — [Fase 5] 🟡 **Construída + revisada + validada localmente (validar no servidor).** IA Vetorial & RAG: tabelas `evolucoes` (nota crua sob RLS) + `evolucao_chunks` (`embedding vector(1536)`), migration `0005` (RLS+FORCE, FK composto, **sem índice vetorial** §3.1). `chunking.py` (parágrafo+frase c/ overlap), `embeddings.py` (OpenAI lazy §1.3 + canonicalização de marcadores + timeout), `service.py` (gate TCLE §2.2 + anonimiza→guard-rail→embeda §3.4 + retrieval híbrido §3.2). Endpoints `POST/GET /evolucoes`. **Decisões:** nota crua + embedding só anonimizado; síncrono c/ nota persistindo se OpenAI falhar (embedding pendente); gate de consentimento; sem LLM (Fase 6). Code-review alto esforço → **#1/#2/#4 aplicados** (timeout OpenAI; contagem via COUNT sem materializar vetor; grant sem DELETE). **42 unit tests, 1 skip.** Deps novas: `pgvector`, `openai`.
 - 2026-07-19 — [Arquitetura] **Nova regra de ouro §3.4 "Superfície de ataque IA↔BD"** (constituição alterada, justificativa registada). Fixa 6 invariantes p/ a Fase 5/6: LLM sem tool/acesso ao BD; RAG sob RLS + filtro §3.2; **só vetorizar texto anonimizado** (embeddings são reversíveis); guard-rail em chat **e** embeddings; separação instrução/dado (anti prompt-injection); OpenAI retenção-zero. Checklist §5 atualizado. Motivada por pergunta do usuário sobre vazamento via prompts com BD compartilhado.
 - 2026-07-19 — [Fase 4] ✅ **Concluída e validada no servidor.** Build com `[nlp]`+`pt_core_news_sm`. Smoke no container: round-trip exato, Pedro/CPF mascarados, guard-rail detecta vazamento, **NER prova mapeamento PER→PERSON** (`João Silva`→PERSON, `São Paulo`/`Belo Horizonte`→LOCATION — achado #3 resolvido). Modelo `sm` com recall menor é aceitável (NER é reforço; PII cadastrada cai no Aho-Corasick). `/health`→200. Sem migration nova.
