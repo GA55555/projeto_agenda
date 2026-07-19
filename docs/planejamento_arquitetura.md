@@ -14,10 +14,10 @@
 
 | Campo | Valor |
 | --- | --- |
-| Fase corrente | **Fase 5 ✅ concluída e validada no servidor** — próxima: **Fase 6 (Integração LLM / geração de evoluções)** |
+| Fase corrente | **Fase 6 (Integração LLM) construída + revisada + validada local** — aguarda **deploy/validação no servidor** |
 | Última atualização | 2026-07-19 |
 | Bloqueios ativos | Nenhum |
-| Próximo passo imediato | Planejar a **Fase 6** (§2.3 só texto mascarado sai, §3.3 prompt dinâmico, §3.4 LLM sem tool + separação instrução/dado + guard-rail em toda saída + OpenAI retenção-zero): montar prompt (nota do dia + `buscar_contexto`) anonimizado → OpenAI → desanonimizar → aprovação. Usuário quer plano + perguntas antes de codar. **Pré-req operacional:** `OPENAI_API_KEY` ativa no `.env` do servidor (hoje ausente → embeddings pendentes). |
+| Próximo passo imediato | **Deploy da Fase 6**: `git pull` → `up -d --build backend` (**sem migration**). Para gerar de fato, **`OPENAI_API_KEY` ativa** no `.env` (hoje ausente). Validar: `POST /llm/evolucoes/rascunho` p/ paciente com TCLE → rascunho desanonimizado; sem chave → 503; guard-rail. Depois: **Fase 7 (Frontend)**. |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
@@ -66,7 +66,7 @@
 | 3.5 | Agenda de Atendimentos | Agendamentos vinculados a paciente + tenant | ✅ Concluído |
 | 4 | Pipeline de Pseudonimização | Túnel opaco anonimizar/desanonimizar (Aho-Corasick) | ✅ Concluído |
 | 5 | IA Vetorial & RAG | Embeddings, filtragem híbrida, chunking | ✅ Concluído |
-| 6 | Integração LLM (OpenAI) | Geração de evoluções via túnel de pseudonimização | ⬜ Não iniciado |
+| 6 | Integração LLM (OpenAI) | Geração de evoluções via túnel de pseudonimização | 🟡 Construída (validar no servidor) |
 | 7 | Frontend (SPA) | Interface das psicólogas, aprovação de evoluções | ⬜ Não iniciado |
 | 8 | Automação n8n & Backups | Webhooks, OAuth2, PDFs, pg_dump/WAL | ⬜ Não iniciado |
 | 9 | Hardening & Go-Live | Segurança final, limites, observabilidade, deploy | ⬜ Não iniciado |
@@ -256,17 +256,21 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 
 **Regras de ouro aplicáveis:** §2.3 (só texto mascarado sai), §3.3 (prompt dinâmico com contexto recuperado), **§3.4 (LLM sem tool de BD; separação instrução/dado; guard-rail em toda saída; OpenAI retenção-zero)**.
 
+**Decisões de design (2026-07-19, via AskUserQuestion):** deliverable = **rascunho de evolução + destaques longitudinais** (resposta em JSON); persistência **stateless** (só retorna; salvar aprovado usa `POST /evolucoes` da Fase 5 na Fase 7 — **sem migration**); modelo **`gpt-4o-mini`** (via env, `temperature` baixa); **gate de TCLE ativo** na geração (§2.2).
+
 ### Tarefas
-- [ ] Montagem de prompt dinâmico: nota do dia + blocos históricos relevantes (Fase 5), **todos anonimizados**.
-- [ ] Chamada à OpenAI recebendo apenas tokens artificiais.
-- [ ] Desanonimização da resposta antes de exibir (Fase 4).
-- [ ] **Guard-rail:** validação que aborta a chamada se PII for detectada no payload de saída.
-- [ ] Tratamento de erros/limites de tokens.
-- [ ] Chave OpenAI via Docker Secret / `.env` restrito (§4.1).
+- [x] Montagem de prompt dinâmico (`prompts.py`): nota do dia + blocos históricos (Fase 5), **anonimizados numa única passagem** (marcadores consistentes); instrução separada do dado (§3.4 #5).
+- [x] Chamada à OpenAI (`client.py`) recebendo só tokens artificiais; **sem tools** (§3.4 #1), `store=False` (retenção-zero §3.4 #6), timeout de chat próprio.
+- [x] Desanonimização da resposta antes de exibir (Fase 4); marcadores residuais/alucinados limpos.
+- [x] **Guard-rail** (§3.4 #4): aborta a chamada (hard-fail, 422) se PII conhecida aparecer no payload de saída.
+- [x] Tratamento de erros (OpenAI indisponível → 503; JSON inválido → fallback tolerante).
+- [x] Chave OpenAI via `.env` restrito (§4.1); `POST /llm/evolucoes/rascunho`.
 
 ### Definition of Done
-- Log/inspeção confirma que o payload enviado à OpenAI não tem PII.
-- Resposta final ao usuário aparece desanonimizada e legível.
+- Log/inspeção confirma que o payload enviado à OpenAI não tem PII. ✅ *(guard-rail + teste prova que nada de PII crua sai; abortar antes da chamada)*
+- Resposta final ao usuário aparece desanonimizada e legível. ✅ *(desanonimização com o mapa volátil; teste de round-trip)*
+
+> 🟡 **Construída, revisada e validada localmente (2026-07-19).** Módulo `llm` stateless (sem tabela/migration). Fluxo: gate TCLE → RAG (`buscar_contexto`) → monta+anonimiza numa passagem → **guard-rail hard-abort** → OpenAI (`gpt-4o-mini`, sem tools, `store=false`) → desanonimiza → rascunho. **55 unit tests** (payload sem PII, desanonimização, marcadores consistentes nota↔histórico, guard-rail aborta antes da OpenAI, gate, parsing tolerante). Code-review de alto esforço → **5 achados aplicados**: (#1) timeout de chat separado (60s, evita 503 espúrio); (#2) palavra "json" minúscula no prompt (modo `json_object`); (#3) limpeza de marcadores residuais; (#4) `anonimizar_com_entidades` reusa entidades (também otimiza a Fase 5); (#5) `SemConsentimentoAtivo` centralizada em `consentimentos`. **Aguarda deploy** (sem migration; requer `OPENAI_API_KEY` ativa p/ gerar de fato).
 
 ---
 
@@ -339,6 +343,7 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 - 2026-07-17 — [Fase 0] Criados `arquitetura.md` (regras de ouro) e `planejamento_arquitetura.md` (este roadmap). Projeto ainda sem `git init`.
 - 2026-07-17 — [Fase 0] Docs movidos para `docs/`. Estrutura rígida de diretórios criada: backend por domínio/módulo (`core/`, `db/`, `middleware/`, `api/`, `modules/` × 11 domínios), `frontend/`, `infra/`, `tests/`. Criados `.gitignore`, `.env.example`, `README.md`. **Decisão:** backend organizado por domínio/módulo (não por camada).
 - 2026-07-17 — [Fase 0] `git init` (branch `main`), primeiro commit e push para `github.com/GA55555/projeto_agenda`. Falta `docker-compose.yml` (§1.1) + `postgresql.conf` (§1.2) + Dockerfiles para fechar a fase.
+- 2026-07-19 — [Fase 6] 🟡 **Construída + revisada + validada localmente (validar no servidor).** Módulo `llm` stateless (sem migration): túnel completo `prompts.py`/`client.py`/`service.py`. Fluxo: gate TCLE §2.2 → RAG (`buscar_contexto`) → monta nota+histórico e **anonimiza numa passagem** (marcadores consistentes) → **guard-rail hard-abort** §3.4 → OpenAI (`gpt-4o-mini`, **sem tools**, `store=false`, timeout de chat) → **desanonimiza** → rascunho (evolução + destaques) p/ aprovação (Fase 7). Endpoint `POST /llm/evolucoes/rascunho`. Decisões: ambos deliverables (JSON); stateless; gpt-4o-mini; gate consentimento. Code-review alto esforço → **5 achados aplicados** (timeout de chat separado; "json" minúsculo p/ `json_object`; limpa marcadores residuais; `anonimizar_com_entidades` reusa entidades — otimiza Fase 5 tb; `SemConsentimentoAtivo` centralizada). **55 unit tests, 1 skip.**
 - 2026-07-19 — [Fase 5] ✅ **Concluída e validada no servidor.** `alembic upgrade head` → `0005`. RLS FORCE nas 2 tabelas, `embedding vector(1536)`, **sem índice vetorial** (§3.1). Smoke API: gate §2.2 (TCLE revogado → **422**); criação → **201** com `total_chunks:2` e `embeddings_pendentes:2` (sem chave OpenAI → nota persiste, degradação graciosa). Deixado no servidor um paciente de teste COM consentimento ativo: `b0707184-d983-4301-b4cc-dac552494284` ("Crianca RAG") — útil p/ testes da Fase 6.
 - 2026-07-19 — [Fase 5] 🟡 **Construída + revisada + validada localmente (validar no servidor).** IA Vetorial & RAG: tabelas `evolucoes` (nota crua sob RLS) + `evolucao_chunks` (`embedding vector(1536)`), migration `0005` (RLS+FORCE, FK composto, **sem índice vetorial** §3.1). `chunking.py` (parágrafo+frase c/ overlap), `embeddings.py` (OpenAI lazy §1.3 + canonicalização de marcadores + timeout), `service.py` (gate TCLE §2.2 + anonimiza→guard-rail→embeda §3.4 + retrieval híbrido §3.2). Endpoints `POST/GET /evolucoes`. **Decisões:** nota crua + embedding só anonimizado; síncrono c/ nota persistindo se OpenAI falhar (embedding pendente); gate de consentimento; sem LLM (Fase 6). Code-review alto esforço → **#1/#2/#4 aplicados** (timeout OpenAI; contagem via COUNT sem materializar vetor; grant sem DELETE). **42 unit tests, 1 skip.** Deps novas: `pgvector`, `openai`.
 - 2026-07-19 — [Arquitetura] **Nova regra de ouro §3.4 "Superfície de ataque IA↔BD"** (constituição alterada, justificativa registada). Fixa 6 invariantes p/ a Fase 5/6: LLM sem tool/acesso ao BD; RAG sob RLS + filtro §3.2; **só vetorizar texto anonimizado** (embeddings são reversíveis); guard-rail em chat **e** embeddings; separação instrução/dado (anti prompt-injection); OpenAI retenção-zero. Checklist §5 atualizado. Motivada por pergunta do usuário sobre vazamento via prompts com BD compartilhado.

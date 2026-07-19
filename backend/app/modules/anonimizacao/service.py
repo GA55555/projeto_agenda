@@ -52,7 +52,18 @@ def anonimizar_texto(
     `db` deve carregar o contexto de tenant (RLS ativo) — as entidades cadastradas
     sao lidas sob isolamento do motor (§2.1).
     """
-    entidades = coletar_entidades(db, paciente_id)
+    return anonimizar_com_entidades(coletar_entidades(db, paciente_id), texto)
+
+
+def anonimizar_com_entidades(
+    entidades: list[tuple[str, str]], texto: str
+) -> tuple[str, MapaPseudonimizacao]:
+    """Como `anonimizar_texto`, mas com entidades JA coletadas (sem tocar o BD).
+
+    Evita re-consultar `coletar_entidades` quando o chamador vai anonimizar
+    varios textos do mesmo paciente (ex.: chunks na Fase 5, bloco de prompt na
+    Fase 6) — coleta uma vez e reusa.
+    """
     ocorrencias: list[Ocorrencia] = []
     ocorrencias.extend(_detectar_cadastrados(texto, entidades))
     ocorrencias.extend(detectar_por_regex(texto))

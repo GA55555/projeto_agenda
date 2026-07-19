@@ -13,6 +13,7 @@ Fase do roadmap: Fase 4
 from app.modules.anonimizacao.guardrail import verificar_sem_pii
 from app.modules.anonimizacao.pseudonimizador import MapaPseudonimizacao
 from app.modules.anonimizacao.service import (
+    anonimizar_com_entidades,
     anonimizar_texto,
     desanonimizar_texto,
     entidades_do_paciente,
@@ -20,6 +21,7 @@ from app.modules.anonimizacao.service import (
 
 __all__ = [
     "anonimizar_texto",
+    "anonimizar_com_entidades",
     "desanonimizar_texto",
     "entidades_do_paciente",
     "verificar_sem_pii",

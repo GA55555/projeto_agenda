@@ -9,6 +9,7 @@ from app.modules.audit.router import router as audit_router
 from app.modules.auth.router import router as auth_router
 from app.modules.consentimentos.router import router as consentimentos_router
 from app.modules.evolucoes.router import router as evolucoes_router
+from app.modules.llm.router import router as llm_router
 from app.modules.pacientes.router import router as pacientes_router
 from app.modules.responsaveis.router import router as responsaveis_router
 from app.modules.tenants.router import router as tenants_router
@@ -25,3 +26,5 @@ api_router.include_router(audit_router)
 api_router.include_router(agendamentos_router)
 # Fase 5 — evolucoes clinicas + RAG (embeddings)
 api_router.include_router(evolucoes_router)
+# Fase 6 — geracao de evolucoes via LLM (tunel opaco)
+api_router.include_router(llm_router)

@@ -48,6 +48,15 @@ class Settings(BaseSettings):
     # do pool pelos ~10 min do default da OpenAI. Estouro -> chunk fica pendente.
     openai_timeout_seconds: float = 20.0
 
+    # ---- OpenAI / geracao (Fase 6, §2.3/§3.4) ----
+    # Modelo de chat para o rascunho de evolucao. So texto ANONIMIZADO sai (§2.3);
+    # sem tools/function-calling (§3.4). Temperatura baixa p/ consistencia clinica.
+    openai_chat_model: str = "gpt-4o-mini"
+    openai_chat_temperature: float = 0.3
+    # Geracao de texto e mais lenta que embeddings (pode levar dezenas de seg);
+    # timeout proprio, MAIOR, para nao dar 503 espurio em geracao normal.
+    openai_chat_timeout_seconds: float = 60.0
+
     @property
     def admin_database_url(self) -> str:
         """Ligacao com privilegio para rodar migrations (agenda_admin)."""

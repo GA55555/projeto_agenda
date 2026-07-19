@@ -14,7 +14,8 @@ from sqlalchemy.orm import Session
 from app.db.deps import get_tenant_session
 from app.modules.auth.dependencies import CurrentUser, get_current_user
 from app.modules.evolucoes import service
-from app.modules.evolucoes.exceptions import PacienteInexistente, SemConsentimentoAtivo
+from app.modules.consentimentos.exceptions import SemConsentimentoAtivo
+from app.modules.evolucoes.exceptions import PacienteInexistente
 from app.modules.evolucoes.schemas import EvolucaoCreate, EvolucaoOut
 
 router = APIRouter(prefix="/evolucoes", tags=["evolucoes"])

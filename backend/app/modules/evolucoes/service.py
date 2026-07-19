@@ -25,20 +25,17 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.modules.anonimizacao import (
-    anonimizar_texto,
+    anonimizar_com_entidades,
     entidades_do_paciente,
     verificar_sem_pii,
 )
 from app.modules.anonimizacao.exceptions import PIIVazadaError
 from app.modules.auth.dependencies import CurrentUser
-from app.modules.consentimentos.models import Consentimento
+from app.modules.consentimentos.exceptions import SemConsentimentoAtivo
+from app.modules.consentimentos.service import tem_consentimento_ativo
 from app.modules.evolucoes.chunking import dividir_em_chunks
 from app.modules.evolucoes.embeddings import canonicalizar_marcadores, gerar_embedding
-from app.modules.evolucoes.exceptions import (
-    EmbeddingIndisponivel,
-    PacienteInexistente,
-    SemConsentimentoAtivo,
-)
+from app.modules.evolucoes.exceptions import EmbeddingIndisponivel, PacienteInexistente
 from app.modules.evolucoes.models import Evolucao, EvolucaoChunk
 from app.modules.evolucoes.schemas import EvolucaoCreate, EvolucaoOut
 from app.modules.pacientes.models import Paciente
@@ -46,25 +43,16 @@ from app.modules.pacientes.models import Paciente
 logger = logging.getLogger(__name__)
 
 
-def _tem_consentimento_ativo(db: Session, paciente_id: uuid.UUID) -> bool:
-    stmt = (
-        select(Consentimento.id)
-        .where(Consentimento.paciente_id == paciente_id)
-        .where(Consentimento.revogado_em.is_(None))
-        .limit(1)
-    )
-    return db.execute(stmt).first() is not None
-
-
 def _tentar_embedding(
-    db: Session, paciente_id: uuid.UUID, texto_chunk: str, entidades: list[tuple[str, str]]
+    texto: str, entidades: list[tuple[str, str]]
 ) -> list[float] | None:
     """Anonimiza -> guard-rail -> canonicaliza -> embeda. None em falha/vazamento.
 
     Nunca deixa PII sair (§3.4): se o guard-rail detectar PII conhecida, aborta
-    a chamada externa e devolve None (chunk fica pendente).
+    a chamada externa e devolve None (chunk fica pendente). Entidades ja coletadas
+    (uma vez por evolucao/consulta) — sem re-query ao BD.
     """
-    mascarado, _mapa = anonimizar_texto(db, paciente_id, texto_chunk)
+    mascarado, _mapa = anonimizar_com_entidades(entidades, texto)
     try:
         verificar_sem_pii(mascarado, entidades)  # §3.4 #4 (guard-rail nos embeddings)
     except PIIVazadaError:
@@ -81,7 +69,7 @@ def _tentar_embedding(
 def criar_evolucao(db: Session, user: CurrentUser, dados: EvolucaoCreate) -> EvolucaoOut:
     if db.get(Paciente, dados.paciente_id) is None:
         raise PacienteInexistente(str(dados.paciente_id))
-    if not _tem_consentimento_ativo(db, dados.paciente_id):
+    if not tem_consentimento_ativo(db, dados.paciente_id):
         raise SemConsentimentoAtivo(str(dados.paciente_id))
 
     evolucao = Evolucao(
@@ -103,7 +91,7 @@ def criar_evolucao(db: Session, user: CurrentUser, dados: EvolucaoCreate) -> Evo
             evolucao_id=evolucao.id,
             ordem=ordem,
             texto_chunk=texto_chunk,
-            embedding=_tentar_embedding(db, dados.paciente_id, texto_chunk, entidades),
+            embedding=_tentar_embedding(texto_chunk, entidades),
         )
         db.add(chunk)
         chunks.append(chunk)
@@ -147,7 +135,7 @@ def buscar_contexto(
     Filtragem hibrida OBRIGATORIA (§3.2): pre-filtra por tenant+paciente antes
     do calculo de distancia; Pesquisa Exata sem indice (§3.1). Devolve texto CRU.
     """
-    vetor = _tentar_embedding(db, paciente_id, texto_novo, entidades)
+    vetor = _tentar_embedding(texto_novo, entidades)
     if vetor is None:
         return []  # sem embedding de consulta -> degrada para sem-RAG
     stmt = (
