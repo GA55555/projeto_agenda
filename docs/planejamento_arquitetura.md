@@ -14,10 +14,10 @@
 
 | Campo | Valor |
 | --- | --- |
-| Fase corrente | **Fase 7a (fundação SPA) construída + revisada + validada local** — aguarda **deploy**; depois **7b (telas)** |
+| Fase corrente | **Fase 7a ✅ deployada e validada no servidor** — próxima: **7b (telas)** |
 | Última atualização | 2026-07-19 |
 | Bloqueios ativos | Nenhum |
-| Próximo passo imediato | **Deploy da 7a**: `git pull` → **`COOKIE_SECURE=false` no `.env`** (HTTP) → `cd infra && docker compose --env-file ../.env up -d --build frontend`. Validar login pela SPA em `http://127.0.0.1:8080` (cookie httpOnly gruda; Home mostra clínica). Depois: **7b (agenda, ficha, editor de evolução + aprovação)**. |
+| Próximo passo imediato | Planejar a **7b**: agenda (lista `agendamentos`), ficha do paciente (dados+responsáveis+consentimento+evoluções) e **editor de evolução** (nota → `POST /llm/evolucoes/rascunho` → revisar/editar → aprovar → `POST /evolucoes`) + assinatura. Consome a SPA/auth já no ar. Usuário quer plano + perguntas antes de codar. |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
@@ -42,7 +42,8 @@
 - **Repositório:** `github.com/GA55555/projeto_agenda`, branch **`main`**. Dev local em WSL (`/home/hades/dev/agenda_de_atendimentos`) → commit/push. **Servidor só faz `git pull`** (nunca commitar/pushar do servidor).
 - **Servidor:** Debian (`hadesserver`), Docker 29 + Compose v2. Projeto em `~/vscode/config/workspace/projeto_agenda`. Já roda outros serviços (Portainer, n8n, code-server, homarr, pgAdmin de outro projeto).
 - **Comandos Docker rodam de dentro de `infra/`** com `--env-file ../.env` (o compose está em `infra/`, o `.env` na raiz). Ex.: `cd infra && docker compose --env-file ../.env up -d`.
-- **Portas:** backend publicado em `127.0.0.1:8010` (`BACKEND_HOST_PORT` — a 8000 é do Portainer). Postgres **sem** porta exposta. Sem GUI de admin (só `psql` via `exec`, §2.1.1).
+- **Portas:** backend publicado em `127.0.0.1:8010` (`BACKEND_HOST_PORT` — a 8000 é do Portainer). **Frontend (SPA) em `127.0.0.1:8090`** (`FRONTEND_HOST_PORT` — a 8080 é do Homarr → `/board`). Postgres **sem** porta exposta. Sem GUI de admin (só `psql` via `exec`, §2.1.1). O browser fala **só com o Nginx** (`8090`), que faz proxy de `/api`→backend.
+- **`.env` da Fase 7:** `FRONTEND_HOST_PORT=8090` e **`COOKIE_SECURE=false`** (deploy HTTP; sob TLS no §9 vira `true`, senão o cookie `Secure` não gruda e o login falha silenciosamente).
 - **`.env` (fora do git, `chmod 600`):** segredos gerados **no servidor** (`POSTGRES_PASSWORD`, `APP_DB_PASSWORD`, `JWT_SECRET_KEY`, `DATABASE_URL` com a senha do `agenda_app`). Ao adicionar variáveis novas ao `.env.example`, lembrar que o `.env` do servidor **não** é atualizado pelo `git pull` — editar à mão.
 - **Deploy padrão de código:** `git pull` → `docker compose --env-file ../.env up -d --build [backend]` → `docker compose --env-file ../.env exec backend alembic upgrade head`.
 - **Fase 5 (RAG):** deploy padrão + **`alembic upgrade head`** (migration `0005`: `evolucoes` + `evolucao_chunks`). Adicionar **`OPENAI_API_KEY`** ao `.env` do servidor à mão (o `git pull` não toca o `.env`). Sem a chave, evoluções são criadas normalmente e os embeddings ficam **pendentes** (null) até a chave existir. `pgvector`/`openai` já entram no build (deps base).
@@ -67,7 +68,7 @@
 | 4 | Pipeline de Pseudonimização | Túnel opaco anonimizar/desanonimizar (Aho-Corasick) | ✅ Concluído |
 | 5 | IA Vetorial & RAG | Embeddings, filtragem híbrida, chunking | ✅ Concluído |
 | 6 | Integração LLM (OpenAI) | Geração de evoluções via túnel de pseudonimização | ✅ Concluído |
-| 7 | Frontend (SPA) | Interface das psicólogas, aprovação de evoluções | 🟡 7a construída (validar); 7b pendente |
+| 7 | Frontend (SPA) | Interface das psicólogas, aprovação de evoluções | 🟡 7a ✅ (servidor); 7b pendente |
 | 8 | Automação n8n & Backups | Webhooks, OAuth2, PDFs, pg_dump/WAL | ⬜ Não iniciado |
 | 9 | Hardening & Go-Live | Segurança final, limites, observabilidade, deploy | ⬜ Não iniciado |
 
@@ -298,7 +299,7 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 - Fluxo completo: nota → IA → revisão → aprovação → gravação funciona ponta a ponta. *(7b)*
 - Contentor frontend respeita 100 MB. ✅ *(Nginx alpine estático)*
 
-> 🟡 **7a construída, revisada e validada localmente (2026-07-19).** Backend: **61 unit tests** (6 novos de cookie/bearer). Frontend: `npm run build` ✅ (JS 54 KB gzip) + `tsc --noEmit` ✅. Code-review de alto esforço → **7 achados, 6 aplicados** (1 mantido como design): (#1) `COOKIE_SECURE` default **false** (evita loop de login em HTTP); (#2) handler global de 401 (sessão expirada → login); (#3) erros de login diferenciados; (#5) `logout` espelha atributos do cookie; (#6) simplifica `catch`; (#7) `npm ci`. **#4** (cookie-only) **mantido dual-mode** de propósito — cookie-only quebraria o login bearer usado por curl/testes, sem ganho real (XSS não lê httpOnly). **Deploy:** `up -d --build frontend` (novo serviço, `127.0.0.1:8080`); **`COOKIE_SECURE=false` no `.env`** enquanto HTTP.
+> ✅ **7a deployada e validada no servidor (2026-07-19).** Backend: **61 unit tests** (6 novos de cookie/bearer); frontend `build`+`tsc` OK. Code-review → **7 achados, 6 aplicados** (#4 mantido dual-mode de propósito). No servidor: SPA servida (`200`, headers de segurança/CSP), e **auth por cookie httpOnly provado ponta a ponta** — `login`→`/auth/me` só com cookie devolveu o contexto do JWT via Nginx→backend. **Infra do deploy:** porta host **8090** (a 8080 é do Homarr — conflito, igual à 8000/Portainer→8010); **`COOKIE_SECURE=false`** no `.env` (HTTP). Bug do healthcheck (`wget -qO-` não parseia no BusyBox) corrigido p/ `wget -q -O /dev/null`.
 
 ---
 
@@ -351,6 +352,7 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 - 2026-07-17 — [Fase 0] Criados `arquitetura.md` (regras de ouro) e `planejamento_arquitetura.md` (este roadmap). Projeto ainda sem `git init`.
 - 2026-07-17 — [Fase 0] Docs movidos para `docs/`. Estrutura rígida de diretórios criada: backend por domínio/módulo (`core/`, `db/`, `middleware/`, `api/`, `modules/` × 11 domínios), `frontend/`, `infra/`, `tests/`. Criados `.gitignore`, `.env.example`, `README.md`. **Decisão:** backend organizado por domínio/módulo (não por camada).
 - 2026-07-17 — [Fase 0] `git init` (branch `main`), primeiro commit e push para `github.com/GA55555/projeto_agenda`. Falta `docker-compose.yml` (§1.1) + `postgresql.conf` (§1.2) + Dockerfiles para fechar a fase.
+- 2026-07-19 — [Fase 7a] ✅ **Deployada e validada no servidor.** SPA em `127.0.0.1:8090` (8080 é do Homarr); `COOKIE_SECURE=false` (HTTP). Provado: `GET /`→200 com CSP/headers; **login→/auth/me só com cookie httpOnly** devolveu o contexto do JWT via Nginx→backend (auth por cookie ponta a ponta, backend não-exposto). Healthcheck do BusyBox corrigido (`wget -q -O /dev/null`). Ver detalhe abaixo. ↓
 - 2026-07-19 — [Fase 7a] 🟡 **Fundação da SPA construída + revisada + validada localmente.** **React + Vite + TS**; Nginx serve estáticos + proxy `/api`→backend (mesma origem, zero CORS, backend não-exposto §2.1.1), multi-stage 100 MB (§1.1). **Auth por cookie httpOnly** (login seta cookie; `get_current_user` lê cookie|bearer; `/auth/logout`); SPA com cliente `credentials:include` (JS não lê token), AuthContext via `/auth/me`, handler global de 401, telas Login+Home. Decisões: React; vertical slice; cookie httpOnly; só psicólogas. Backend 61 unit tests; frontend `build`+`tsc` OK. Code-review → 7 achados, 6 aplicados (COOKIE_SECURE default false, 401 global, erros diferenciados, logout espelha atributos, catch simplificado, npm ci); #4 mantido dual-mode. **Deploy exige `COOKIE_SECURE=false` no `.env` (HTTP).** Próxima: **7b (telas)**.
 - 2026-07-19 — [Fase 6] ✅ **Concluída e validada no servidor.** Smoke com `OPENAI_API_KEY` ativa: `POST /llm/evolucoes/rascunho` → **200** com `evolucao` (evolução clínica coerente em pt, contextualizada) + `destaques` (3 alertas) + `chunks_contexto:0`. Provou contra a API viva: modo `json_object` (achado #2), sem 503 espúrio (achado #1), parse JSON→campos, desanonimização. Sem chave → 503 (fail-closed); campo errado → 422. **`OPENAI_API_KEY` agora ativa no servidor** (embeddings da Fase 5 também passam a preencher).
 - 2026-07-19 — [Fase 6] 🟡 **Construída + revisada + validada localmente (validar no servidor).** Módulo `llm` stateless (sem migration): túnel completo `prompts.py`/`client.py`/`service.py`. Fluxo: gate TCLE §2.2 → RAG (`buscar_contexto`) → monta nota+histórico e **anonimiza numa passagem** (marcadores consistentes) → **guard-rail hard-abort** §3.4 → OpenAI (`gpt-4o-mini`, **sem tools**, `store=false`, timeout de chat) → **desanonimiza** → rascunho (evolução + destaques) p/ aprovação (Fase 7). Endpoint `POST /llm/evolucoes/rascunho`. Decisões: ambos deliverables (JSON); stateless; gpt-4o-mini; gate consentimento. Code-review alto esforço → **5 achados aplicados** (timeout de chat separado; "json" minúsculo p/ `json_object`; limpa marcadores residuais; `anonimizar_com_entidades` reusa entidades — otimiza Fase 5 tb; `SemConsentimentoAtivo` centralizada). **55 unit tests, 1 skip.**

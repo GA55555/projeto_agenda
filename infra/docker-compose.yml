@@ -80,7 +80,8 @@ services:
       - "127.0.0.1:${FRONTEND_HOST_PORT:-8080}:80"
     networks: [internal]
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null 2>&1 || exit 1"]
+      # Forma portavel do BusyBox wget (a combinada `-qO-` nao parseia no BusyBox).
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost/ || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
