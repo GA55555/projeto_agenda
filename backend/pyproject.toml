@@ -22,6 +22,8 @@ dependencies = [
     "pyjwt>=2.8",                # JWT (§2.1/§4.1)
     "bcrypt>=4.1",               # hash de senha (uso direto; passlib incompat.)
     "python-multipart>=0.0.9",   # form data (login)
+    "pgvector>=0.3",             # tipo Vector p/ SQLAlchemy + operadores (§3.1)
+    "openai>=1.30",              # embeddings/geracao; cliente importado lazy (§1.3)
 ]
 
 [project.optional-dependencies]

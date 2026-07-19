@@ -38,6 +38,16 @@ class Settings(BaseSettings):
     ner_habilitado: bool = True
     ner_modelo_spacy: str = "pt_core_news_sm"
 
+    # ---- OpenAI / embeddings (§3.1/§3.4/§4.1) ----
+    # Chave via ambiente/Docker Secret, nunca no codigo. O texto que sai para a
+    # OpenAI e SEMPRE anonimizado (§3.4). Modelo text-embedding-3-small = 1536 dims.
+    openai_api_key: str = ""
+    openai_embedding_model: str = "text-embedding-3-small"
+    # Timeout CURTO: os embeddings sao sincronos dentro do request e ha apenas 2
+    # workers (§1.3). Uma chamada pendurada nao pode bloquear um worker/conexao
+    # do pool pelos ~10 min do default da OpenAI. Estouro -> chunk fica pendente.
+    openai_timeout_seconds: float = 20.0
+
     @property
     def admin_database_url(self) -> str:
         """Ligacao com privilegio para rodar migrations (agenda_admin)."""

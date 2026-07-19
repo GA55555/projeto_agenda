@@ -8,6 +8,7 @@ from app.modules.agendamentos.router import router as agendamentos_router
 from app.modules.audit.router import router as audit_router
 from app.modules.auth.router import router as auth_router
 from app.modules.consentimentos.router import router as consentimentos_router
+from app.modules.evolucoes.router import router as evolucoes_router
 from app.modules.pacientes.router import router as pacientes_router
 from app.modules.responsaveis.router import router as responsaveis_router
 from app.modules.tenants.router import router as tenants_router
@@ -22,3 +23,5 @@ api_router.include_router(consentimentos_router)
 api_router.include_router(audit_router)
 # Fase 3.5 — agenda de atendimentos
 api_router.include_router(agendamentos_router)
+# Fase 5 — evolucoes clinicas + RAG (embeddings)
+api_router.include_router(evolucoes_router)

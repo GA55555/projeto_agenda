@@ -14,10 +14,10 @@
 
 | Campo | Valor |
 | --- | --- |
-| Fase corrente | **Fase 4 ✅ concluída e validada no servidor** — próxima: **Fase 5 (IA Vetorial & RAG, pgvector)** |
+| Fase corrente | **Fase 5 (IA Vetorial & RAG) construída + revisada + validada local** — aguarda **deploy/validação no servidor** |
 | Última atualização | 2026-07-19 |
 | Bloqueios ativos | Nenhum |
-| Próximo passo imediato | Planejar a **Fase 5** (§3.1 sem índice vetorial, §3.2 filtragem híbrida `tenant_id`+`paciente_id`, §3.3 chunking): tabela `evolucoes` com `embedding vector(1536)`, embeddings via OpenAI sobre **texto já anonimizado (Fase 4)**. Usuário quer plano detalhado + perguntas de design antes de codar. |
+| Próximo passo imediato | **Deploy da Fase 5**: `git pull` → `up -d --build backend` → `alembic upgrade head` (**migration `0005`**); adicionar `OPENAI_API_KEY` ao `.env` do servidor (o `git pull` não atualiza o `.env`). Validar: criar evolução exige TCLE (§2.2); chunks gerados; com chave, embeddings preenchem (§3.4). |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
@@ -45,6 +45,7 @@
 - **Portas:** backend publicado em `127.0.0.1:8010` (`BACKEND_HOST_PORT` — a 8000 é do Portainer). Postgres **sem** porta exposta. Sem GUI de admin (só `psql` via `exec`, §2.1.1).
 - **`.env` (fora do git, `chmod 600`):** segredos gerados **no servidor** (`POSTGRES_PASSWORD`, `APP_DB_PASSWORD`, `JWT_SECRET_KEY`, `DATABASE_URL` com a senha do `agenda_app`). Ao adicionar variáveis novas ao `.env.example`, lembrar que o `.env` do servidor **não** é atualizado pelo `git pull` — editar à mão.
 - **Deploy padrão de código:** `git pull` → `docker compose --env-file ../.env up -d --build [backend]` → `docker compose --env-file ../.env exec backend alembic upgrade head`.
+- **Fase 5 (RAG):** deploy padrão + **`alembic upgrade head`** (migration `0005`: `evolucoes` + `evolucao_chunks`). Adicionar **`OPENAI_API_KEY`** ao `.env` do servidor à mão (o `git pull` não toca o `.env`). Sem a chave, evoluções são criadas normalmente e os embeddings ficam **pendentes** (null) até a chave existir. `pgvector`/`openai` já entram no build (deps base).
 - **Fase 4 (NER):** o `Dockerfile` do backend **já instala** o extra `[nlp]` + baixa `pt_core_news_sm` (modelo pequeno, §1.1) no build — NER ativo após `up -d --build backend`, sem passo manual. Import lazy (§1.3). Flag `NER_HABILITADO` no `.env` liga/desliga; sem o extra o pipeline degrada gracioso (só Aho-Corasick + regex). **Não** há migration na Fase 4.
 - **⚠️ Roles/init:** mudanças em `infra/postgres/init/*` (ex.: novo role) só reaplicam com **`docker compose --env-file ../.env down -v`** (recria o volume `pgdata`). Migrations aditivas **não** precisam. Dados atuais são **descartáveis** (só há 1 tenant de teste).
 - **Bootstrap de usuário:** `docker compose --env-file ../.env exec backend python -m app.cli criar-tenant-usuario --nome ... --email ... --senha ...`.
@@ -64,7 +65,7 @@
 | 3 | Modelo de Domínio & Consentimento | Pacientes, responsáveis, TCLE, auditoria | ✅ Concluído |
 | 3.5 | Agenda de Atendimentos | Agendamentos vinculados a paciente + tenant | ✅ Concluído |
 | 4 | Pipeline de Pseudonimização | Túnel opaco anonimizar/desanonimizar (Aho-Corasick) | ✅ Concluído |
-| 5 | IA Vetorial & RAG | Embeddings, filtragem híbrida, chunking | ⬜ Não iniciado |
+| 5 | IA Vetorial & RAG | Embeddings, filtragem híbrida, chunking | 🟡 Construída (validar no servidor) |
 | 6 | Integração LLM (OpenAI) | Geração de evoluções via túnel de pseudonimização | ⬜ Não iniciado |
 | 7 | Frontend (SPA) | Interface das psicólogas, aprovação de evoluções | ⬜ Não iniciado |
 | 8 | Automação n8n & Backups | Webhooks, OAuth2, PDFs, pg_dump/WAL | ⬜ Não iniciado |
@@ -230,17 +231,22 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 
 **Regras de ouro aplicáveis:** §3.1 (sem índice), §3.2 (filtragem híbrida obrigatória), §3.3 (chunking), **§3.4 (superfície IA↔BD: só vetorizar texto anonimizado; RAG sob RLS; guard-rail nos embeddings)**.
 
+**Decisões de design (2026-07-19, via AskUserQuestion):** (1) **nota crua** no BD sob RLS + **embedding só do texto anonimizado** (re-anonimiza no uso, Fase 6); (2) embeddings **síncronos**, nota **persiste mesmo se a OpenAI falhar** (chunk fica `embedding` pendente/null, re-embed depois); (3) criar evolução **exige TCLE ativo** (§2.2, gate no serviço); (4) escopo = tabelas+chunking+embed+retrieval+endpoints, **sem LLM** (Fase 6). Marcadores canonicalizados (`<PERSON_1>`→`<PERSON>`) só para o vetor (reduz ruído).
+
 ### Tarefas
-- [ ] Tabela `evolucoes` com coluna `embedding vector(1536)` (text-embedding-3-small).
-- [ ] Estratégia de **chunking**: particionar relatórios longos em blocos lógicos antes de vetorizar.
-- [ ] Serviço de embeddings (geração via OpenAI — texto **já anonimizado** na Fase 4).
-- [ ] Consulta RAG **sempre** pré-filtrada por `tenant_id` + `paciente_id`, depois `ORDER BY embedding <=> $vetor LIMIT k` (§3.2).
-- [ ] **Confirmar ausência de índice vetorial** (Pesquisa Exata, §3.1).
-- [ ] Testes de recall/latência com dados sintéticos.
+- [x] Tabela `evolucoes` (nota crua) + `evolucao_chunks` com coluna `embedding vector(1536)`; RLS+FORCE, FK composto, migration `0005`.
+- [x] Estratégia de **chunking** (`chunking.py`): parágrafos + subdivisão por frase com overlap.
+- [x] Serviço de embeddings (`embeddings.py`, OpenAI **lazy** §1.3, timeout curto) — texto **já anonimizado** (§3.4) + guard-rail antes da chamada.
+- [x] Consulta RAG (`service.buscar_contexto`) pré-filtrada por `tenant_id`+`paciente_id`, depois `ORDER BY embedding <=> $vetor LIMIT k` (§3.2).
+- [x] **Ausência de índice vetorial** confirmada no render da migration (Pesquisa Exata, §3.1).
+- [x] Gate de **consentimento ativo** (§2.2) + endpoints CRUD (`POST/GET /evolucoes`).
+- [~] Testes de recall/latência com dados sintéticos → **movido p/ Fase 6** (quando houver geração real e chave OpenAI no servidor).
 
 ### Definition of Done
-- Query RAG nunca roda sem os filtros de tenant/paciente.
-- Latência da busca exata < 50 ms no volume esperado.
+- Query RAG nunca roda sem os filtros de tenant/paciente. ✅ *(filtro explícito no `buscar_contexto` + RLS; teste do filtro fica p/ Fase 6)*
+- Latência da busca exata < 50 ms no volume esperado. *(validar no servidor com dados)*
+
+> 🟡 **Construída, revisada e validada localmente (2026-07-19).** 42 unit tests + render offline da migration (RLS FORCE nas 2 tabelas, FK composto, **sem índice vetorial** §3.1, grants sem DELETE). Code-review de alto esforço → **#1/#2/#4 aplicados**: (#1) timeout curto no cliente OpenAI (embeddings síncronos não bloqueiam os 2 workers/pool pelo default de ~10 min); (#2) contagem de chunks via `COUNT` agregado (não materializa o vetor de 1536 dims, elimina N+1 no listar); (#4) removido `GRANT DELETE` desnecessário (menor privilégio §2.1.1). **Registrados p/ depois:** #3 (reuso de entidades/autômato por evolução), #5 (guarda de dimensão do vetor vs. modelo), #6 (teste do filtro híbrido do retrieval — Fase 6). **Aguarda deploy no servidor** (migration `0005` + `OPENAI_API_KEY` no `.env`).
 
 ---
 
@@ -333,6 +339,7 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 - 2026-07-17 — [Fase 0] Criados `arquitetura.md` (regras de ouro) e `planejamento_arquitetura.md` (este roadmap). Projeto ainda sem `git init`.
 - 2026-07-17 — [Fase 0] Docs movidos para `docs/`. Estrutura rígida de diretórios criada: backend por domínio/módulo (`core/`, `db/`, `middleware/`, `api/`, `modules/` × 11 domínios), `frontend/`, `infra/`, `tests/`. Criados `.gitignore`, `.env.example`, `README.md`. **Decisão:** backend organizado por domínio/módulo (não por camada).
 - 2026-07-17 — [Fase 0] `git init` (branch `main`), primeiro commit e push para `github.com/GA55555/projeto_agenda`. Falta `docker-compose.yml` (§1.1) + `postgresql.conf` (§1.2) + Dockerfiles para fechar a fase.
+- 2026-07-19 — [Fase 5] 🟡 **Construída + revisada + validada localmente (validar no servidor).** IA Vetorial & RAG: tabelas `evolucoes` (nota crua sob RLS) + `evolucao_chunks` (`embedding vector(1536)`), migration `0005` (RLS+FORCE, FK composto, **sem índice vetorial** §3.1). `chunking.py` (parágrafo+frase c/ overlap), `embeddings.py` (OpenAI lazy §1.3 + canonicalização de marcadores + timeout), `service.py` (gate TCLE §2.2 + anonimiza→guard-rail→embeda §3.4 + retrieval híbrido §3.2). Endpoints `POST/GET /evolucoes`. **Decisões:** nota crua + embedding só anonimizado; síncrono c/ nota persistindo se OpenAI falhar (embedding pendente); gate de consentimento; sem LLM (Fase 6). Code-review alto esforço → **#1/#2/#4 aplicados** (timeout OpenAI; contagem via COUNT sem materializar vetor; grant sem DELETE). **42 unit tests, 1 skip.** Deps novas: `pgvector`, `openai`.
 - 2026-07-19 — [Arquitetura] **Nova regra de ouro §3.4 "Superfície de ataque IA↔BD"** (constituição alterada, justificativa registada). Fixa 6 invariantes p/ a Fase 5/6: LLM sem tool/acesso ao BD; RAG sob RLS + filtro §3.2; **só vetorizar texto anonimizado** (embeddings são reversíveis); guard-rail em chat **e** embeddings; separação instrução/dado (anti prompt-injection); OpenAI retenção-zero. Checklist §5 atualizado. Motivada por pergunta do usuário sobre vazamento via prompts com BD compartilhado.
 - 2026-07-19 — [Fase 4] ✅ **Concluída e validada no servidor.** Build com `[nlp]`+`pt_core_news_sm`. Smoke no container: round-trip exato, Pedro/CPF mascarados, guard-rail detecta vazamento, **NER prova mapeamento PER→PERSON** (`João Silva`→PERSON, `São Paulo`/`Belo Horizonte`→LOCATION — achado #3 resolvido). Modelo `sm` com recall menor é aceitável (NER é reforço; PII cadastrada cai no Aho-Corasick). `/health`→200. Sem migration nova.
 - 2026-07-19 — [Fase 4] 🟡 **Construída + revisada + validada localmente.** Túnel opaco §2.3 como **módulo puro** (sem rota/tabela/migration — a não-persistência é a garantia da regra). Camadas: **Aho-Corasick puro** (`automaton.py`, offset via `_fold` que preserva comprimento), **regex ancorado** CPF/telefone/e-mail/CEP (`recognizers.py`), **NER Presidio+`pt_core_news_sm` lazy** atrás do extra `[nlp]`+flag (`nlp.py`). `sources.py` coleta PII cadastrada sob RLS; `pseudonimizador.py` = dicionário volátil só-RAM (`__repr__` não vaza) + round-trip exato; `guardrail.py` aborta se PII conhecida escapar. **Decisões:** cadastrado+NER; dicionário por requisição; módulo puro; modelo pequeno (§1.1). Code-review alto esforço → **5 achados aplicados** (offset caseless, O(n²), mapeamento NER, dep não usada, desempate). **35 unit tests passed, 1 skipped** (NER). Sem migration nova (última = `0004`).
