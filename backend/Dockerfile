@@ -17,7 +17,12 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Copia so o necessario para resolver dependencias e instalar o pacote.
 COPY pyproject.toml ./
 COPY app ./app
-RUN pip install --upgrade pip && pip install .
+# Instala o pacote + extra [nlp] (Presidio + spaCy) para a camada NER da
+# pseudonimizacao (Fase 4, §2.3). Modelo pt PEQUENO (pt_core_news_sm) para caber
+# no mem_limit de 1 GB do backend (§1.1); instalado no venv e carregado lazy
+# em runtime (§1.3). O modelo vira um pacote no venv -> segue para o runtime.
+RUN pip install --upgrade pip && pip install ".[nlp]" \
+    && python -m spacy download pt_core_news_sm
 
 # ---- Estagio 2: runtime (apenas o venv + codigo, sem toolchain) ----
 FROM python:3.12-slim AS runtime
