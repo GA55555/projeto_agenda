@@ -98,3 +98,60 @@ button.link {
   color: var(--muted);
   font-size: 0.9rem;
 }
+
+.nav { display: flex; gap: 1rem; flex: 1; margin-left: 1.5rem; }
+.nav a { color: var(--muted); text-decoration: none; font-weight: 500; }
+.nav a.active { color: var(--fg); border-bottom: 2px solid var(--accent); }
+
+a { color: var(--accent); }
+
+.tabela { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+.tabela th, .tabela td {
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.92rem;
+}
+.tabela th { color: var(--muted); font-weight: 600; }
+.linha-inativa { opacity: 0.55; }
+
+.lista { list-style: none; padding: 0; margin: 0.5rem 0; }
+.lista li { padding: 0.4rem 0; border-bottom: 1px solid var(--border); }
+
+.tag {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  background: var(--border);
+  color: var(--fg);
+}
+.tag-realizado { background: #cdefdb; color: #1c5c38; }
+.tag-cancelado, .tag-falta { background: #f3d2d2; color: #7a2b2b; }
+@media (prefers-color-scheme: dark) {
+  .tag-realizado { background: #204b35; color: #b6e6c8; }
+  .tag-cancelado, .tag-falta { background: #4a2626; color: #e8b9b9; }
+}
+
+.cabecalho-secao { display: flex; align-items: center; justify-content: space-between; }
+.botao {
+  display: inline-block;
+  background: var(--accent);
+  color: var(--accent-fg);
+  padding: 0.4rem 0.8rem;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.campo { display: flex; flex-direction: column; gap: 0.3rem; margin: 1rem 0 0.5rem; font-size: 0.9rem; }
+.campo textarea {
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--fg);
+  font: inherit;
+  resize: vertical;
+}

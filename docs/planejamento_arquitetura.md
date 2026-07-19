@@ -14,10 +14,10 @@
 
 | Campo | Valor |
 | --- | --- |
-| Fase corrente | **Fase 7a ✅ deployada e validada no servidor** — próxima: **7b (telas)** |
+| Fase corrente | **Fase 7b (telas) construída + revisada + validada local** — aguarda **deploy/validação no servidor** |
 | Última atualização | 2026-07-19 |
 | Bloqueios ativos | Nenhum |
-| Próximo passo imediato | Planejar a **7b**: agenda (lista `agendamentos`), ficha do paciente (dados+responsáveis+consentimento+evoluções) e **editor de evolução** (nota → `POST /llm/evolucoes/rascunho` → revisar/editar → aprovar → `POST /evolucoes`) + assinatura. Consome a SPA/auth já no ar. Usuário quer plano + perguntas antes de codar. |
+| Próximo passo imediato | **Deploy da 7b**: `git pull` → `cd infra && docker compose --env-file ../.env up -d --build frontend` (frontend-only, sem migration). Validar no browser (`http://127.0.0.1:8090` via túnel SSH): login → agenda do dia → ficha do paciente `b0707184` → **Nova evolução** → gerar rascunho (IA) → aprovar/gravar. Depois: **Fase 8 (n8n & backups)** ou **§9**. |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
@@ -68,7 +68,7 @@
 | 4 | Pipeline de Pseudonimização | Túnel opaco anonimizar/desanonimizar (Aho-Corasick) | ✅ Concluído |
 | 5 | IA Vetorial & RAG | Embeddings, filtragem híbrida, chunking | ✅ Concluído |
 | 6 | Integração LLM (OpenAI) | Geração de evoluções via túnel de pseudonimização | ✅ Concluído |
-| 7 | Frontend (SPA) | Interface das psicólogas, aprovação de evoluções | 🟡 7a ✅ (servidor); 7b pendente |
+| 7 | Frontend (SPA) | Interface das psicólogas, aprovação de evoluções | 🟡 7a ✅ (servidor); 7b construída (validar) |
 | 8 | Automação n8n & Backups | Webhooks, OAuth2, PDFs, pg_dump/WAL | ⬜ Não iniciado |
 | 9 | Hardening & Go-Live | Segurança final, limites, observabilidade, deploy | ⬜ Não iniciado |
 
@@ -289,16 +289,18 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 - [x] **Auth por cookie httpOnly** no backend (login seta cookie; `get_current_user` lê cookie|bearer; `POST /auth/logout`); dual-mode intencional (bearer p/ curl/testes).
 - [x] SPA: cliente de API (`credentials: include`, JS não lê o token), AuthContext (`/auth/me`), handler global de 401, telas Login + Home (prova a sessão).
 
-### Tarefas — 7b (telas) ⬜ próxima
-- [ ] Agenda (lista de `agendamentos`); ficha do paciente (dados+responsáveis+consentimento+evoluções).
-- [ ] Editor de evolução: nota do dia → `POST /llm/evolucoes/rascunho` → revisar/editar (desanonimizado) → aprovar → `POST /evolucoes`.
-- [ ] Assinatura eletrônica da evolução.
-- [ ] Respeitar distinção de acesso pais × conteúdo terapêutico (§2.2).
+### Tarefas — 7b (telas) ✅ construída (validar no servidor)
+- [x] **Agenda do dia** (`GET /agendamentos` filtrado por [de,ate) do dia + mapa de nomes); **ficha do paciente** (dados+responsáveis+**status TCLE**+evoluções). Shell de navegação (Agenda·Pacientes·Sair).
+- [x] **Editor de evolução**: nota do dia → `POST /llm/evolucoes/rascunho` → revisar/editar (desanonimizado) → aprovar → `POST /evolucoes`. Trata 422 (mostra `detail` real), 503 (IA), 401 (login).
+- [→] Assinatura eletrônica formal → **§9** (decisão: "aprovar e gravar" = aprovação auditável via `autor_usuario_id`+timestamp; assinatura criptográfica depois).
+- [~] Distinção de acesso pais × conteúdo (§2.2) → app **só psicólogas** nesta fase; portal dos pais é fase própria.
 
 ### Definition of Done
-- Fluxo completo: nota → IA → revisão → aprovação → gravação funciona ponta a ponta. *(7b)*
+- Fluxo completo: nota → IA → revisão → aprovação → gravação funciona ponta a ponta. *(construído; validar no servidor com a chave OpenAI ativa)*
 - Contentor frontend respeita 100 MB. ✅ *(Nginx alpine estático)*
 
+> 🟡 **7b construída e validada localmente (2026-07-19).** Frontend-only (sem mudança de backend). Telas: Shell (nav), **Agenda do dia** (read-only), **Pacientes**, **Ficha do paciente** (TCLE ativo/revogado + botão "Nova evolução" só com TCLE), **Editor de evolução** (loop IA: nota→rascunho→revisar→aprovar→gravar). Cliente de API estendido (7 métodos + tipos), hook `useAsync`, datas pt-BR. `tsc`+`build` OK (JS ~57 KB gzip). Code-review → **5 achados aplicados** (422 mostra `detail` real — não confunde guard-rail de PII com TCLE; agenda-do-dia filtrada; ordena no BD; `Promise.allSettled` na ficha; confirma antes de sobrescrever rascunho). **Aguarda deploy/validação visual no servidor** (`8090`, chave OpenAI ativa; paciente `b0707184` tem TCLE).
+>
 > ✅ **7a deployada e validada no servidor (2026-07-19).** Backend: **61 unit tests** (6 novos de cookie/bearer); frontend `build`+`tsc` OK. Code-review → **7 achados, 6 aplicados** (#4 mantido dual-mode de propósito). No servidor: SPA servida (`200`, headers de segurança/CSP), e **auth por cookie httpOnly provado ponta a ponta** — `login`→`/auth/me` só com cookie devolveu o contexto do JWT via Nginx→backend. **Infra do deploy:** porta host **8090** (a 8080 é do Homarr — conflito, igual à 8000/Portainer→8010); **`COOKIE_SECURE=false`** no `.env` (HTTP). Bug do healthcheck (`wget -qO-` não parseia no BusyBox) corrigido p/ `wget -q -O /dev/null`.
 
 ---
@@ -352,6 +354,7 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 - 2026-07-17 — [Fase 0] Criados `arquitetura.md` (regras de ouro) e `planejamento_arquitetura.md` (este roadmap). Projeto ainda sem `git init`.
 - 2026-07-17 — [Fase 0] Docs movidos para `docs/`. Estrutura rígida de diretórios criada: backend por domínio/módulo (`core/`, `db/`, `middleware/`, `api/`, `modules/` × 11 domínios), `frontend/`, `infra/`, `tests/`. Criados `.gitignore`, `.env.example`, `README.md`. **Decisão:** backend organizado por domínio/módulo (não por camada).
 - 2026-07-17 — [Fase 0] `git init` (branch `main`), primeiro commit e push para `github.com/GA55555/projeto_agenda`. Falta `docker-compose.yml` (§1.1) + `postgresql.conf` (§1.2) + Dockerfiles para fechar a fase.
+- 2026-07-19 — [Fase 7b] 🟡 **Telas construídas + revisadas + validadas localmente (validar no servidor).** Frontend-only. Shell (nav Agenda·Pacientes·Sair); **Agenda do dia** (read-only, filtro [de,ate)); **Pacientes**; **Ficha** (TCLE ativo/revogado, responsáveis, evoluções, botão "Nova evolução" só com TCLE); **Editor** (loop IA: nota→`/llm/evolucoes/rascunho`→revisar/editar→aprovar→`/evolucoes`; trata 422/503/401). Cliente API estendido + tipos, hook `useAsync`, datas pt-BR. `tsc`+`build` OK. Code-review → 5 achados aplicados (422 mostra `detail` real; agenda-do-dia; ordena no BD; `allSettled` na ficha; confirma sobrescrita do rascunho). Decisões: landing=agenda-do-dia; agenda read-only; grava só a evolução editada; aprovação auditável (assinatura formal→§9).
 - 2026-07-19 — [Fase 7a] ✅ **Deployada e validada no servidor.** SPA em `127.0.0.1:8090` (8080 é do Homarr); `COOKIE_SECURE=false` (HTTP). Provado: `GET /`→200 com CSP/headers; **login→/auth/me só com cookie httpOnly** devolveu o contexto do JWT via Nginx→backend (auth por cookie ponta a ponta, backend não-exposto). Healthcheck do BusyBox corrigido (`wget -q -O /dev/null`). Ver detalhe abaixo. ↓
 - 2026-07-19 — [Fase 7a] 🟡 **Fundação da SPA construída + revisada + validada localmente.** **React + Vite + TS**; Nginx serve estáticos + proxy `/api`→backend (mesma origem, zero CORS, backend não-exposto §2.1.1), multi-stage 100 MB (§1.1). **Auth por cookie httpOnly** (login seta cookie; `get_current_user` lê cookie|bearer; `/auth/logout`); SPA com cliente `credentials:include` (JS não lê token), AuthContext via `/auth/me`, handler global de 401, telas Login+Home. Decisões: React; vertical slice; cookie httpOnly; só psicólogas. Backend 61 unit tests; frontend `build`+`tsc` OK. Code-review → 7 achados, 6 aplicados (COOKIE_SECURE default false, 401 global, erros diferenciados, logout espelha atributos, catch simplificado, npm ci); #4 mantido dual-mode. **Deploy exige `COOKIE_SECURE=false` no `.env` (HTTP).** Próxima: **7b (telas)**.
 - 2026-07-19 — [Fase 6] ✅ **Concluída e validada no servidor.** Smoke com `OPENAI_API_KEY` ativa: `POST /llm/evolucoes/rascunho` → **200** com `evolucao` (evolução clínica coerente em pt, contextualizada) + `destaques` (3 alertas) + `chunks_contexto:0`. Provou contra a API viva: modo `json_object` (achado #2), sem 503 espúrio (achado #1), parse JSON→campos, desanonimização. Sem chave → 503 (fail-closed); campo errado → 422. **`OPENAI_API_KEY` agora ativa no servidor** (embeddings da Fase 5 também passam a preencher).
