@@ -17,7 +17,7 @@
 | Fase corrente | **Fase 4 (Pseudonimização) construída + revisada + validada local** — aguarda **deploy/validação no servidor** |
 | Última atualização | 2026-07-19 |
 | Bloqueios ativos | Nenhum |
-| Próximo passo imediato | **Deploy da Fase 4 no servidor**: `git pull` → rebuild backend (instalar extra `[nlp]` + `python -m spacy download pt_core_news_sm` na imagem) → validar mascaramento/round-trip via smoke. **Não há migration nova** (módulo puro, nada persiste — §2.3). |
+| Próximo passo imediato | **Deploy da Fase 4 no servidor**: `git pull` → `up -d --build backend` (o Dockerfile já instala `[nlp]` + baixa `pt_core_news_sm`) → validar mascaramento/round-trip/NER via smoke. **Não há migration nova** (módulo puro, nada persiste — §2.3). |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
@@ -45,7 +45,7 @@
 - **Portas:** backend publicado em `127.0.0.1:8010` (`BACKEND_HOST_PORT` — a 8000 é do Portainer). Postgres **sem** porta exposta. Sem GUI de admin (só `psql` via `exec`, §2.1.1).
 - **`.env` (fora do git, `chmod 600`):** segredos gerados **no servidor** (`POSTGRES_PASSWORD`, `APP_DB_PASSWORD`, `JWT_SECRET_KEY`, `DATABASE_URL` com a senha do `agenda_app`). Ao adicionar variáveis novas ao `.env.example`, lembrar que o `.env` do servidor **não** é atualizado pelo `git pull` — editar à mão.
 - **Deploy padrão de código:** `git pull` → `docker compose --env-file ../.env up -d --build [backend]` → `docker compose --env-file ../.env exec backend alembic upgrade head`.
-- **⚠️ Fase 4 (NER opcional):** a camada NER precisa do extra `[nlp]` na imagem — no `Dockerfile` do backend, instalar `pip install .[nlp]` + `python -m spacy download pt_core_news_sm` (modelo pequeno, §1.1). Sem isso o pipeline funciona só com Aho-Corasick + regex (NER inativo, degrada gracioso). Flag `NER_HABILITADO` no `.env` liga/desliga; **não** há migration na Fase 4.
+- **Fase 4 (NER):** o `Dockerfile` do backend **já instala** o extra `[nlp]` + baixa `pt_core_news_sm` (modelo pequeno, §1.1) no build — NER ativo após `up -d --build backend`, sem passo manual. Import lazy (§1.3). Flag `NER_HABILITADO` no `.env` liga/desliga; sem o extra o pipeline degrada gracioso (só Aho-Corasick + regex). **Não** há migration na Fase 4.
 - **⚠️ Roles/init:** mudanças em `infra/postgres/init/*` (ex.: novo role) só reaplicam com **`docker compose --env-file ../.env down -v`** (recria o volume `pgdata`). Migrations aditivas **não** precisam. Dados atuais são **descartáveis** (só há 1 tenant de teste).
 - **Bootstrap de usuário:** `docker compose --env-file ../.env exec backend python -m app.cli criar-tenant-usuario --nome ... --email ... --senha ...`.
 - **Dados atuais:** 1 psicóloga de teste — `teste@clinica.local` / senha `SenhaForte123` (slug `teste`). Descartável.
