@@ -228,7 +228,7 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 
 **Objetivo:** memória longitudinal do paciente via embeddings, com filtragem híbrida e chunking.
 
-**Regras de ouro aplicáveis:** §3.1 (sem índice), §3.2 (filtragem híbrida obrigatória), §3.3 (chunking).
+**Regras de ouro aplicáveis:** §3.1 (sem índice), §3.2 (filtragem híbrida obrigatória), §3.3 (chunking), **§3.4 (superfície IA↔BD: só vetorizar texto anonimizado; RAG sob RLS; guard-rail nos embeddings)**.
 
 ### Tarefas
 - [ ] Tabela `evolucoes` com coluna `embedding vector(1536)` (text-embedding-3-small).
@@ -248,7 +248,7 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 
 **Objetivo:** gerar resumos/evoluções clínicas passando **exclusivamente** por texto anonimizado.
 
-**Regras de ouro aplicáveis:** §2.3 (só texto mascarado sai), §3.3 (prompt dinâmico com contexto recuperado).
+**Regras de ouro aplicáveis:** §2.3 (só texto mascarado sai), §3.3 (prompt dinâmico com contexto recuperado), **§3.4 (LLM sem tool de BD; separação instrução/dado; guard-rail em toda saída; OpenAI retenção-zero)**.
 
 ### Tarefas
 - [ ] Montagem de prompt dinâmico: nota do dia + blocos históricos relevantes (Fase 5), **todos anonimizados**.
@@ -333,6 +333,7 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 - 2026-07-17 — [Fase 0] Criados `arquitetura.md` (regras de ouro) e `planejamento_arquitetura.md` (este roadmap). Projeto ainda sem `git init`.
 - 2026-07-17 — [Fase 0] Docs movidos para `docs/`. Estrutura rígida de diretórios criada: backend por domínio/módulo (`core/`, `db/`, `middleware/`, `api/`, `modules/` × 11 domínios), `frontend/`, `infra/`, `tests/`. Criados `.gitignore`, `.env.example`, `README.md`. **Decisão:** backend organizado por domínio/módulo (não por camada).
 - 2026-07-17 — [Fase 0] `git init` (branch `main`), primeiro commit e push para `github.com/GA55555/projeto_agenda`. Falta `docker-compose.yml` (§1.1) + `postgresql.conf` (§1.2) + Dockerfiles para fechar a fase.
+- 2026-07-19 — [Arquitetura] **Nova regra de ouro §3.4 "Superfície de ataque IA↔BD"** (constituição alterada, justificativa registada). Fixa 6 invariantes p/ a Fase 5/6: LLM sem tool/acesso ao BD; RAG sob RLS + filtro §3.2; **só vetorizar texto anonimizado** (embeddings são reversíveis); guard-rail em chat **e** embeddings; separação instrução/dado (anti prompt-injection); OpenAI retenção-zero. Checklist §5 atualizado. Motivada por pergunta do usuário sobre vazamento via prompts com BD compartilhado.
 - 2026-07-19 — [Fase 4] ✅ **Concluída e validada no servidor.** Build com `[nlp]`+`pt_core_news_sm`. Smoke no container: round-trip exato, Pedro/CPF mascarados, guard-rail detecta vazamento, **NER prova mapeamento PER→PERSON** (`João Silva`→PERSON, `São Paulo`/`Belo Horizonte`→LOCATION — achado #3 resolvido). Modelo `sm` com recall menor é aceitável (NER é reforço; PII cadastrada cai no Aho-Corasick). `/health`→200. Sem migration nova.
 - 2026-07-19 — [Fase 4] 🟡 **Construída + revisada + validada localmente.** Túnel opaco §2.3 como **módulo puro** (sem rota/tabela/migration — a não-persistência é a garantia da regra). Camadas: **Aho-Corasick puro** (`automaton.py`, offset via `_fold` que preserva comprimento), **regex ancorado** CPF/telefone/e-mail/CEP (`recognizers.py`), **NER Presidio+`pt_core_news_sm` lazy** atrás do extra `[nlp]`+flag (`nlp.py`). `sources.py` coleta PII cadastrada sob RLS; `pseudonimizador.py` = dicionário volátil só-RAM (`__repr__` não vaza) + round-trip exato; `guardrail.py` aborta se PII conhecida escapar. **Decisões:** cadastrado+NER; dicionário por requisição; módulo puro; modelo pequeno (§1.1). Code-review alto esforço → **5 achados aplicados** (offset caseless, O(n²), mapeamento NER, dep não usada, desempate). **35 unit tests passed, 1 skipped** (NER). Sem migration nova (última = `0004`).
 - 2026-07-19 — [Fase 3.5] ✅ **Concluída e validada no servidor.** `alembic upgrade head` → `0004` (extensão `btree_gist` + tabela `agendamentos`). Anti-sobreposição **no motor** via `EXCLUDE` (GiST, `tstzrange '[)'`); FK composto `(tenant_id, paciente_id)`; RLS+FORCE; status agendado/realizado/cancelado/falta, cancelamento soft. Smoke API: criar → `agendado`; sobrepor → **409**. Review de alto esforço aplicado (PATCH parcial→422, datetime tz obrigatório, filtro `status` aliased, teste RLS da agenda). Módulo `agendamentos` (models/schemas/service/router) + router na API.

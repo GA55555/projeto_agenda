@@ -196,6 +196,21 @@ O cálculo vetorial incide só sobre o pequeno subconjunto filtrado → execuç�
 - Blocos relevantes + anotações do dia → enviados **anonimizados** ao LLM via prompt dinâmico.
 - Benefício: poupa tokens, evita alucinações e destaca tendências clínicas sem enviar histórico irrelevante.
 
+### 3.4. Superfície de ataque IA ↔ Base de Dados
+
+> **Justificativa (registada):** a partir da Fase 5 o mesmo PostgreSQL que guarda os dados clínicos passa a alimentar o RAG. A questão legítima — *o LLM pode ser induzido, via prompt, a extrair PII de outros pacientes ou a sondar a estrutura em busca de falhas?* — obriga a fixar a fronteira IA↔BD. **Princípio-mestre:** o isolamento vive no **motor do BD (RLS)** e no **túnel de anonimização (§2.3)**, nunca na confiança sobre o comportamento do modelo. O LLM é um **transformador de texto sem estado**: só conhece o que está no prompt; não possui canal de acesso ao BD.
+
+Regras inegociáveis:
+
+1. **O LLM nunca recebe acesso a dados.** Proibido dar ao modelo *tools*/*function-calling* que consultem o BD, executem SQL ou reflitam o schema. Ele recebe um prompt **fechado** e devolve texto. Sem canal IA→BD, não há como um prompt "sondar a estrutura" nem paginar para além do que lhe foi entregue.
+2. **Recuperação (RAG) sempre sob a sessão com RLS**, com a filtragem híbrida `tenant_id` + `paciente_id` obrigatória (§3.2). Uma omissão no `WHERE` é neutralizada pelo motor — desde que se use o role `agenda_app` (nunca conexão privilegiada, §2.1.1). O raio de qualquer prompt malicioso fica confinado ao **contexto de um único paciente** já montado.
+3. **Só se vetoriza texto anonimizado (§2.3).** Embeddings são **parcialmente reversíveis** (*embedding inversion*): vetorizar texto clínico cru transformaria a coluna `embedding` num depósito de PII recuperável. A vetorização incide **exclusivamente** sobre o texto que já passou pelo túnel — uma inversão devolve marcadores (`<PERSON_1>`), nunca a identidade. A coluna vetorial vive sob o mesmo RLS+FORCE da tabela.
+4. **Guard-rail de saída em TODO payload externo.** A validação que aborta ao detetar PII conhecida (§2.3) aplica-se a **ambas** as chamadas à OpenAI — geração de texto **e** geração de embeddings —, não apenas ao chat.
+5. **Separação instrução/dado no prompt.** O conteúdo da nota entra como **dado delimitado**, nunca concatenado à instrução, para conter *prompt injection* pelo próprio texto clínico. Mesmo no pior caso, o dano máximo é um resumo incorreto **do mesmo paciente** — jamais um vazamento cruzado.
+6. **OpenAI com retenção-zero / opt-out de treino.** O texto que sai é anonimizado (é isto que satisfaz o CFP, §2.3); ainda assim, a conta é configurada para **não reter nem treinar** sobre os dados, reduzindo a superfície residual junto ao terceiro.
+
+> A **nota crua e legível** permanece no BD (sistema de registo da psicóloga) sob RLS — correto e inevitável. O que **nunca** sai da fronteira é essa versão identificável: para a IA vai só o texto mascarado.
+
 ---
 
 ## 4. Integração, Deploy e Automação
@@ -227,6 +242,7 @@ A lógica pesada de formatação/exportação é **descarregada do FastAPI para 
 - [ ] Nenhum PII vai ao LLM sem passar pelo túnel de pseudonimização; dicionário nunca persistido (§2.3)?
 - [ ] Consultas vetoriais sempre pré-filtradas por `tenant_id` + `paciente_id` (§3.2)?
 - [ ] Sem índice vetorial prematuro (§3.1)?
+- [ ] LLM **sem** tool/acesso ao BD; RAG sob RLS; **só texto anonimizado vetorizado**; guard-rail em chat **e** embeddings; OpenAI com retenção-zero (§3.4)?
 - [ ] Role de app sem privilégio + `FORCE ROW LEVEL SECURITY` nas tabelas clínicas (§2.1.1)?
 - [ ] Sem console web de administração; acesso privilegiado só por `psql` via `docker compose exec` (§2.1.1, §4.1)?
 - [ ] Segredos fora do código; multi-stage build; webhook n8n autenticado (§4)?
