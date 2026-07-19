@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 30
 
+    # ---- Pseudonimizacao / NER (§2.3/§1.3) ----
+    # Camada NER (Presidio + spaCy) e reforco OPCIONAL sobre termos cadastrados
+    # + regex. Import lazy (§1.3); requer o extra `[nlp]` instalado. Modelo
+    # PEQUENO (pt_core_news_sm) para caber no mem_limit de 1 GB do backend (§1.1).
+    ner_habilitado: bool = True
+    ner_modelo_spacy: str = "pt_core_news_sm"
+
     @property
     def admin_database_url(self) -> str:
         """Ligacao com privilegio para rodar migrations (agenda_admin)."""

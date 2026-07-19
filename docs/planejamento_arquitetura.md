@@ -14,18 +14,18 @@
 
 | Campo | Valor |
 | --- | --- |
-| Fase corrente | **Fases 3 e 3.5 ✅ concluídas e validadas no servidor** — próxima: **Fase 4 (Pipeline de Pseudonimização)** |
+| Fase corrente | **Fase 4 (Pseudonimização) construída + revisada + validada local** — aguarda **deploy/validação no servidor** |
 | Última atualização | 2026-07-19 |
 | Bloqueios ativos | Nenhum |
-| Próximo passo imediato | Planejar a **Fase 4** (túnel opaco §2.3: Aho-Corasick + Presidio lazy, dicionário volátil) — usuário quer plano detalhado + perguntas de design antes de codar. |
+| Próximo passo imediato | **Deploy da Fase 4 no servidor**: `git pull` → rebuild backend (instalar extra `[nlp]` + `python -m spacy download pt_core_news_sm` na imagem) → validar mascaramento/round-trip via smoke. **Não há migration nova** (módulo puro, nada persiste — §2.3). |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
 ### 🔖 Ponto de Retomada (ler primeiro na próxima sessão)
 
-**Onde paramos (2026-07-19):** Fases **0, 1, 2, 3, 3.5 ✅** concluídas e validadas no servidor. Branch `main` sincronizado (última migration = **`0004`**; servidor em `0004 (head)`). Sem trabalho pendente/não-commitado.
+**Onde paramos (2026-07-19):** Fases **0, 1, 2, 3, 3.5 ✅** validadas no servidor. **Fase 4 construída, revisada (code-review alto esforço, 5 achados aplicados) e validada localmente** — aguarda deploy no servidor. Última migration = **`0004`** (Fase 4 **não** adiciona migration). Trabalho da Fase 4 commitado em `main`.
 
-**Próxima ação:** planejar a **Fase 4 (Pipeline de Pseudonimização, §2.3)** — usuário quer **plano detalhado + perguntas de design (AskUserQuestion) ANTES de codar** (ver as perguntas já levantadas na seção da Fase 4). É a peça mais sensível: princípio de **risco zero de PII** (§0.3/§2.3).
+**Próxima ação:** **deploy/validação da Fase 4 no servidor.** Ao rebuildar o backend, instalar o extra `[nlp]` (`pip install .[nlp]`) + `python -m spacy download pt_core_news_sm` na imagem — sem isso o pipeline funciona (Aho-Corasick + regex) mas o NER fica inativo. Validar no servidor: (a) round-trip anonimizar→desanonimizar preserva o texto; (b) nenhuma PII conhecida escapa (guard-rail); (c) o NER detecta um nome NÃO cadastrado (prova que o mapeamento de rótulos PER→PERSON funciona — achado #3 do review).
 
 **Fluxo de trabalho (imutável):** plano → construir/validar local (WSL, sem Docker: `py_compile` + venv de teste `pytest tests/unit` + render offline do SQL) → **revisar com o usuário** (trazer diff/resumo) → `/code-review` alto esforço → **commit direto em `main`** (Co-Authored-By) → **usuário** faz deploy no servidor (`git pull` → `up -d --build backend` → `alembic upgrade head`) e valida → marcar ✅ aqui. Comandos ao usuário **uma linha por vez** (terminal quebra pastes compostos). Ver [[feedback-fluxo-trabalho-agenda]].
 
@@ -45,6 +45,7 @@
 - **Portas:** backend publicado em `127.0.0.1:8010` (`BACKEND_HOST_PORT` — a 8000 é do Portainer). Postgres **sem** porta exposta. Sem GUI de admin (só `psql` via `exec`, §2.1.1).
 - **`.env` (fora do git, `chmod 600`):** segredos gerados **no servidor** (`POSTGRES_PASSWORD`, `APP_DB_PASSWORD`, `JWT_SECRET_KEY`, `DATABASE_URL` com a senha do `agenda_app`). Ao adicionar variáveis novas ao `.env.example`, lembrar que o `.env` do servidor **não** é atualizado pelo `git pull` — editar à mão.
 - **Deploy padrão de código:** `git pull` → `docker compose --env-file ../.env up -d --build [backend]` → `docker compose --env-file ../.env exec backend alembic upgrade head`.
+- **⚠️ Fase 4 (NER opcional):** a camada NER precisa do extra `[nlp]` na imagem — no `Dockerfile` do backend, instalar `pip install .[nlp]` + `python -m spacy download pt_core_news_sm` (modelo pequeno, §1.1). Sem isso o pipeline funciona só com Aho-Corasick + regex (NER inativo, degrada gracioso). Flag `NER_HABILITADO` no `.env` liga/desliga; **não** há migration na Fase 4.
 - **⚠️ Roles/init:** mudanças em `infra/postgres/init/*` (ex.: novo role) só reaplicam com **`docker compose --env-file ../.env down -v`** (recria o volume `pgdata`). Migrations aditivas **não** precisam. Dados atuais são **descartáveis** (só há 1 tenant de teste).
 - **Bootstrap de usuário:** `docker compose --env-file ../.env exec backend python -m app.cli criar-tenant-usuario --nome ... --email ... --senha ...`.
 - **Dados atuais:** 1 psicóloga de teste — `teste@clinica.local` / senha `SenhaForte123` (slug `teste`). Descartável.
@@ -62,7 +63,7 @@
 | 2 | Backend Core (FastAPI) | API base, auth, injeção de tenant | ✅ Concluído |
 | 3 | Modelo de Domínio & Consentimento | Pacientes, responsáveis, TCLE, auditoria | ✅ Concluído |
 | 3.5 | Agenda de Atendimentos | Agendamentos vinculados a paciente + tenant | ✅ Concluído |
-| 4 | Pipeline de Pseudonimização | Túnel opaco anonimizar/desanonimizar (Aho-Corasick) | ⬜ Não iniciado |
+| 4 | Pipeline de Pseudonimização | Túnel opaco anonimizar/desanonimizar (Aho-Corasick) | 🟡 Construída (validar no servidor) |
 | 5 | IA Vetorial & RAG | Embeddings, filtragem híbrida, chunking | ⬜ Não iniciado |
 | 6 | Integração LLM (OpenAI) | Geração de evoluções via túnel de pseudonimização | ⬜ Não iniciado |
 | 7 | Frontend (SPA) | Interface das psicólogas, aprovação de evoluções | ⬜ Não iniciado |
@@ -204,25 +205,22 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 
 **Regras de ouro aplicáveis:** §2.3 (Aho-Corasick, dicionário volátil, nunca persistir PII), §1.3 (lazy loading de libs pesadas).
 
-### ❓ Decisões de design a resolver antes de codar (perguntar via AskUserQuestion)
-- **Fonte das entidades PII**: de onde vêm os termos a mascarar? (nome do paciente + responsáveis vinculados + clínica/tenant + locais conhecidos) — montados a partir das tabelas da Fase 3, ou também extração por NER do Presidio para PII não-cadastrada (CPF, telefone, endereço no texto livre)?
-- **Escopo/ciclo de vida do dicionário volátil**: por requisição (mais seguro, sem estado entre chamadas) vs. por “sessão” de edição de evolução. Onde vive (memória do processo) e como garante-se que morre com a requisição — nunca toca BD/log (§2.3).
-- **Granularidade dos marcadores**: `<PERSON_1>`, `<LOCATION_1>`, `<CPF_1>`… — política de numeração sequencial estável dentro do texto.
-- **PII não-cadastrada detectada por Regex/NER** (CPF, telefone, e-mail, endereço no texto): mascara também? Como evitar catastrophic backtracking (§2.3 exige Aho-Corasick/regex otimizado).
-- **Onde encaixa no fluxo**: módulo `anonimizacao` puro (sem rota agora) consumido pela Fase 6 (LLM), ou já expõe endpoint de teste? Presidio/spaCy entram como dep opcional `[nlp]` no `pyproject` (lazy import, §1.3).
-- **Guard-rail de saída**: validação que aborta se algum PII conhecido escapar no payload rumo ao LLM (antecipa Fase 6).
+**Decisões de design (2026-07-19, via AskUserQuestion):** fonte = **cadastrado (Aho-Corasick) + NER (Presidio) lazy** para PII de texto livre; ciclo do dicionário volátil = **por requisição** (nasce/morre no request, sem estado entre chamadas); entrega = **módulo puro** (sem rota/tabela/migration) consumido pela Fase 6; modelo NER = **`pt_core_news_sm` (pequeno)** para caber no `mem_limit` de 1 GB (§1.1) — camada NER atrás do extra `[nlp]` + flag `ner_habilitado`. Marcadores `<CAT_n>` sequenciais por 1ª aparição, idempotentes por trecho exato (round-trip exato). Sobreposição: **mais longo vence** + fronteira de palavra.
 
 ### Tarefas
-- [ ] Motor de deteção com **Aho-Corasick** + Regex otimizado; Presidio como reforço, importado lazy (§1.3/§2.3).
-- [ ] Fonte de entidades PII do paciente (nome, familiares, clínica, locais) para alimentar o autômato.
-- [ ] `Anonymizer`: mapeia PII → marcadores sequenciais (`<PERSON_1>`, `<LOCATION_1>`).
-- [ ] **Dicionário de equivalência em memória volátil**, atrelado à sessão — **jamais gravado na BD** (§2.3).
-- [ ] `Deanonymizer`: restaura marcadores no texto de resposta.
-- [ ] Testes: round-trip (anonimizar → desanonimizar) preserva o texto; nenhum PII escapa; nenhum dicionário persiste.
+- [x] Motor de deteção com **Aho-Corasick** (puro, stdlib) + Regex ancorado; Presidio como reforço, importado lazy (§1.3/§2.3). *(`automaton.py`, `recognizers.py`, `nlp.py`)*
+- [x] Fonte de entidades PII do paciente (nome, familiares, clínica) sob RLS para alimentar o autômato. *(`sources.py`)*
+- [x] `Anonymizer`: mapeia PII → marcadores sequenciais (`<PERSON_1>`, `<LOCATION_1>`). *(`pseudonimizador.py`)*
+- [x] **Dicionário de equivalência em memória volátil** (`MapaPseudonimizacao`) — não é model, sem serializador, `__repr__` esconde valores; **jamais gravado na BD** (§2.3).
+- [x] `Deanonymizer`: restaura marcadores no texto de resposta. *(`pseudonimizador.desanonimizar`)*
+- [x] **Guard-rail de saída** (`guardrail.verificar_sem_pii`) — aborta (`PIIVazadaError`) se PII conhecida escapar (antecipa Fase 6).
+- [x] Testes unitários: round-trip preserva o texto; nenhum PII escapa; dicionário não persiste; fronteira de palavra; regex; anti-backtracking. **35 passed, 1 skipped** (NER só roda com o extra `[nlp]`).
 
 ### Definition of Done
-- Teste prova que texto enviado "para fora" não contém PII.
-- Teste prova que o dicionário não é persistido em lugar nenhum.
+- Teste prova que texto enviado "para fora" não contém PII. ✅ *(guard-rail + round-trip; validar no servidor com o NER ligado)*
+- Teste prova que o dicionário não é persistido em lugar nenhum. ✅ *(não é `Base`; sem `models.py`/`router.py`/migration; `__repr__` não vaza)*
+
+> 🟡 **Construída, revisada e validada localmente (2026-07-19).** Code-review de alto esforço → **5 achados aplicados**: (#1) offset alinhado via `_fold` que preserva comprimento no caseless — evita vazamento por deslocamento; (#2) O(n²) no `desanonimizar` corrigido; (#3) mapeamento explícito de rótulos NER (PER→PERSON); (#4) removido `presidio-anonymizer` não usado; (#5) desempate de categoria determinístico. **Aguarda deploy/validação no servidor** (instalar `[nlp]` + `spacy download pt_core_news_sm`).
 
 ---
 
@@ -335,6 +333,7 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 - 2026-07-17 — [Fase 0] Criados `arquitetura.md` (regras de ouro) e `planejamento_arquitetura.md` (este roadmap). Projeto ainda sem `git init`.
 - 2026-07-17 — [Fase 0] Docs movidos para `docs/`. Estrutura rígida de diretórios criada: backend por domínio/módulo (`core/`, `db/`, `middleware/`, `api/`, `modules/` × 11 domínios), `frontend/`, `infra/`, `tests/`. Criados `.gitignore`, `.env.example`, `README.md`. **Decisão:** backend organizado por domínio/módulo (não por camada).
 - 2026-07-17 — [Fase 0] `git init` (branch `main`), primeiro commit e push para `github.com/GA55555/projeto_agenda`. Falta `docker-compose.yml` (§1.1) + `postgresql.conf` (§1.2) + Dockerfiles para fechar a fase.
+- 2026-07-19 — [Fase 4] 🟡 **Construída + revisada + validada localmente (validar no servidor).** Túnel opaco §2.3 como **módulo puro** (sem rota/tabela/migration — a não-persistência é a garantia da regra). Camadas: **Aho-Corasick puro** (`automaton.py`, offset via `_fold` que preserva comprimento), **regex ancorado** CPF/telefone/e-mail/CEP (`recognizers.py`), **NER Presidio+`pt_core_news_sm` lazy** atrás do extra `[nlp]`+flag (`nlp.py`). `sources.py` coleta PII cadastrada sob RLS; `pseudonimizador.py` = dicionário volátil só-RAM (`__repr__` não vaza) + round-trip exato; `guardrail.py` aborta se PII conhecida escapar. **Decisões:** cadastrado+NER; dicionário por requisição; módulo puro; modelo pequeno (§1.1). Code-review alto esforço → **5 achados aplicados** (offset caseless, O(n²), mapeamento NER, dep não usada, desempate). **35 unit tests passed, 1 skipped** (NER). Sem migration nova (última = `0004`).
 - 2026-07-19 — [Fase 3.5] ✅ **Concluída e validada no servidor.** `alembic upgrade head` → `0004` (extensão `btree_gist` + tabela `agendamentos`). Anti-sobreposição **no motor** via `EXCLUDE` (GiST, `tstzrange '[)'`); FK composto `(tenant_id, paciente_id)`; RLS+FORCE; status agendado/realizado/cancelado/falta, cancelamento soft. Smoke API: criar → `agendado`; sobrepor → **409**. Review de alto esforço aplicado (PATCH parcial→422, datetime tz obrigatório, filtro `status` aliased, teste RLS da agenda). Módulo `agendamentos` (models/schemas/service/router) + router na API.
 - 2026-07-18 — [Fase 3] ✅ **Concluída e validada no servidor.** `alembic upgrade head` → `0003`. Smoke via API/psql: paciente+vínculo+TCLE em transação única (RLS WITH CHECK + grants + FK composto sob FORCE RLS); resposta com vínculos+responsável; CPF normalizado (`11122233344`); revogação → evento `consentimento_revogado` em `auditoria`; `UPDATE` na auditoria → `ERROR: auditoria e append-only` (trigger barra até superusuário). §2.1/§2.2 provados ponta a ponta.
 - 2026-07-18 — [Fase 3] Construída (validar no servidor). **Decisões:** vínculo resp↔paciente **N:N** (`vinculos_resp_paciente`); auditoria = **log genérico append-only** com imutabilidade no BD (REVOKE UPDATE/DELETE + trigger); TCLE grava metadados+texto (PDF fica p/ Fase 8); **agendamentos → Fase 3.5**. Migration `0003` cria `responsaveis_legais`, `pacientes`, `vinculos_resp_paciente`, `consentimentos`, `auditoria` (todas RLS+FORCE, índices §3.2, CHECK de `tipo_vinculo`). Módulos preenchidos (models/schemas/service/router) + 4 routers na API. Invariante do DoD (paciente exige responsável+TCLE) imposto por schema + criação transacional. Validado local: 8 unit tests + render offline do SQL da migration. Testes de integração (RLS + auditoria imutável) aguardam BD no servidor.

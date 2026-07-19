@@ -33,6 +33,15 @@ dev = [
     "mypy>=1.10",
 ]
 
+# Camada NER da pseudonimizacao (Fase 4, §2.3). Bibliotecas PESADAS, importadas
+# lazy (§1.3) e instaladas so onde o NER roda. Modelo spaCy PEQUENO para caber
+# no mem_limit de 1 GB do backend (§1.1). Instalar com:
+#   pip install .[nlp] && python -m spacy download pt_core_news_sm
+nlp = [
+    "presidio-analyzer>=2.2",   # so o Analyzer; a substituicao/desanon. e nossa
+    "spacy>=3.7,<3.9",
+]
+
 [tool.setuptools.packages.find]
 include = ["app*"]               # nao empacotar tests/ nem migrations/
 
