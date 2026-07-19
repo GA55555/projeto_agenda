@@ -21,6 +21,18 @@
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
+### 🔖 Ponto de Retomada (ler primeiro na próxima sessão)
+
+**Onde paramos (2026-07-19):** Fases **0, 1, 2, 3, 3.5 ✅** concluídas e validadas no servidor. Branch `main` sincronizado (última migration = **`0004`**; servidor em `0004 (head)`). Sem trabalho pendente/não-commitado.
+
+**Próxima ação:** planejar a **Fase 4 (Pipeline de Pseudonimização, §2.3)** — usuário quer **plano detalhado + perguntas de design (AskUserQuestion) ANTES de codar** (ver as perguntas já levantadas na seção da Fase 4). É a peça mais sensível: princípio de **risco zero de PII** (§0.3/§2.3).
+
+**Fluxo de trabalho (imutável):** plano → construir/validar local (WSL, sem Docker: `py_compile` + venv de teste `pytest tests/unit` + render offline do SQL) → **revisar com o usuário** (trazer diff/resumo) → `/code-review` alto esforço → **commit direto em `main`** (Co-Authored-By) → **usuário** faz deploy no servidor (`git pull` → `up -d --build backend` → `alembic upgrade head`) e valida → marcar ✅ aqui. Comandos ao usuário **uma linha por vez** (terminal quebra pastes compostos). Ver [[feedback-fluxo-trabalho-agenda]].
+
+**Contexto de ambiente/dados (servidor, descartáveis):** 1 psicóloga de teste `teste@clinica.local` / `SenhaForte123` (slug `teste`); paciente `316b1a57-…` + responsável `19ebfffa-…` (CPF `11122233344`, TCLE **revogado**); ≥1 agendamento criado (`2026-08-01` 14–16h). Módulos ainda **stub/vazios**: `anonimizacao`, `llm`, `rag`, `evolucoes` (esqueleto models/schemas/service/router pronto para preencher). Backend em `127.0.0.1:8010`. Detalhes de deploy na seção **Operação & Deploy**.
+
+**Aderência que o usuário mais cobra:** citar as **§** da `arquitetura.md` em cada mudança; isolamento **no motor** da BD, nunca só na app (§2.1 — padrão já usado: RLS+FORCE, FK composto `(tenant_id, id)`).
+
 ---
 
 ## 🖥️ Operação & Deploy (contexto do servidor)
@@ -190,7 +202,15 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 
 **Objetivo:** anonimização/desanonimização local, síncrona e reversível — pré-requisito para qualquer chamada ao LLM.
 
-**Regras de ouro aplicáveis:** §2.3 (Aho-Corasick, dicionário volátil, nunca persistir PII).
+**Regras de ouro aplicáveis:** §2.3 (Aho-Corasick, dicionário volátil, nunca persistir PII), §1.3 (lazy loading de libs pesadas).
+
+### ❓ Decisões de design a resolver antes de codar (perguntar via AskUserQuestion)
+- **Fonte das entidades PII**: de onde vêm os termos a mascarar? (nome do paciente + responsáveis vinculados + clínica/tenant + locais conhecidos) — montados a partir das tabelas da Fase 3, ou também extração por NER do Presidio para PII não-cadastrada (CPF, telefone, endereço no texto livre)?
+- **Escopo/ciclo de vida do dicionário volátil**: por requisição (mais seguro, sem estado entre chamadas) vs. por “sessão” de edição de evolução. Onde vive (memória do processo) e como garante-se que morre com a requisição — nunca toca BD/log (§2.3).
+- **Granularidade dos marcadores**: `<PERSON_1>`, `<LOCATION_1>`, `<CPF_1>`… — política de numeração sequencial estável dentro do texto.
+- **PII não-cadastrada detectada por Regex/NER** (CPF, telefone, e-mail, endereço no texto): mascara também? Como evitar catastrophic backtracking (§2.3 exige Aho-Corasick/regex otimizado).
+- **Onde encaixa no fluxo**: módulo `anonimizacao` puro (sem rota agora) consumido pela Fase 6 (LLM), ou já expõe endpoint de teste? Presidio/spaCy entram como dep opcional `[nlp]` no `pyproject` (lazy import, §1.3).
+- **Guard-rail de saída**: validação que aborta se algum PII conhecido escapar no payload rumo ao LLM (antecipa Fase 6).
 
 ### Tarefas
 - [ ] Motor de deteção com **Aho-Corasick** + Regex otimizado; Presidio como reforço, importado lazy (§1.3/§2.3).
