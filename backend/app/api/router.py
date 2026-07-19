@@ -4,6 +4,7 @@ Fase do roadmap: Fase 2
 """
 from fastapi import APIRouter
 
+from app.modules.agendamentos.router import router as agendamentos_router
 from app.modules.audit.router import router as audit_router
 from app.modules.auth.router import router as auth_router
 from app.modules.consentimentos.router import router as consentimentos_router
@@ -19,3 +20,5 @@ api_router.include_router(responsaveis_router)
 api_router.include_router(pacientes_router)
 api_router.include_router(consentimentos_router)
 api_router.include_router(audit_router)
+# Fase 3.5 — agenda de atendimentos
+api_router.include_router(agendamentos_router)
