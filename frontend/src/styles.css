@@ -1,0 +1,100 @@
+:root {
+  --bg: #f5f6f8;
+  --fg: #1c2430;
+  --muted: #5b6672;
+  --card: #ffffff;
+  --border: #dde1e7;
+  --accent: #2f6f4f;
+  --accent-fg: #ffffff;
+  --erro: #b23b3b;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12161b;
+    --fg: #e7ebf0;
+    --muted: #9aa4b0;
+    --card: #1b2129;
+    --border: #2b3540;
+    --accent: #4c9c72;
+    --accent-fg: #0d1216;
+    --erro: #e07a7a;
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.centro {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+.muted { color: var(--muted); }
+.erro { color: var(--erro); }
+
+.cartao {
+  width: 100%;
+  max-width: 22rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.cartao h1 { font-size: 1.25rem; margin: 0; }
+.cartao p { margin: 0 0 0.5rem; }
+.cartao label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.85rem; }
+.cartao input {
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 1rem;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: 1rem;
+  font-weight: 600;
+}
+button:disabled { opacity: 0.6; cursor: default; }
+button.link {
+  background: none;
+  color: var(--muted);
+  font-weight: 500;
+  padding: 0.3rem 0.4rem;
+}
+
+.app { min-height: 100vh; }
+.topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+.conteudo { padding: 1.5rem 1.25rem; max-width: 48rem; margin: 0 auto; }
+.conteudo h2 { margin-top: 0; }
+.nota {
+  margin-top: 1.5rem;
+  padding: 0.9rem 1rem;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}

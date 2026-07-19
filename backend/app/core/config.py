@@ -31,6 +31,16 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 30
 
+    # ---- Cookie de sessao da SPA (Fase 7, §2.2/§4.1) ----
+    # O JWT vai num cookie HTTPONLY (JS nao le -> resistente a XSS). SameSite
+    # strict + mesma origem (Nginx faz proxy de /api) => CSRF contido.
+    # `cookie_secure` DEFAULT false: o deploy atual e HTTP; um cookie Secure sob
+    # HTTP e descartado pelo browser -> login "nao gruda". §9 (go-live com TLS)
+    # DEVE definir COOKIE_SECURE=true.
+    cookie_name: str = "agenda_session"
+    cookie_secure: bool = False
+    cookie_samesite: str = "strict"
+
     # ---- Pseudonimizacao / NER (§2.3/§1.3) ----
     # Camada NER (Presidio + spaCy) e reforco OPCIONAL sobre termos cadastrados
     # + regex. Import lazy (§1.3); requer o extra `[nlp]` instalado. Modelo

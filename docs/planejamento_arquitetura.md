@@ -14,10 +14,10 @@
 
 | Campo | Valor |
 | --- | --- |
-| Fase corrente | **Fase 6 ✅ concluída e validada no servidor** — próxima: **Fase 7 (Frontend SPA)** |
+| Fase corrente | **Fase 7a (fundação SPA) construída + revisada + validada local** — aguarda **deploy**; depois **7b (telas)** |
 | Última atualização | 2026-07-19 |
 | Bloqueios ativos | Nenhum |
-| Próximo passo imediato | Planejar a **Fase 7 (Frontend SPA)**: decidir framework (React/Vue — decisão em aberto), telas (login, agenda, ficha do paciente, editor de evolução), **fluxo de aprovação** (psicóloga revisa o rascunho desanonimizado do `POST /llm/evolucoes/rascunho` antes de gravar via `POST /evolucoes`) + assinatura; Nginx `mem_limit` 100 MB (§1.1); distinção de acesso pais×conteúdo (§2.2). Usuário quer plano + perguntas antes de codar. **`OPENAI_API_KEY` já ativa no servidor.** |
+| Próximo passo imediato | **Deploy da 7a**: `git pull` → **`COOKIE_SECURE=false` no `.env`** (HTTP) → `cd infra && docker compose --env-file ../.env up -d --build frontend`. Validar login pela SPA em `http://127.0.0.1:8080` (cookie httpOnly gruda; Home mostra clínica). Depois: **7b (agenda, ficha, editor de evolução + aprovação)**. |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
@@ -67,7 +67,7 @@
 | 4 | Pipeline de Pseudonimização | Túnel opaco anonimizar/desanonimizar (Aho-Corasick) | ✅ Concluído |
 | 5 | IA Vetorial & RAG | Embeddings, filtragem híbrida, chunking | ✅ Concluído |
 | 6 | Integração LLM (OpenAI) | Geração de evoluções via túnel de pseudonimização | ✅ Concluído |
-| 7 | Frontend (SPA) | Interface das psicólogas, aprovação de evoluções | ⬜ Não iniciado |
+| 7 | Frontend (SPA) | Interface das psicólogas, aprovação de evoluções | 🟡 7a construída (validar); 7b pendente |
 | 8 | Automação n8n & Backups | Webhooks, OAuth2, PDFs, pg_dump/WAL | ⬜ Não iniciado |
 | 9 | Hardening & Go-Live | Segurança final, limites, observabilidade, deploy | ⬜ Não iniciado |
 
@@ -278,19 +278,27 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 
 **Objetivo:** interface das psicólogas para agenda, prontuários e **aprovação** de evoluções geradas.
 
-**Regras de ouro aplicáveis:** §1.1 (Nginx 100 MB), §2.2 (separação de acessos).
+**Regras de ouro aplicáveis:** §1.1 (Nginx 100 MB), §2.2 (separação de acessos), §4.1 (multi-stage), §2.1.1 (backend não-exposto: Nginx faz proxy de `/api`).
 
-### Tarefas
-- [ ] SPA (React ou Vue) — **decidir framework** e registrar no Registro de Progresso.
-- [ ] Build servido por Nginx em contentor com `mem_limit` 100 MB (§1.1).
-- [ ] Telas: login, agenda, ficha do paciente, editor de evolução.
-- [ ] Fluxo de **aprovação**: psicóloga revisa o texto desanonimizado antes de gravar/assinar.
+**Decisões (2026-07-19, via AskUserQuestion):** **React + Vite + TS**; escopo em **vertical slice** do loop de IA (login→agenda→ficha→gerar→aprovar→gravar); **token JWT em cookie httpOnly** (SameSite strict; `Secure` sob TLS no §9); **só psicólogas** agora (portal dos pais §2.2 fica p/ fase própria). Dividida em **7a (fundação)** e **7b (telas)**.
+
+### Tarefas — 7a (fundação) ✅ construída
+- [x] SPA **React + Vite + TS**; Nginx `mem_limit` 100 MB (§1.1), **multi-stage** (§4.1).
+- [x] **Nginx serve estáticos + reverse-proxy `/api`→`backend:8000`** (mesma origem, zero CORS, backend não-exposto §2.1.1); CSP + headers de segurança.
+- [x] **Auth por cookie httpOnly** no backend (login seta cookie; `get_current_user` lê cookie|bearer; `POST /auth/logout`); dual-mode intencional (bearer p/ curl/testes).
+- [x] SPA: cliente de API (`credentials: include`, JS não lê o token), AuthContext (`/auth/me`), handler global de 401, telas Login + Home (prova a sessão).
+
+### Tarefas — 7b (telas) ⬜ próxima
+- [ ] Agenda (lista de `agendamentos`); ficha do paciente (dados+responsáveis+consentimento+evoluções).
+- [ ] Editor de evolução: nota do dia → `POST /llm/evolucoes/rascunho` → revisar/editar (desanonimizado) → aprovar → `POST /evolucoes`.
 - [ ] Assinatura eletrônica da evolução.
 - [ ] Respeitar distinção de acesso pais × conteúdo terapêutico (§2.2).
 
 ### Definition of Done
-- Fluxo completo: nota → IA → revisão → aprovação → gravação funciona ponta a ponta.
-- Contentor frontend respeita 100 MB.
+- Fluxo completo: nota → IA → revisão → aprovação → gravação funciona ponta a ponta. *(7b)*
+- Contentor frontend respeita 100 MB. ✅ *(Nginx alpine estático)*
+
+> 🟡 **7a construída, revisada e validada localmente (2026-07-19).** Backend: **61 unit tests** (6 novos de cookie/bearer). Frontend: `npm run build` ✅ (JS 54 KB gzip) + `tsc --noEmit` ✅. Code-review de alto esforço → **7 achados, 6 aplicados** (1 mantido como design): (#1) `COOKIE_SECURE` default **false** (evita loop de login em HTTP); (#2) handler global de 401 (sessão expirada → login); (#3) erros de login diferenciados; (#5) `logout` espelha atributos do cookie; (#6) simplifica `catch`; (#7) `npm ci`. **#4** (cookie-only) **mantido dual-mode** de propósito — cookie-only quebraria o login bearer usado por curl/testes, sem ganho real (XSS não lê httpOnly). **Deploy:** `up -d --build frontend` (novo serviço, `127.0.0.1:8080`); **`COOKIE_SECURE=false` no `.env`** enquanto HTTP.
 
 ---
 
@@ -343,6 +351,7 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 - 2026-07-17 — [Fase 0] Criados `arquitetura.md` (regras de ouro) e `planejamento_arquitetura.md` (este roadmap). Projeto ainda sem `git init`.
 - 2026-07-17 — [Fase 0] Docs movidos para `docs/`. Estrutura rígida de diretórios criada: backend por domínio/módulo (`core/`, `db/`, `middleware/`, `api/`, `modules/` × 11 domínios), `frontend/`, `infra/`, `tests/`. Criados `.gitignore`, `.env.example`, `README.md`. **Decisão:** backend organizado por domínio/módulo (não por camada).
 - 2026-07-17 — [Fase 0] `git init` (branch `main`), primeiro commit e push para `github.com/GA55555/projeto_agenda`. Falta `docker-compose.yml` (§1.1) + `postgresql.conf` (§1.2) + Dockerfiles para fechar a fase.
+- 2026-07-19 — [Fase 7a] 🟡 **Fundação da SPA construída + revisada + validada localmente.** **React + Vite + TS**; Nginx serve estáticos + proxy `/api`→backend (mesma origem, zero CORS, backend não-exposto §2.1.1), multi-stage 100 MB (§1.1). **Auth por cookie httpOnly** (login seta cookie; `get_current_user` lê cookie|bearer; `/auth/logout`); SPA com cliente `credentials:include` (JS não lê token), AuthContext via `/auth/me`, handler global de 401, telas Login+Home. Decisões: React; vertical slice; cookie httpOnly; só psicólogas. Backend 61 unit tests; frontend `build`+`tsc` OK. Code-review → 7 achados, 6 aplicados (COOKIE_SECURE default false, 401 global, erros diferenciados, logout espelha atributos, catch simplificado, npm ci); #4 mantido dual-mode. **Deploy exige `COOKIE_SECURE=false` no `.env` (HTTP).** Próxima: **7b (telas)**.
 - 2026-07-19 — [Fase 6] ✅ **Concluída e validada no servidor.** Smoke com `OPENAI_API_KEY` ativa: `POST /llm/evolucoes/rascunho` → **200** com `evolucao` (evolução clínica coerente em pt, contextualizada) + `destaques` (3 alertas) + `chunks_contexto:0`. Provou contra a API viva: modo `json_object` (achado #2), sem 503 espúrio (achado #1), parse JSON→campos, desanonimização. Sem chave → 503 (fail-closed); campo errado → 422. **`OPENAI_API_KEY` agora ativa no servidor** (embeddings da Fase 5 também passam a preencher).
 - 2026-07-19 — [Fase 6] 🟡 **Construída + revisada + validada localmente (validar no servidor).** Módulo `llm` stateless (sem migration): túnel completo `prompts.py`/`client.py`/`service.py`. Fluxo: gate TCLE §2.2 → RAG (`buscar_contexto`) → monta nota+histórico e **anonimiza numa passagem** (marcadores consistentes) → **guard-rail hard-abort** §3.4 → OpenAI (`gpt-4o-mini`, **sem tools**, `store=false`, timeout de chat) → **desanonimiza** → rascunho (evolução + destaques) p/ aprovação (Fase 7). Endpoint `POST /llm/evolucoes/rascunho`. Decisões: ambos deliverables (JSON); stateless; gpt-4o-mini; gate consentimento. Code-review alto esforço → **5 achados aplicados** (timeout de chat separado; "json" minúsculo p/ `json_object`; limpa marcadores residuais; `anonimizar_com_entidades` reusa entidades — otimiza Fase 5 tb; `SemConsentimentoAtivo` centralizada). **55 unit tests, 1 skip.**
 - 2026-07-19 — [Fase 5] ✅ **Concluída e validada no servidor.** `alembic upgrade head` → `0005`. RLS FORCE nas 2 tabelas, `embedding vector(1536)`, **sem índice vetorial** (§3.1). Smoke API: gate §2.2 (TCLE revogado → **422**); criação → **201** com `total_chunks:2` e `embeddings_pendentes:2` (sem chave OpenAI → nota persiste, degradação graciosa). Deixado no servidor um paciente de teste COM consentimento ativo: `b0707184-d983-4301-b4cc-dac552494284` ("Crianca RAG") — útil p/ testes da Fase 6.
@@ -365,7 +374,7 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 
 ## ⚖️ Decisões em Aberto (a resolver)
 
-- [ ] **Framework do frontend:** React ou Vue.js? (Fase 7)
+- [x] **Framework do frontend:** **React + Vite + TS**. ✔ Resolvido 2026-07-19 (Fase 7a).
 - [x] **Localização dos docs:** `docs/`. ✔ Resolvido 2026-07-17.
 - [x] **Layout do backend:** por domínio/módulo. ✔ Resolvido 2026-07-17.
 - [x] **Vínculo responsável↔paciente:** N:N (`vinculos_resp_paciente`). ✔ Resolvido 2026-07-18 (Fase 3).
