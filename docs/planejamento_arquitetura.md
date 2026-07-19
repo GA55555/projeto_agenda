@@ -14,10 +14,10 @@
 
 | Campo | Valor |
 | --- | --- |
-| Fase corrente | **Fase 3 — Modelo de Domínio & Consentimento** (construída; validar no servidor) |
+| Fase corrente | **Fase 3 ✅ concluída e validada no servidor** — próxima a escolher: Fase 3.5 (Agenda) ou Fase 4 (Pseudonimização) |
 | Última atualização | 2026-07-18 |
 | Bloqueios ativos | Nenhum |
-| Próximo passo imediato | Deploy no servidor: migration `0003` (aditiva) + rodar testes de integração (RLS das tabelas novas + imutabilidade da auditoria). Depois: Fase 3.5 (Agenda). |
+| Próximo passo imediato | Decidir e planejar a próxima fase: **3.5 (Agenda de Atendimentos)** ou **4 (Pipeline de Pseudonimização)**. |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
@@ -48,7 +48,7 @@
 | 0 | Fundações & Infra Base | Esqueleto do repositório, Docker e limites de RAM | ✅ Concluído |
 | 1 | Base de Dados & Multitenancy | PostgreSQL + pgvector + RLS funcionando | ✅ Concluído |
 | 2 | Backend Core (FastAPI) | API base, auth, injeção de tenant | ✅ Concluído |
-| 3 | Modelo de Domínio & Consentimento | Pacientes, responsáveis, TCLE, auditoria | 🟡 Construída (validar no servidor) |
+| 3 | Modelo de Domínio & Consentimento | Pacientes, responsáveis, TCLE, auditoria | ✅ Concluído |
 | 3.5 | Agenda de Atendimentos | Agendamentos vinculados a paciente + tenant | ⬜ Não iniciado |
 | 4 | Pipeline de Pseudonimização | Túnel opaco anonimizar/desanonimizar (Aho-Corasick) | ⬜ Não iniciado |
 | 5 | IA Vetorial & RAG | Embeddings, filtragem híbrida, chunking | ⬜ Não iniciado |
@@ -160,7 +160,7 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 - Impossível criar paciente sem responsável legal e sem TCLE registrado. ✅ *(schema + serviço transacional; testes unitários provam a rejeição)*
 - Revogações/alterações ficam em log inalterável e auditável. ✅ *(auditoria append-only; teste de integração prova UPDATE/DELETE bloqueado)*
 
-> 🟡 **Construída e validada localmente 2026-07-18** (unit tests + render offline do SQL da migration `0003`). Falta validar no servidor (migration aditiva + testes de integração com BD).
+> ✅ **Concluída e validada no servidor 2026-07-18.** `alembic upgrade head` aplicou `0003`. Provado por API/psql: criação de paciente+vínculo+TCLE em transação única (RLS `WITH CHECK`, grants, FK composto sob FORCE RLS); resposta traz vínculos+responsável aninhados; CPF normalizado; revogação de TCLE gera evento em `auditoria`; `UPDATE` na auditoria barrado pelo trigger **até para o superusuário** (`ERROR: auditoria e append-only`).
 
 ---
 
@@ -311,6 +311,7 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 - 2026-07-17 — [Fase 0] Criados `arquitetura.md` (regras de ouro) e `planejamento_arquitetura.md` (este roadmap). Projeto ainda sem `git init`.
 - 2026-07-17 — [Fase 0] Docs movidos para `docs/`. Estrutura rígida de diretórios criada: backend por domínio/módulo (`core/`, `db/`, `middleware/`, `api/`, `modules/` × 11 domínios), `frontend/`, `infra/`, `tests/`. Criados `.gitignore`, `.env.example`, `README.md`. **Decisão:** backend organizado por domínio/módulo (não por camada).
 - 2026-07-17 — [Fase 0] `git init` (branch `main`), primeiro commit e push para `github.com/GA55555/projeto_agenda`. Falta `docker-compose.yml` (§1.1) + `postgresql.conf` (§1.2) + Dockerfiles para fechar a fase.
+- 2026-07-18 — [Fase 3] ✅ **Concluída e validada no servidor.** `alembic upgrade head` → `0003`. Smoke via API/psql: paciente+vínculo+TCLE em transação única (RLS WITH CHECK + grants + FK composto sob FORCE RLS); resposta com vínculos+responsável; CPF normalizado (`11122233344`); revogação → evento `consentimento_revogado` em `auditoria`; `UPDATE` na auditoria → `ERROR: auditoria e append-only` (trigger barra até superusuário). §2.1/§2.2 provados ponta a ponta.
 - 2026-07-18 — [Fase 3] Construída (validar no servidor). **Decisões:** vínculo resp↔paciente **N:N** (`vinculos_resp_paciente`); auditoria = **log genérico append-only** com imutabilidade no BD (REVOKE UPDATE/DELETE + trigger); TCLE grava metadados+texto (PDF fica p/ Fase 8); **agendamentos → Fase 3.5**. Migration `0003` cria `responsaveis_legais`, `pacientes`, `vinculos_resp_paciente`, `consentimentos`, `auditoria` (todas RLS+FORCE, índices §3.2, CHECK de `tipo_vinculo`). Módulos preenchidos (models/schemas/service/router) + 4 routers na API. Invariante do DoD (paciente exige responsável+TCLE) imposto por schema + criação transacional. Validado local: 8 unit tests + render offline do SQL da migration. Testes de integração (RLS + auditoria imutável) aguardam BD no servidor.
 - 2026-07-18 — [Fase 2] ✅ **Concluída e validada no servidor.** Login → JWT; `/tenants/atual` só o tenant do JWT (RLS via `SET LOCAL`); senha errada → 401; `/health/ready` → 200. 1ª psicóloga criada via CLI. Bug passlib×bcrypt corrigido.
 - 2026-07-18 — [Fase 2] Construída (validar no servidor). **Decisão: tenant = psicóloga.** Sessão/pool como `agenda_app`; auth JWT (bcrypt+PyJWT); `get_tenant_session` injeta `SET LOCAL` por transação; migration `0002` (`usuarios`, control-plane); CLI `criar-tenant-usuario`; `GET /tenants/atual` prova RLS pela API; `/health/ready`. **Bug corrigido:** passlib×bcrypt≥4.1 → lib `bcrypt` direta. Validado local: unit tests + rotas + `/health` 200.
