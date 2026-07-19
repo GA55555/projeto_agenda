@@ -14,10 +14,10 @@
 
 | Campo | Valor |
 | --- | --- |
-| Fase corrente | **Fase 3 ✅ concluída e validada no servidor** — próxima a escolher: Fase 3.5 (Agenda) ou Fase 4 (Pseudonimização) |
-| Última atualização | 2026-07-18 |
+| Fase corrente | **Fases 3 e 3.5 ✅ concluídas e validadas no servidor** — próxima: **Fase 4 (Pipeline de Pseudonimização)** |
+| Última atualização | 2026-07-19 |
 | Bloqueios ativos | Nenhum |
-| Próximo passo imediato | Decidir e planejar a próxima fase: **3.5 (Agenda de Atendimentos)** ou **4 (Pipeline de Pseudonimização)**. |
+| Próximo passo imediato | Planejar a **Fase 4** (túnel opaco §2.3: Aho-Corasick + Presidio lazy, dicionário volátil) — usuário quer plano detalhado + perguntas de design antes de codar. |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
@@ -49,7 +49,7 @@
 | 1 | Base de Dados & Multitenancy | PostgreSQL + pgvector + RLS funcionando | ✅ Concluído |
 | 2 | Backend Core (FastAPI) | API base, auth, injeção de tenant | ✅ Concluído |
 | 3 | Modelo de Domínio & Consentimento | Pacientes, responsáveis, TCLE, auditoria | ✅ Concluído |
-| 3.5 | Agenda de Atendimentos | Agendamentos vinculados a paciente + tenant | ⬜ Não iniciado |
+| 3.5 | Agenda de Atendimentos | Agendamentos vinculados a paciente + tenant | ✅ Concluído |
 | 4 | Pipeline de Pseudonimização | Túnel opaco anonimizar/desanonimizar (Aho-Corasick) | ⬜ Não iniciado |
 | 5 | IA Vetorial & RAG | Embeddings, filtragem híbrida, chunking | ⬜ Não iniciado |
 | 6 | Integração LLM (OpenAI) | Geração de evoluções via túnel de pseudonimização | ⬜ Não iniciado |
@@ -170,15 +170,19 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 
 **Regras de ouro aplicáveis:** §2.1 (RLS + `tenant_id`), §3.2 (índices B-Tree).
 
+**Decisões (2026-07-19):** anti-sobreposição **no motor** via `EXCLUDE` (btree_gist, `tstzrange(inicio,fim,'[)')`) — atendimentos encostados (fim==início) permitidos; agenda **não** exige TCLE (consentimento é pré-req do prontuário, Fase 5+); status `agendado/realizado/cancelado/falta`, cancelamento **soft** (`motivo_cancelamento`, sem DELETE); paciente por **FK composto** `(tenant_id, paciente_id)` (§2.1); datetimes com timezone obrigatório.
+
 ### Tarefas
-- [ ] Tabela `agendamentos` (`tenant_id`, `paciente_id` FK, `inicio`, `fim`, `status`, `observacao`, timestamps) + RLS/FORCE.
-- [ ] Índices B-Tree por `tenant_id`/`paciente_id` (§3.2).
-- [ ] Endpoints CRUD sob RLS; validação de sobreposição/horário (a definir).
-- [ ] Estados do atendimento (agendado/realizado/cancelado) — modelagem a decidir.
+- [x] Tabela `agendamentos` (`tenant_id`, `paciente_id`, `inicio`, `fim`, `status`, `tipo?`, `observacao`, `motivo_cancelamento`, timestamps) + RLS/FORCE.
+- [x] Índices B-Tree `(tenant_id, inicio)` e `paciente_id` (§3.2).
+- [x] Endpoints CRUD sob RLS (`POST/GET`, `GET/PATCH /{id}`, `POST /{id}/cancelar`); sobreposição → 409, paciente fora do tenant → 422.
+- [x] Estados do atendimento + **não-sobreposição imposta no BD** (`EXCLUDE`, §2.1).
 
 ### Definition of Done
-- Agendamento sempre vinculado a paciente do tenant (RLS provado).
-- Nenhum agendamento cruza tenants.
+- Agendamento sempre vinculado a paciente do tenant (RLS provado). ✅
+- Nenhum agendamento cruza tenants. ✅ *(FK composto + RLS; teste de integração)*
+
+> ✅ **Concluída e validada no servidor 2026-07-19.** `alembic upgrade head` → `0004` (extensão `btree_gist` + tabela). Smoke via API: agendamento criado (`agendado`); sobreposição rejeitada (**409** pelo `EXCLUDE`). Review de alto esforço aplicado (4 correções: PATCH 422, timezone, alias `status`, teste RLS).
 
 ---
 
@@ -311,6 +315,7 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 - 2026-07-17 — [Fase 0] Criados `arquitetura.md` (regras de ouro) e `planejamento_arquitetura.md` (este roadmap). Projeto ainda sem `git init`.
 - 2026-07-17 — [Fase 0] Docs movidos para `docs/`. Estrutura rígida de diretórios criada: backend por domínio/módulo (`core/`, `db/`, `middleware/`, `api/`, `modules/` × 11 domínios), `frontend/`, `infra/`, `tests/`. Criados `.gitignore`, `.env.example`, `README.md`. **Decisão:** backend organizado por domínio/módulo (não por camada).
 - 2026-07-17 — [Fase 0] `git init` (branch `main`), primeiro commit e push para `github.com/GA55555/projeto_agenda`. Falta `docker-compose.yml` (§1.1) + `postgresql.conf` (§1.2) + Dockerfiles para fechar a fase.
+- 2026-07-19 — [Fase 3.5] ✅ **Concluída e validada no servidor.** `alembic upgrade head` → `0004` (extensão `btree_gist` + tabela `agendamentos`). Anti-sobreposição **no motor** via `EXCLUDE` (GiST, `tstzrange '[)'`); FK composto `(tenant_id, paciente_id)`; RLS+FORCE; status agendado/realizado/cancelado/falta, cancelamento soft. Smoke API: criar → `agendado`; sobrepor → **409**. Review de alto esforço aplicado (PATCH parcial→422, datetime tz obrigatório, filtro `status` aliased, teste RLS da agenda). Módulo `agendamentos` (models/schemas/service/router) + router na API.
 - 2026-07-18 — [Fase 3] ✅ **Concluída e validada no servidor.** `alembic upgrade head` → `0003`. Smoke via API/psql: paciente+vínculo+TCLE em transação única (RLS WITH CHECK + grants + FK composto sob FORCE RLS); resposta com vínculos+responsável; CPF normalizado (`11122233344`); revogação → evento `consentimento_revogado` em `auditoria`; `UPDATE` na auditoria → `ERROR: auditoria e append-only` (trigger barra até superusuário). §2.1/§2.2 provados ponta a ponta.
 - 2026-07-18 — [Fase 3] Construída (validar no servidor). **Decisões:** vínculo resp↔paciente **N:N** (`vinculos_resp_paciente`); auditoria = **log genérico append-only** com imutabilidade no BD (REVOKE UPDATE/DELETE + trigger); TCLE grava metadados+texto (PDF fica p/ Fase 8); **agendamentos → Fase 3.5**. Migration `0003` cria `responsaveis_legais`, `pacientes`, `vinculos_resp_paciente`, `consentimentos`, `auditoria` (todas RLS+FORCE, índices §3.2, CHECK de `tipo_vinculo`). Módulos preenchidos (models/schemas/service/router) + 4 routers na API. Invariante do DoD (paciente exige responsável+TCLE) imposto por schema + criação transacional. Validado local: 8 unit tests + render offline do SQL da migration. Testes de integração (RLS + auditoria imutável) aguardam BD no servidor.
 - 2026-07-18 — [Fase 2] ✅ **Concluída e validada no servidor.** Login → JWT; `/tenants/atual` só o tenant do JWT (RLS via `SET LOCAL`); senha errada → 401; `/health/ready` → 200. 1ª psicóloga criada via CLI. Bug passlib×bcrypt corrigido.
