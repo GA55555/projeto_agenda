@@ -40,6 +40,9 @@ export function Agenda() {
           <h2>Agenda de hoje</h2>
           <p className="muted">{new Date().toLocaleDateString("pt-BR", { dateStyle: "full" })}</p>
         </div>
+        <Link className="botao" to="/agenda/novo">
+          Novo agendamento
+        </Link>
       </div>
       {ags.length === 0 ? (
         <p className="vazio">Nenhum atendimento hoje.</p>

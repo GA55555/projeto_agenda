@@ -161,6 +161,13 @@ def test_write_path_completo_via_api(seed_psicologa):
     assert rr.json()["cpf"] == "11122233344"  # normalizado (#6)
     resp_id = rr.json()["id"]
 
+    # 1b) CPF duplicado (mesmo tenant) -> 409, nao 500 (Fase 7c). Aceita mascara
+    # diferente: normaliza para os mesmos 11 digitos e viola o UNIQUE.
+    rdup = client.post(
+        "/api/v1/responsaveis", headers=h, json={"nome": "Outro", "cpf": "11122233344"}
+    )
+    assert rdup.status_code == 409, rdup.text
+
     # 2) Paciente + vinculo + TCLE (invariante §2.2, transacao unica).
     rp = client.post(
         "/api/v1/pacientes",

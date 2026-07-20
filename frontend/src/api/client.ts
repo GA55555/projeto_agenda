@@ -69,8 +69,60 @@ export interface Responsavel {
   id: string;
   nome: string;
   cpf: string;
+  data_nascimento: string | null;
   telefone: string | null;
   email: string | null;
+  endereco: string | null;
+  criado_em: string;
+}
+
+// ---- Payloads de criação (7c.2) ----
+export interface AgendamentoCreate {
+  paciente_id: string;
+  inicio: string; // ISO com timezone
+  fim: string;
+  tipo?: string;
+  observacao?: string;
+}
+
+export interface ResponsavelCreate {
+  nome: string;
+  cpf: string;
+  data_nascimento?: string;
+  telefone?: string;
+  email?: string;
+  endereco?: string;
+}
+
+// PATCH /responsaveis só aceita estes campos (ResponsavelUpdate no backend).
+export interface ResponsavelUpdate {
+  nome?: string;
+  telefone?: string;
+  email?: string;
+}
+
+export interface VinculoCreate {
+  responsavel_id: string;
+  tipo_vinculo: string;
+  detem_guarda?: boolean;
+  principal?: boolean;
+}
+
+export interface ConsentimentoCreate {
+  responsavel_id: string;
+  finalidade_clinica: string;
+  limitacoes_acesso: string;
+  termo_versao: string;
+  termo_texto: string;
+}
+
+export interface PacienteCreate {
+  nome: string;
+  data_nascimento: string;
+  sexo?: string;
+  observacoes_gerais?: string;
+  vinculos: VinculoCreate[];
+  consentimento: ConsentimentoCreate;
 }
 
 export interface Vinculo {
@@ -161,6 +213,18 @@ export const api = {
     request<Consentimento[]>(`/consentimentos${qs({ paciente_id: pacienteId })}`),
   evolucoes: (pacienteId: string) =>
     request<Evolucao[]>(`/evolucoes${qs({ paciente_id: pacienteId })}`),
+
+  // ---- Cadastros (7c.2) ----
+  responsaveis: () => request<Responsavel[]>("/responsaveis"),
+  responsavel: (id: string) => request<Responsavel>(`/responsaveis/${id}`),
+  criarResponsavel: (d: ResponsavelCreate) =>
+    request<Responsavel>("/responsaveis", { method: "POST", body: JSON.stringify(d) }),
+  atualizarResponsavel: (id: string, d: ResponsavelUpdate) =>
+    request<Responsavel>(`/responsaveis/${id}`, { method: "PATCH", body: JSON.stringify(d) }),
+  criarAgendamento: (d: AgendamentoCreate) =>
+    request<Agendamento>("/agendamentos", { method: "POST", body: JSON.stringify(d) }),
+  criarPaciente: (d: PacienteCreate) =>
+    request<PacienteDetalhado>("/pacientes", { method: "POST", body: JSON.stringify(d) }),
 
   gerarRascunho: (pacienteId: string, notaDoDia: string) =>
     request<Rascunho>("/llm/evolucoes/rascunho", {

@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.db.deps import get_tenant_session
 from app.modules.auth.dependencies import CurrentUser, get_current_user
 from app.modules.responsaveis import service
+from app.modules.responsaveis.exceptions import CpfDuplicado
 from app.modules.responsaveis.schemas import (
     ResponsavelCreate,
     ResponsavelOut,
@@ -26,7 +27,13 @@ def criar_responsavel(
     db: Session = Depends(get_tenant_session),
     user: CurrentUser = Depends(get_current_user),
 ) -> ResponsavelOut:
-    return service.criar(db, user.tenant_id, dados)
+    try:
+        return service.criar(db, user.tenant_id, dados)
+    except CpfDuplicado:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ja existe um responsavel com este CPF neste tenant.",
+        )
 
 
 @router.get("", response_model=list[ResponsavelOut])

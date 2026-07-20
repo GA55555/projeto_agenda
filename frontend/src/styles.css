@@ -187,6 +187,24 @@ label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.86rem;
 }
 .vazio { color: var(--muted); padding: 1.5rem 0; }
 
+/* ---- Formulários / detalhe ---- */
+.acoes { display: flex; gap: 0.6rem; margin-top: 1rem; }
+.opcoes { display: flex; gap: 1.2rem; margin-bottom: 0.6rem; }
+.inline {
+  display: flex; flex-direction: row; align-items: center; gap: 0.45rem;
+  font-size: 0.9rem; color: var(--fg); margin: 0.3rem 0;
+}
+.inline input { width: auto; }
+.card h3:first-child { margin-top: 0; }
+
+.dados { margin: 0; display: grid; gap: 0.7rem; }
+.dados > div { display: grid; grid-template-columns: 9rem 1fr; gap: 0.5rem; }
+.dados dt { color: var(--muted); font-size: 0.85rem; }
+.dados dd { margin: 0; }
+@media (max-width: 480px) {
+  .dados > div { grid-template-columns: 1fr; gap: 0.1rem; }
+}
+
 /* ---- Responsivo: sidebar vira topo em telas estreitas ---- */
 @media (max-width: 720px) {
   .layout { grid-template-columns: 1fr; }

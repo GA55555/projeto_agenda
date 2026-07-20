@@ -9,10 +9,14 @@ Fase do roadmap: Fase 3
 import uuid
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.modules.responsaveis.exceptions import CpfDuplicado
 from app.modules.responsaveis.models import ResponsavelLegal
 from app.modules.responsaveis.schemas import ResponsavelCreate, ResponsavelUpdate
+
+_UNIQUE_VIOLATION = "23505"  # Postgres: unique_violation (UNIQUE(tenant_id, cpf))
 
 
 def criar(db: Session, tenant_id: uuid.UUID, dados: ResponsavelCreate) -> ResponsavelLegal:
@@ -26,7 +30,13 @@ def criar(db: Session, tenant_id: uuid.UUID, dados: ResponsavelCreate) -> Respon
         endereco=dados.endereco,
     )
     db.add(resp)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        # CPF ja existe no tenant -> erro de dominio (409), nao 500.
+        if getattr(exc.orig, "sqlstate", None) == _UNIQUE_VIOLATION:
+            raise CpfDuplicado(dados.cpf) from exc
+        raise
     return resp
 
 

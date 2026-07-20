@@ -13,6 +13,9 @@ export function Pacientes() {
     <section>
       <div className="page-header">
         <h2>Pacientes</h2>
+        <Link className="botao" to="/pacientes/novo">
+          Novo paciente
+        </Link>
       </div>
       {!pacientes || pacientes.length === 0 ? (
         <p className="vazio">Nenhum paciente cadastrado.</p>
