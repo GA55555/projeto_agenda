@@ -9,7 +9,9 @@ mesmo tenant com horarios sobrepostos. Imposto por uma constraint EXCLUDE
 (GiST sobre `tstzrange(inicio, fim)` + `tenant_id`), definida na migration
 (EXCLUDE nao se expressa de forma limpa no ORM; a BD e a fonte da verdade).
 
-Cancelamento e SOFT (status='cancelado' + `motivo_cancelamento`); nunca DELETE.
+Cancelamento e SOFT (status='cancelado' + `motivo_cancelamento`). Ha DELETE
+apenas para corrigir ERRO de lancamento e SO em status 'agendado' (Fase 7e);
+os demais status sao historico e nunca se apagam.
 
 Regras de ouro: §2.1, §3.2
 Fase do roadmap: Fase 3.5
@@ -24,6 +26,7 @@ from sqlalchemy import (
     Index,
     String,
     Text,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -57,6 +60,8 @@ class Agendamento(Base):
         # Listagem por data (agenda) e por paciente (§3.2).
         Index("ix_agendamentos_tenant_id_inicio", "tenant_id", "inicio"),
         Index("ix_agendamentos_paciente_id", "paciente_id"),
+        # Alvo do FK composto (tenant_id, id) vindo das evolucoes (Fase 7e, §2.1).
+        UniqueConstraint("tenant_id", "id", name="uq_agendamentos_tenant_id_id"),
         # A constraint EXCLUDE anti-sobreposicao vive na migration (§2.1).
     )
 

@@ -10,12 +10,14 @@ Fase do roadmap: Fase 3
 """
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.modules.agendamentos.models import Agendamento
 from app.modules.auth.dependencies import CurrentUser
 from app.modules.consentimentos.models import Consentimento
-from app.modules.pacientes.exceptions import ResponsavelInexistente
+from app.modules.evolucoes.models import Evolucao
+from app.modules.pacientes.exceptions import PacienteComProntuario, ResponsavelInexistente
 from app.modules.pacientes.models import Paciente, VinculoRespPaciente
 from app.modules.pacientes.schemas import PacienteCreate, PacienteUpdate
 from app.modules.responsaveis.models import ResponsavelLegal
@@ -89,11 +91,71 @@ def obter(db: Session, paciente_id: uuid.UUID) -> Paciente | None:
     return db.execute(stmt).scalar_one_or_none()
 
 
-def atualizar(db: Session, paciente_id: uuid.UUID, dados: PacienteUpdate) -> Paciente | None:
+def atualizar(
+    db: Session, user: CurrentUser, paciente_id: uuid.UUID, dados: PacienteUpdate
+) -> Paciente | None:
     paciente = db.get(Paciente, paciente_id)
     if paciente is None:
         return None
-    for campo, valor in dados.model_dump(exclude_unset=True).items():
+    campos = dados.model_dump(exclude_unset=True)
+    # Arquivar/reativar (Fase 7e) e mutacao sensivel -> auditoria (§2.2).
+    mudou_ativo = "ativo" in campos and campos["ativo"] != paciente.ativo
+    for campo, valor in campos.items():
         setattr(paciente, campo, valor)
     db.flush()
+    if mudou_ativo:
+        from app.modules.audit import service as audit_service
+        from app.modules.audit.models import TIPO_PACIENTE_ARQUIVADO, TIPO_PACIENTE_REATIVADO
+
+        audit_service.registrar_evento(
+            db,
+            tenant_id=user.tenant_id,
+            tipo_evento=TIPO_PACIENTE_REATIVADO if paciente.ativo else TIPO_PACIENTE_ARQUIVADO,
+            entidade="paciente",
+            entidade_id=paciente.id,
+            ator_usuario_id=user.id,
+            payload={"nome": paciente.nome},
+        )
     return paciente
+
+
+def apagar_paciente(db: Session, user: CurrentUser, paciente_id: uuid.UUID) -> bool:
+    """Exclusao definitiva (Fase 7e) — SO para cadastro errado, sem prontuario.
+
+    Com evolucoes registradas -> `PacienteComProntuario` (409): a guarda de
+    prontuario por >=5 anos (CFP 001/2009, §0.3) impede a exclusao; o caminho e
+    ARQUIVAR. Defesa em profundidade: o role da app nem tem GRANT DELETE em
+    `evolucoes` (migration 0007) — a regra vive no MOTOR (§2.1.1), este check
+    so a antecipa com mensagem clara.
+
+    Apaga, na MESMA transacao: agendamentos, consentimentos, vinculos e o
+    paciente; grava evento indelevel na auditoria (§2.2). Tudo sob RLS.
+    """
+    paciente = db.get(Paciente, paciente_id)
+    if paciente is None:
+        return False
+    tem_evolucoes = db.execute(
+        select(func.count()).select_from(Evolucao).where(Evolucao.paciente_id == paciente_id)
+    ).scalar_one()
+    if tem_evolucoes:
+        raise PacienteComProntuario(str(paciente_id))
+
+    from app.modules.audit import service as audit_service
+    from app.modules.audit.models import TIPO_PACIENTE_APAGADO
+
+    audit_service.registrar_evento(
+        db,
+        tenant_id=user.tenant_id,
+        tipo_evento=TIPO_PACIENTE_APAGADO,
+        entidade="paciente",
+        entidade_id=paciente.id,
+        ator_usuario_id=user.id,
+        payload={"nome": paciente.nome, "data_nascimento": paciente.data_nascimento.isoformat()},
+    )
+    # Ordem respeita os FKs RESTRICT (filhos antes do pai).
+    db.execute(delete(Agendamento).where(Agendamento.paciente_id == paciente_id))
+    db.execute(delete(Consentimento).where(Consentimento.paciente_id == paciente_id))
+    db.execute(delete(VinculoRespPaciente).where(VinculoRespPaciente.paciente_id == paciente_id))
+    db.delete(paciente)
+    db.flush()
+    return True

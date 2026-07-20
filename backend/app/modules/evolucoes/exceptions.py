@@ -11,3 +11,7 @@ class PacienteInexistente(Exception):
 
 class EmbeddingIndisponivel(Exception):
     """Falha ao gerar embedding (sem chave, rede, quota). Nota persiste sem vetor."""
+
+
+class AgendamentoInvalido(Exception):
+    """Agendamento inexistente no tenant, de outro paciente ou nao-realizado (Fase 7e)."""

@@ -23,3 +23,21 @@ export function janelaDeHoje(): { de: string; ate: string } {
   const ate = new Date(h.getFullYear(), h.getMonth(), h.getDate() + 1).toISOString();
   return { de, ate };
 }
+
+// "YYYY-MM-DD" de uma Date no fuso LOCAL (sem o shift de UTC do toISOString).
+export function toISODate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// "YYYY-MM-DD" e "YYYY-MM" de hoje (fuso local).
+export function hojeISO(): string {
+  return toISODate(new Date());
+}
+export function mesAtualISO(): string {
+  return hojeISO().slice(0, 7);
+}
+
+// HH:MM pt-BR de um instante.
+export function fmtHora(iso: string | Date): string {
+  return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}

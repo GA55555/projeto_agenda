@@ -1,14 +1,22 @@
-import { Link, useParams } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { Consentimento, Evolucao, PacienteDetalhado } from "../api/client";
 import { useAsync } from "../utils/useAsync";
 import { fmtData, fmtDataHora } from "../utils/format";
+import { mensagemDeErro } from "../utils/erro";
+
+const SEXO_ROTULO: Record<string, string> = {
+  masculino: "Masculino",
+  feminino: "Feminino",
+};
 
 export function FichaPaciente() {
   const { id = "" } = useParams();
+  const navigate = useNavigate();
   // O paciente e essencial; consentimentos/evolucoes sao secundarios -> uma
   // falha transitoria neles nao deve apagar a ficha (allSettled, #4 do review).
-  const { data, loading, error } = useAsync(async () => {
+  const { data, loading, error, reload } = useAsync(async () => {
     const paciente = await api.paciente(id);
     const [c, e] = await Promise.allSettled([api.consentimentos(id), api.evolucoes(id)]);
     return {
@@ -17,6 +25,48 @@ export function FichaPaciente() {
       evolucoes: e.status === "fulfilled" ? e.value : null,
     };
   }, [id]);
+
+  const [acaoErro, setAcaoErro] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+
+  // Wrapper único do ciclo ocupado/erro das ações de administração.
+  async function executar(fn: () => Promise<unknown>) {
+    setAcaoErro(null);
+    setOcupado(true);
+    try {
+      await fn();
+    } catch (e) {
+      setAcaoErro(mensagemDeErro(e));
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  function arquivarOuReativar(paciente: PacienteDetalhado) {
+    const msg = paciente.ativo
+      ? "Arquivar este paciente? Nada é apagado: o prontuário e o cadastro ficam guardados, e o paciente sai das listas ativas."
+      : "Reativar este paciente?";
+    if (!window.confirm(msg)) return;
+    void executar(async () => {
+      await api.atualizarPaciente(paciente.id, { ativo: !paciente.ativo });
+      reload();
+    });
+  }
+
+  function apagar(paciente: PacienteDetalhado) {
+    if (
+      !window.confirm(
+        `APAGAR o paciente "${paciente.nome}"?\n\nIsso exclui DEFINITIVAMENTE o cadastro, vínculos, TCLE e agendamentos. ` +
+          "Só é possível para cadastro sem prontuário (evoluções) — com prontuário, use o arquivamento (guarda de 5 anos, CFP).",
+      )
+    ) {
+      return;
+    }
+    void executar(async () => {
+      await api.apagarPaciente(paciente.id);
+      navigate("/pacientes", { replace: true });
+    });
+  }
 
   if (loading) return <p className="muted">Carregando ficha…</p>;
   if (error || !data) return <p className="erro">{error ?? "Erro ao carregar."}</p>;
@@ -36,8 +86,10 @@ export function FichaPaciente() {
       </Link>
       <div className="page-header">
         <div>
-          <h2>{paciente.nome}</h2>
-          <p className="muted">Nascimento: {fmtData(paciente.data_nascimento)}</p>
+          <h2>
+            {paciente.nome}
+            {!paciente.ativo && <span className="tag tag-inativo titulo-tag">Arquivado</span>}
+          </h2>
         </div>
         {consentimentos === null ? (
           <span className="tag">TCLE: indisponível</span>
@@ -48,15 +100,50 @@ export function FichaPaciente() {
         )}
       </div>
 
+      {/* ---- Cadastro completo (Fase 7e) ---- */}
+      <div className="card">
+        <h3>Dados cadastrais</h3>
+        <dl className="dados">
+          <div>
+            <dt>Nascimento</dt>
+            <dd>{fmtData(paciente.data_nascimento)}</dd>
+          </div>
+          <div>
+            <dt>Sexo</dt>
+            <dd>{paciente.sexo ? SEXO_ROTULO[paciente.sexo] ?? paciente.sexo : "—"}</dd>
+          </div>
+          <div>
+            <dt>Observações gerais</dt>
+            <dd>{paciente.observacoes_gerais || "—"}</dd>
+          </div>
+          <div>
+            <dt>Situação</dt>
+            <dd>{paciente.ativo ? "Ativo" : "Arquivado"}</dd>
+          </div>
+          <div>
+            <dt>Cadastrado em</dt>
+            <dd>{fmtDataHora(paciente.criado_em)}</dd>
+          </div>
+        </dl>
+      </div>
+
       <div className="card">
         <h3>Responsáveis</h3>
         <ul className="lista">
           {paciente.vinculos.map((v) => (
             <li key={v.id}>
-              {v.responsavel.nome} <span className="muted">({v.tipo_vinculo}</span>
-              {v.principal && <span className="muted">, principal</span>}
-              {v.detem_guarda && <span className="muted">, guarda</span>}
-              <span className="muted">)</span>
+              <Link to={`/responsaveis/${v.responsavel_id}`}>{v.responsavel.nome}</Link>{" "}
+              <span className="muted">
+                ({v.tipo_vinculo}
+                {v.principal && ", principal"}
+                {v.detem_guarda && ", guarda"})
+              </span>
+              {(v.responsavel.telefone || v.responsavel.email) && (
+                <span className="muted">
+                  {" — "}
+                  {[v.responsavel.telefone, v.responsavel.email].filter(Boolean).join(" · ")}
+                </span>
+              )}
             </li>
           ))}
         </ul>
@@ -68,7 +155,7 @@ export function FichaPaciente() {
 
       <div className="cabecalho-secao">
         <h3>Evoluções</h3>
-        {tcleAtivo && (
+        {tcleAtivo && paciente.ativo && (
           <Link className="botao" to={`/pacientes/${id}/evolucao/nova`}>
             Nova evolução
           </Link>
@@ -83,8 +170,12 @@ export function FichaPaciente() {
           <ul className="lista">
             {evolucoes.map((e) => (
               <li key={e.id}>
-                <span className="muted">{fmtDataHora(e.criado_em)}</span> —{" "}
-                {e.texto.length > 140 ? `${e.texto.slice(0, 140)}…` : e.texto}
+                <span className="muted">
+                  {e.data_atendimento
+                    ? `Atendimento: ${fmtDataHora(e.data_atendimento)}`
+                    : fmtDataHora(e.criado_em)}
+                </span>{" "}
+                — {e.texto.length > 140 ? `${e.texto.slice(0, 140)}…` : e.texto}
                 {e.embeddings_pendentes > 0 && (
                   <span className="muted"> (embeddings pendentes: {e.embeddings_pendentes})</span>
                 )}
@@ -92,6 +183,29 @@ export function FichaPaciente() {
             ))}
           </ul>
         )}
+      </div>
+
+      {/* ---- Zona de administração do cadastro (Fase 7e) ---- */}
+      <div className="card zona-perigo">
+        <h3>Administração do cadastro</h3>
+        <p className="muted">
+          Arquivar preserva tudo (prontuário incluso) e tira o paciente das listas ativas. Apagar é
+          definitivo e só é permitido para cadastro <strong>sem prontuário</strong> — com evoluções,
+          a guarda de 5 anos (CFP 001/2009) exige manter o registro.
+        </p>
+        {acaoErro && <p className="erro">{acaoErro}</p>}
+        <div className="acoes">
+          <button
+            className="secundario"
+            disabled={ocupado}
+            onClick={() => void arquivarOuReativar(paciente)}
+          >
+            {paciente.ativo ? "Arquivar paciente" : "Reativar paciente"}
+          </button>
+          <button className="perigo" disabled={ocupado} onClick={() => void apagar(paciente)}>
+            Apagar paciente…
+          </button>
+        </div>
       </div>
     </section>
   );

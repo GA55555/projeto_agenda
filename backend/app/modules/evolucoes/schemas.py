@@ -16,6 +16,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class EvolucaoCreate(BaseModel):
     paciente_id: uuid.UUID
+    # Fase 7e: toda evolucao NOVA nasce atrelada ao atendimento que a originou
+    # (a data do atendimento vem do agendamento). Legadas ficam sem vinculo.
+    agendamento_id: uuid.UUID
     texto: str = Field(min_length=1)
 
 
@@ -25,6 +28,9 @@ class EvolucaoOut(BaseModel):
     id: uuid.UUID
     paciente_id: uuid.UUID
     autor_usuario_id: uuid.UUID
+    agendamento_id: uuid.UUID | None
+    # Inicio do agendamento vinculado (None nas evolucoes legadas sem vinculo).
+    data_atendimento: datetime | None
     texto: str
     criado_em: datetime
     total_chunks: int

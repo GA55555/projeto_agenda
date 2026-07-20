@@ -26,6 +26,8 @@ from app.modules.pacientes.models import Paciente
 
 # exclusion_violation — sobreposicao barrada pela constraint EXCLUDE.
 _EXCLUSION_VIOLATION = "23P01"
+# foreign_key_violation — agendamento referenciado por evolucao (FK RESTRICT).
+_FK_VIOLATION = "23503"
 
 
 def validar_transicao_status(atual: str, novo: str) -> None:
@@ -136,3 +138,47 @@ def cancelar(
     ag.motivo_cancelamento = motivo
     db.flush()  # cancelar libera o horario (fica fora do EXCLUDE)
     return ag
+
+
+def apagar(db: Session, user, agendamento_id: uuid.UUID) -> bool:
+    """Apaga um agendamento (Fase 7e) — SO para corrigir erro de lancamento.
+
+    Regras: apenas status 'agendado' (realizado/falta/cancelado sao historico
+    que alimenta o dashboard). Evolucao so vincula atendimento REALIZADO, entao
+    um 'agendado' nunca tem prontuario — mas, por defesa em profundidade, se o
+    FK RESTRICT (§2.1) barrar o DELETE, traduzimos em 409 (nunca 500). Exclusao
+    e mutacao sensivel -> evento de auditoria na MESMA transacao (§2.2). Retorna
+    False se nao encontrado.
+    """
+    ag = db.get(Agendamento, agendamento_id)
+    if ag is None:
+        return False
+    if ag.status != STATUS_AGENDADO:
+        raise TransicaoInvalida(f"nao e possivel apagar um agendamento '{ag.status}'")
+
+    from app.modules.audit import service as audit_service
+    from app.modules.audit.models import TIPO_AGENDAMENTO_APAGADO
+
+    audit_service.registrar_evento(
+        db,
+        tenant_id=user.tenant_id,
+        tipo_evento=TIPO_AGENDAMENTO_APAGADO,
+        entidade="agendamento",
+        entidade_id=ag.id,
+        ator_usuario_id=user.id,
+        payload={
+            "paciente_id": str(ag.paciente_id),
+            "inicio": ag.inicio.isoformat(),
+            "fim": ag.fim.isoformat(),
+        },
+    )
+    db.delete(ag)
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        if getattr(exc.orig, "sqlstate", None) == _FK_VIOLATION:
+            raise TransicaoInvalida(
+                "agendamento com evolucao vinculada nao pode ser apagado"
+            ) from exc
+        raise
+    return True

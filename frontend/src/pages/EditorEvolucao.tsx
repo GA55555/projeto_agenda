@@ -1,13 +1,27 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ApiError, api } from "../api/client";
+import { useAsync } from "../utils/useAsync";
+import { fmtDataHora } from "../utils/format";
 
 // Coração da 7b: nota do dia -> rascunho da IA (túnel opaco, §3.4) -> revisão da
 // psicóloga (texto DESANONIMIZADO) -> aprovar e gravar (POST /evolucoes).
+// Fase 7e: a evolução nasce ATRELADA a um atendimento (agendamento) do paciente
+// — a data do atendimento vem dele.
 export function EditorEvolucao() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
 
+  // Atendimentos REALIZADOS do paciente (a evolução documenta uma sessão que
+  // ocorreu — o backend exige status 'realizado'), mais recentes primeiro.
+  const { data: atendimentos, loading: carregandoAg } = useAsync(async () => {
+    const ags = await api.agendamentos({ paciente_id: id });
+    return ags
+      .filter((a) => a.status === "realizado")
+      .sort((a, b) => b.inicio.localeCompare(a.inicio));
+  }, [id]);
+
+  const [agendamentoId, setAgendamentoId] = useState("");
   const [nota, setNota] = useState("");
   const [texto, setTexto] = useState(""); // rascunho editável (o que será gravado)
   const [destaques, setDestaques] = useState<string[]>([]);
@@ -15,6 +29,17 @@ export function EditorEvolucao() {
   const [gerando, setGerando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+
+  // Ao navegar entre pacientes o componente NÃO remonta (só o :id muda) — zera
+  // a seleção/rascunho para não vazar dados de um paciente para outro.
+  useEffect(() => {
+    setAgendamentoId("");
+    setNota("");
+    setTexto("");
+    setDestaques([]);
+    setChunks(null);
+    setErro(null);
+  }, [id]);
 
   function traduzErro(e: unknown): string {
     if (e instanceof ApiError) {
@@ -50,7 +75,7 @@ export function EditorEvolucao() {
     setErro(null);
     setSalvando(true);
     try {
-      await api.criarEvolucao(id, texto);
+      await api.criarEvolucao(id, agendamentoId, texto);
       navigate(`/pacientes/${id}`, { replace: true });
     } catch (e) {
       setErro(traduzErro(e));
@@ -69,6 +94,27 @@ export function EditorEvolucao() {
       </div>
 
       <div className="card">
+        <label className="campo">
+          Atendimento (a evolução fica atrelada a ele)*
+          {carregandoAg ? (
+            <p className="muted">Carregando atendimentos…</p>
+          ) : !atendimentos || atendimentos.length === 0 ? (
+            <p className="aviso">
+              Este paciente não tem atendimentos <strong>realizados</strong>. Marque o atendimento
+              como “Realizado” na agenda primeiro — a evolução documenta uma sessão que ocorreu.
+            </p>
+          ) : (
+            <select value={agendamentoId} onChange={(e) => setAgendamentoId(e.target.value)} required>
+              <option value="">Selecione o atendimento…</option>
+              {atendimentos.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {fmtDataHora(a.inicio)}
+                  {a.tipo ? ` — ${a.tipo}` : ""}
+                </option>
+              ))}
+            </select>
+          )}
+        </label>
         <label className="campo">
           Nota do dia
           <textarea
@@ -106,7 +152,13 @@ export function EditorEvolucao() {
             <p className="muted">Trechos do histórico usados pela IA: {chunks}</p>
           )}
 
-          <button onClick={() => void aprovarEGravar()} disabled={salvando || texto.trim().length === 0}>
+          {!agendamentoId && (
+            <p className="aviso">Selecione acima o atendimento ao qual esta evolução pertence.</p>
+          )}
+          <button
+            onClick={() => void aprovarEGravar()}
+            disabled={salvando || texto.trim().length === 0 || !agendamentoId}
+          >
             {salvando ? "Gravando…" : "Aprovar e gravar"}
           </button>
         </div>

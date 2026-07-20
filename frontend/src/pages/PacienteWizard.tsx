@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useAsync } from "../utils/useAsync";
 import { mensagemDeErro } from "../utils/erro";
+import { dataMaximaMaioridade } from "./ResponsavelForm";
 
 const TIPOS_VINCULO = ["mae", "pai", "tutor", "avo", "outro"];
 const ROTULO_VINCULO: Record<string, string> = {
@@ -29,7 +30,13 @@ export function PacienteWizard() {
   // Passo 1 — responsável
   const [modo, setModo] = useState<"existente" | "novo">("existente");
   const [respId, setRespId] = useState("");
-  const [respNovo, setRespNovo] = useState({ nome: "", cpf: "", telefone: "", email: "" });
+  const [respNovo, setRespNovo] = useState({
+    nome: "",
+    cpf: "",
+    data_nascimento: "",
+    telefone: "",
+    email: "",
+  });
   const [tipoVinculo, setTipoVinculo] = useState("mae");
   const [detemGuarda, setDetemGuarda] = useState(true);
 
@@ -66,6 +73,7 @@ export function PacienteWizard() {
           const r = await api.criarResponsavel({
             nome: respNovo.nome,
             cpf: respNovo.cpf,
+            data_nascimento: respNovo.data_nascimento || undefined,
             telefone: respNovo.telefone || undefined,
             email: respNovo.email || undefined,
           });
@@ -142,6 +150,15 @@ export function PacienteWizard() {
               <label className="campo">
                 CPF*
                 <input value={respNovo.cpf} onChange={(e) => setRespNovo({ ...respNovo, cpf: e.target.value })} placeholder="apenas números" />
+              </label>
+              <label className="campo">
+                Data de nascimento (18+ anos)
+                <input
+                  type="date"
+                  value={respNovo.data_nascimento}
+                  max={dataMaximaMaioridade()}
+                  onChange={(e) => setRespNovo({ ...respNovo, data_nascimento: e.target.value })}
+                />
               </label>
               <label className="campo">
                 Telefone

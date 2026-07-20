@@ -28,7 +28,20 @@ TIPO_CONSENTIMENTO_REVOGADO = "consentimento_revogado"
 TIPO_GUARDA_ALTERADA = "guarda_alterada"
 # Fase 7c: troca do identificador de login e mutacao sensivel -> auditavel.
 TIPO_PERFIL_EMAIL_ALTERADO = "perfil_email_alterado"
-TIPOS_EVENTO = (TIPO_CONSENTIMENTO_REVOGADO, TIPO_GUARDA_ALTERADA, TIPO_PERFIL_EMAIL_ALTERADO)
+# Fase 7e: exclusoes/arquivamento sao mutacoes sensiveis -> auditaveis.
+TIPO_AGENDAMENTO_APAGADO = "agendamento_apagado"
+TIPO_PACIENTE_APAGADO = "paciente_apagado"
+TIPO_PACIENTE_ARQUIVADO = "paciente_arquivado"
+TIPO_PACIENTE_REATIVADO = "paciente_reativado"
+TIPOS_EVENTO = (
+    TIPO_CONSENTIMENTO_REVOGADO,
+    TIPO_GUARDA_ALTERADA,
+    TIPO_PERFIL_EMAIL_ALTERADO,
+    TIPO_AGENDAMENTO_APAGADO,
+    TIPO_PACIENTE_APAGADO,
+    TIPO_PACIENTE_ARQUIVADO,
+    TIPO_PACIENTE_REATIVADO,
+)
 
 
 class Auditoria(Base):

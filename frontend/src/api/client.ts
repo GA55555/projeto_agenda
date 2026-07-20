@@ -165,6 +165,8 @@ export interface Evolucao {
   id: string;
   paciente_id: string;
   autor_usuario_id: string;
+  agendamento_id: string | null; // null nas legadas (antes da 7e)
+  data_atendimento: string | null; // inicio do agendamento vinculado
   texto: string;
   criado_em: string;
   total_chunks: number;
@@ -178,10 +180,19 @@ export interface Rascunho {
 }
 
 // Resumo agregado do dashboard (GET /dashboard/resumo). Espelha ResumoDashboard.
+// dia/mes selecionáveis (histórico desde `desde` = mês de criação da conta).
 export interface Resumo {
-  atendimentos_hoje: number;
+  dia: string; // YYYY-MM-DD selecionado
+  mes: string; // YYYY-MM selecionado
+  desde: string; // YYYY-MM da criação da conta (limite dos seletores)
+  dia_inicio: string; // instante ISO — início do dia no fuso da clínica
+  dia_fim: string; // instante ISO — fim do dia (exclusivo)
   pacientes_ativos: number;
   responsaveis: number;
+  atendimentos_dia: number;
+  realizados_dia: number;
+  faltas_dia: number;
+  cancelados_dia: number;
   realizados_mes: number;
   faltas_mes: number;
   cancelados_mes: number;
@@ -237,8 +248,9 @@ export const api = {
       body: JSON.stringify({ senha_atual, senha_nova }),
     }),
 
-  // ---- Dashboard (7c) ----
-  resumo: () => request<Resumo>("/dashboard/resumo"),
+  // ---- Dashboard (7c/7e) ----
+  resumo: (params: { dia?: string; mes?: string } = {}) =>
+    request<Resumo>(`/dashboard/resumo${qs(params)}`),
 
   // ---- Dominio (7b) ----
   pacientes: () => request<Paciente[]>("/pacientes"),
@@ -270,17 +282,25 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ motivo: motivo || null }),
     }),
+  // Apagar corrige ERRO de lançamento (só status 'agendado'; auditado).
+  apagarAgendamento: (id: string) =>
+    request<void>(`/agendamentos/${id}`, { method: "DELETE" }),
   criarPaciente: (d: PacienteCreate) =>
     request<PacienteDetalhado>("/pacientes", { method: "POST", body: JSON.stringify(d) }),
+  // Arquivar/reativar = PATCH ativo (auditado no backend). Apagar só é
+  // possível SEM prontuário (CFP 5 anos) — 409 caso contrário.
+  atualizarPaciente: (id: string, d: { ativo?: boolean }) =>
+    request<Paciente>(`/pacientes/${id}`, { method: "PATCH", body: JSON.stringify(d) }),
+  apagarPaciente: (id: string) => request<void>(`/pacientes/${id}`, { method: "DELETE" }),
 
   gerarRascunho: (pacienteId: string, notaDoDia: string) =>
     request<Rascunho>("/llm/evolucoes/rascunho", {
       method: "POST",
       body: JSON.stringify({ paciente_id: pacienteId, nota_do_dia: notaDoDia }),
     }),
-  criarEvolucao: (pacienteId: string, texto: string) =>
+  criarEvolucao: (pacienteId: string, agendamentoId: string, texto: string) =>
     request<Evolucao>("/evolucoes", {
       method: "POST",
-      body: JSON.stringify({ paciente_id: pacienteId, texto }),
+      body: JSON.stringify({ paciente_id: pacienteId, agendamento_id: agendamentoId, texto }),
     }),
 };

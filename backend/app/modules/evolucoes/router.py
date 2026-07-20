@@ -15,7 +15,7 @@ from app.db.deps import get_tenant_session
 from app.modules.auth.dependencies import CurrentUser, get_current_user
 from app.modules.evolucoes import service
 from app.modules.consentimentos.exceptions import SemConsentimentoAtivo
-from app.modules.evolucoes.exceptions import PacienteInexistente
+from app.modules.evolucoes.exceptions import AgendamentoInvalido, PacienteInexistente
 from app.modules.evolucoes.schemas import EvolucaoCreate, EvolucaoOut
 
 router = APIRouter(prefix="/evolucoes", tags=["evolucoes"])
@@ -38,6 +38,11 @@ def criar_evolucao(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Paciente sem consentimento (TCLE) ativo — evolucao bloqueada (§2.2)",
+        )
+    except AgendamentoInvalido as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Agendamento invalido para a evolucao: {exc}",
         )
 
 

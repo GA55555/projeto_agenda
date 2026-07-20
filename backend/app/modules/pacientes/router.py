@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.db.deps import get_tenant_session
 from app.modules.auth.dependencies import CurrentUser, get_current_user
 from app.modules.pacientes import service
-from app.modules.pacientes.exceptions import ResponsavelInexistente
+from app.modules.pacientes.exceptions import PacienteComProntuario, ResponsavelInexistente
 from app.modules.pacientes.schemas import (
     PacienteCreate,
     PacienteDetalhado,
@@ -59,8 +59,30 @@ def atualizar_paciente(
     paciente_id: uuid.UUID,
     dados: PacienteUpdate,
     db: Session = Depends(get_tenant_session),
+    user: CurrentUser = Depends(get_current_user),
 ) -> PacienteOut:
-    paciente = service.atualizar(db, paciente_id, dados)
+    paciente = service.atualizar(db, user, paciente_id, dados)
     if paciente is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Paciente nao encontrado")
     return paciente
+
+
+@router.delete("/{paciente_id}", status_code=status.HTTP_204_NO_CONTENT)
+def apagar_paciente(
+    paciente_id: uuid.UUID,
+    db: Session = Depends(get_tenant_session),
+    user: CurrentUser = Depends(get_current_user),
+) -> None:
+    """Exclusao definitiva — so cadastro SEM prontuario (CFP 001/2009, §0.3)."""
+    try:
+        encontrado = service.apagar_paciente(db, user, paciente_id)
+    except PacienteComProntuario:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Paciente possui prontuario (evolucoes): a exclusao e bloqueada "
+                "pela guarda obrigatoria de 5 anos (CFP 001/2009). Use o arquivamento."
+            ),
+        )
+    if not encontrado:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Paciente nao encontrado")

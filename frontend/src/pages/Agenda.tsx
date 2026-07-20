@@ -4,13 +4,7 @@ import { api, ApiError } from "../api/client";
 import type { Agendamento, Paciente } from "../api/client";
 import { useAsync } from "../utils/useAsync";
 import { fmtDataHora, janelaDeHoje } from "../utils/format";
-
-const ROTULO_STATUS: Record<string, string> = {
-  agendado: "Agendado",
-  realizado: "Realizado",
-  cancelado: "Cancelado",
-  falta: "Falta",
-};
+import { rotuloStatus } from "../utils/status";
 
 // AGENDA DO DIA. O backend filtra por [de, ate) e ja ordena por `inicio`.
 // Atendimentos `agendado` podem ser concluidos (realizado), marcados como
@@ -32,6 +26,8 @@ export function Agenda() {
   // stale reabilitava os botoes (double-click enviaria PATCH conflitante) e o
   // caso em que uma falha do refetch apagava a tabela inteira.
   const [overrides, setOverrides] = useState<Map<string, Agendamento>>(new Map());
+  // Apagados nesta sessão de tela (DELETE devolve 204 — sem objeto p/ override).
+  const [removidos, setRemovidos] = useState<Set<string>>(new Set());
 
   async function executar(fn: () => Promise<Agendamento>, id: string) {
     setOcupadoId(id);
@@ -48,11 +44,28 @@ export function Agenda() {
     }
   }
 
+  async function apagar(a: Agendamento) {
+    // Apagar corrige ERRO de lançamento (só 'agendado'; auditado no backend).
+    if (!window.confirm("Apagar este agendamento? Use para corrigir um lançamento errado.")) {
+      return;
+    }
+    setOcupadoId(a.id);
+    setAcaoErro(null);
+    try {
+      await api.apagarAgendamento(a.id);
+      setRemovidos((prev) => new Set(prev).add(a.id));
+    } catch (e) {
+      setAcaoErro(e instanceof ApiError ? e.message : "Não foi possível apagar.");
+    } finally {
+      setOcupadoId(null);
+    }
+  }
+
   if (loading) return <p className="muted">Carregando agenda…</p>;
   if (error) return <p className="erro">{error}</p>;
 
   const [agsBase, pacientes] = data as [Agendamento[], Paciente[]];
-  const ags = agsBase.map((a) => overrides.get(a.id) ?? a);
+  const ags = agsBase.filter((a) => !removidos.has(a.id)).map((a) => overrides.get(a.id) ?? a);
   const nomePorId = new Map(pacientes.map((p) => [p.id, p.nome]));
 
   return (
@@ -94,9 +107,7 @@ export function Agenda() {
                       </Link>
                     </td>
                     <td>
-                      <span className={`tag tag-${a.status}`}>
-                        {ROTULO_STATUS[a.status] ?? a.status}
-                      </span>
+                      <span className={`tag tag-${a.status}`}>{rotuloStatus(a.status)}</span>
                     </td>
                     <td>
                       {a.status !== "agendado" ? null : cancelandoId === a.id ? (
@@ -155,6 +166,14 @@ export function Agenda() {
                             }}
                           >
                             Cancelar
+                          </button>
+                          <button
+                            className="mini erro-btn"
+                            disabled={ocupado}
+                            onClick={() => void apagar(a)}
+                            title="Apagar lançamento errado (auditado)"
+                          >
+                            Apagar
                           </button>
                         </div>
                       )}

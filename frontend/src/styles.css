@@ -147,7 +147,8 @@ label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.86rem;
   padding: 0.05rem 0.5rem; border-radius: 999px;
 }
 
-.main { padding: 1.6rem 2rem; max-width: 60rem; }
+/* Ocupa bem telas grandes (centralizado) e encolhe sem perder função. */
+.main { padding: 1.6rem 2rem; max-width: 72rem; margin: 0 auto; width: 100%; min-width: 0; }
 .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem; gap: 1rem; }
 .page-header h2 { margin: 0; }
 .cabecalho-secao { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1.2rem; }
@@ -159,6 +160,9 @@ label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.86rem;
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--raio); padding: 1.1rem 1.2rem; box-shadow: var(--shadow);
   margin-bottom: 1rem;
+  /* Conteúdo largo (tabela com ações) rola DENTRO do card em telas estreitas,
+     em vez de estourar a página — nenhuma coluna/função se perde no mobile. */
+  overflow-x: auto;
 }
 /* ---- Stat tiles (Dashboard) ---- */
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 1rem; margin-bottom: 1.4rem; }
@@ -214,6 +218,60 @@ label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.86rem;
 /* Perfil na sidebar: linha de ações (Meu perfil / Sair). */
 .perfil-acoes { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 
+/* ---- Grade de horários (novo agendamento, 7e) ---- */
+.rotulo-grade { display: block; font-size: 0.86rem; color: var(--muted); margin-bottom: 0.4rem; }
+.grade-horarios {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(4.2rem, 1fr));
+  gap: 0.35rem;
+}
+.grade-horarios .slot {
+  padding: 0.45rem 0.2rem; font-size: 0.82rem; font-weight: 500;
+  background: var(--surface-2); color: var(--fg);
+  border: 1px solid var(--border); border-radius: 8px; justify-content: center;
+}
+.grade-horarios .slot:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent-soft-fg); }
+.grade-horarios .slot.ocupado {
+  background: var(--erro-bg); color: var(--erro-fg); opacity: 0.7;
+  cursor: not-allowed; text-decoration: line-through;
+}
+.grade-horarios .slot.selecionado { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.ajuste-fino { margin-top: 0.6rem; max-width: 12rem; }
+.chips { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.chips .chip {
+  padding: 0.4rem 0.85rem; font-size: 0.85rem;
+  background: var(--surface-2); color: var(--fg);
+  border: 1px solid var(--border); border-radius: 999px;
+}
+.chips .chip.ativo { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+
+/* ---- Tooltip explicativo dos stat tiles (7e) ---- */
+.stat .info {
+  position: relative; display: inline-block; margin-left: 0.3rem;
+  cursor: help; color: var(--accent); outline: none;
+}
+.stat .info .tooltip {
+  visibility: hidden; opacity: 0; transition: opacity 0.12s;
+  position: absolute; bottom: calc(100% + 0.4rem); left: 50%; transform: translateX(-50%);
+  width: max-content; max-width: 16rem; z-index: 10;
+  background: var(--fg); color: var(--bg);
+  padding: 0.5rem 0.65rem; border-radius: 8px;
+  font-size: 0.78rem; font-weight: 400; line-height: 1.35; white-space: normal;
+  box-shadow: var(--shadow); pointer-events: none;
+}
+.stat .info:hover .tooltip, .stat .info:focus .tooltip { visibility: visible; opacity: 1; }
+/* Perto da borda esquerda da grade, o balão não pode estourar a tela. */
+.stat:first-child .info .tooltip { left: 0; transform: none; }
+
+/* ---- Seletores de período do dashboard (7e) ---- */
+.seletor-periodo { display: flex; gap: 0.4rem; align-items: center; }
+.seletor-periodo input { width: auto; padding: 0.3rem 0.5rem; font-size: 0.85rem; }
+
+/* ---- Zona de administração/perigo (7e) ---- */
+button.perigo { background: var(--erro-bg); color: var(--erro-fg); }
+button.perigo:hover { filter: brightness(0.95); background: var(--erro-bg); }
+.zona-perigo { border-color: var(--erro-bg); }
+.titulo-tag { margin-left: 0.5rem; vertical-align: middle; }
+
 /* ---- Formulários / detalhe ---- */
 .acoes { display: flex; gap: 0.6rem; margin-top: 1rem; }
 .opcoes { display: flex; gap: 1.2rem; margin-bottom: 0.6rem; }
@@ -240,4 +298,11 @@ label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.86rem;
   .perfil { border-top: none; margin: 0; padding: 0; flex-direction: row; align-items: center; margin-left: auto; }
   .perfil .email { display: none; }
   .main { padding: 1.2rem 1rem; }
+  /* Cabeçalhos com seletor quebram em coluna sem esconder nada. */
+  .page-header, .cabecalho-secao { flex-wrap: wrap; }
+  /* Alvos de toque maiores nas ações por linha. */
+  button.mini, .botao.mini { padding: 0.45rem 0.7rem; }
+  .grade-horarios { grid-template-columns: repeat(auto-fill, minmax(3.6rem, 1fr)); }
+  .stats { grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr)); gap: 0.6rem; }
+  .acoes { flex-wrap: wrap; }
 }

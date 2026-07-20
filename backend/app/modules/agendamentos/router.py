@@ -93,6 +93,21 @@ def atualizar_agendamento(
     return ag
 
 
+@router.delete("/{agendamento_id}", status_code=status.HTTP_204_NO_CONTENT)
+def apagar_agendamento(
+    agendamento_id: uuid.UUID,
+    db: Session = Depends(get_tenant_session),
+    user: CurrentUser = Depends(get_current_user),
+) -> None:
+    """Apaga um erro de lancamento (so status 'agendado'; auditado §2.2)."""
+    try:
+        encontrado = service.apagar(db, user, agendamento_id)
+    except TransicaoInvalida as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    if not encontrado:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agendamento nao encontrado")
+
+
 @router.post("/{agendamento_id}/cancelar", response_model=AgendamentoOut)
 def cancelar_agendamento(
     agendamento_id: uuid.UUID,

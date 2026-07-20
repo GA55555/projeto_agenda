@@ -35,7 +35,12 @@ from app.modules.consentimentos.exceptions import SemConsentimentoAtivo
 from app.modules.consentimentos.service import tem_consentimento_ativo
 from app.modules.evolucoes.chunking import dividir_em_chunks
 from app.modules.evolucoes.embeddings import canonicalizar_marcadores, gerar_embedding
-from app.modules.evolucoes.exceptions import EmbeddingIndisponivel, PacienteInexistente
+from app.modules.agendamentos.models import STATUS_REALIZADO, Agendamento
+from app.modules.evolucoes.exceptions import (
+    AgendamentoInvalido,
+    EmbeddingIndisponivel,
+    PacienteInexistente,
+)
 from app.modules.evolucoes.models import Evolucao, EvolucaoChunk
 from app.modules.evolucoes.schemas import EvolucaoCreate, EvolucaoOut
 from app.modules.pacientes.models import Paciente
@@ -71,11 +76,26 @@ def criar_evolucao(db: Session, user: CurrentUser, dados: EvolucaoCreate) -> Evo
         raise PacienteInexistente(str(dados.paciente_id))
     if not tem_consentimento_ativo(db, dados.paciente_id):
         raise SemConsentimentoAtivo(str(dados.paciente_id))
+    # Fase 7e: o agendamento vinculado precisa existir NO tenant (RLS), ser do
+    # MESMO paciente e estar REALIZADO — a evolucao documenta uma sessao que
+    # ocorreu, e a data do atendimento vem dele. Exigir 'realizado' impede data
+    # futura/no-show e, como `apagar` so remove 'agendado', torna impossivel
+    # apagar um agendamento com prontuario (conjuntos disjuntos).
+    ag = db.get(Agendamento, dados.agendamento_id)
+    if ag is None:
+        raise AgendamentoInvalido("agendamento inexistente no tenant")
+    if ag.paciente_id != dados.paciente_id:
+        raise AgendamentoInvalido("agendamento pertence a outro paciente")
+    if ag.status != STATUS_REALIZADO:
+        raise AgendamentoInvalido(
+            "a evolucao so pode ser vinculada a um atendimento realizado"
+        )
 
     evolucao = Evolucao(
         tenant_id=user.tenant_id,
         paciente_id=dados.paciente_id,
         autor_usuario_id=user.id,
+        agendamento_id=dados.agendamento_id,
         texto=dados.texto,
     )
     db.add(evolucao)
@@ -99,27 +119,36 @@ def criar_evolucao(db: Session, user: CurrentUser, dados: EvolucaoCreate) -> Evo
     # Contagem em memoria: os chunks acabaram de ser criados nesta transacao
     # (sem query extra nem materializar vetor).
     pendentes = sum(1 for c in chunks if c.embedding is None)
-    return _to_out(evolucao, len(chunks), pendentes)
+    return _to_out(evolucao, len(chunks), pendentes, data_atendimento=ag.inicio)
 
 
 def listar_por_paciente(db: Session, paciente_id: uuid.UUID) -> list[EvolucaoOut]:
-    evolucoes = list(
-        db.execute(
-            select(Evolucao)
-            .where(Evolucao.paciente_id == paciente_id)
-            .order_by(Evolucao.criado_em.desc())
-        ).scalars()
-    )
-    contagens = _contagens(db, [e.id for e in evolucoes])
-    return [_to_out(e, *contagens.get(e.id, (0, 0))) for e in evolucoes]
+    # OUTER JOIN unico traz a data do atendimento (agendamento.inicio) junto —
+    # sem N+1; evolucoes legadas (sem vinculo) voltam com data None.
+    linhas = db.execute(
+        select(Evolucao, Agendamento.inicio)
+        .outerjoin(Agendamento, Evolucao.agendamento_id == Agendamento.id)
+        .where(Evolucao.paciente_id == paciente_id)
+        .order_by(Evolucao.criado_em.desc())
+    ).all()
+    contagens = _contagens(db, [e.id for e, _ in linhas])
+    return [
+        _to_out(e, *contagens.get(e.id, (0, 0)), data_atendimento=inicio)
+        for e, inicio in linhas
+    ]
 
 
 def obter(db: Session, evolucao_id: uuid.UUID) -> EvolucaoOut | None:
-    evolucao = db.get(Evolucao, evolucao_id)
-    if evolucao is None:
+    linha = db.execute(
+        select(Evolucao, Agendamento.inicio)
+        .outerjoin(Agendamento, Evolucao.agendamento_id == Agendamento.id)
+        .where(Evolucao.id == evolucao_id)
+    ).first()
+    if linha is None:
         return None
+    evolucao, inicio = linha
     total, pendentes = _contagens(db, [evolucao_id]).get(evolucao_id, (0, 0))
-    return _to_out(evolucao, total, pendentes)
+    return _to_out(evolucao, total, pendentes, data_atendimento=inicio)
 
 
 def buscar_contexto(
@@ -168,11 +197,19 @@ def _contagens(
     return {row.evolucao_id: (row.total, row.pendentes) for row in db.execute(stmt)}
 
 
-def _to_out(evolucao: Evolucao, total_chunks: int, embeddings_pendentes: int) -> EvolucaoOut:
+def _to_out(
+    evolucao: Evolucao,
+    total_chunks: int,
+    embeddings_pendentes: int,
+    *,
+    data_atendimento,  # sempre fornecido pelos chamadores (JOIN); sem default morto
+) -> EvolucaoOut:
     return EvolucaoOut(
         id=evolucao.id,
         paciente_id=evolucao.paciente_id,
         autor_usuario_id=evolucao.autor_usuario_id,
+        agendamento_id=evolucao.agendamento_id,
+        data_atendimento=data_atendimento,
         texto=evolucao.texto,
         criado_em=evolucao.criado_em,
         total_chunks=total_chunks,

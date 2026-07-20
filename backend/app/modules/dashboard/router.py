@@ -1,9 +1,11 @@
 """Rota do resumo do dashboard. Sob `get_tenant_session` (RLS ativo, §2.1).
 
 Regras de ouro: §2.1
-Fase do roadmap: Fase 7c
+Fase do roadmap: Fase 7c/7e
 """
-from fastapi import APIRouter, Depends
+from datetime import date
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.deps import get_tenant_session
@@ -16,8 +18,20 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 @router.get("/resumo", response_model=ResumoDashboard)
 def resumo(
+    dia: date | None = None,
+    mes: str | None = None,
     db: Session = Depends(get_tenant_session),
     _=Depends(get_current_user),
 ) -> ResumoDashboard:
-    """Indicadores agregados da clinica (hoje, mes e pendencias)."""
-    return service.montar_resumo(db)
+    """Indicadores agregados da clinica.
+
+    `dia` (YYYY-MM-DD) e `mes` (YYYY-MM) selecionam o periodo historico;
+    omitidos, valem hoje/mes atual (fuso da clinica). Pendencias sao sempre
+    relativas a agora.
+    """
+    try:
+        return service.montar_resumo(db, dia=dia, mes=mes)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        )

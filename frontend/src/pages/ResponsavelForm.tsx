@@ -13,6 +13,19 @@ const VAZIO: ResponsavelCreate = {
   endereco: "",
 };
 
+// Responsável LEGAL é maior de idade: última data de nascimento válida (7e).
+// O backend impõe a mesma regra (422); aqui o input já bloqueia no calendário.
+// 29/02 em ano não bissexto: o JS rola `new Date(y,1,29)` para 01/03; o backend
+// fixa em 28/02 — detectamos o rollover e igualamos, para o picker não oferecer
+// um valor que o servidor recusaria.
+export function dataMaximaMaioridade(): string {
+  const h = new Date();
+  const m = h.getMonth();
+  const d = new Date(h.getFullYear() - 18, m, h.getDate());
+  if (d.getMonth() !== m) d.setDate(0); // rolou -> último dia do mês pretendido (28/02)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 // Criar (sem id) ou editar (com id). Na edição o backend (ResponsavelUpdate) só
 // aceita nome/telefone/e-mail — CPF/nascimento/endereço ficam somente-leitura.
 export function ResponsavelForm() {
@@ -105,12 +118,13 @@ export function ResponsavelForm() {
           />
         </label>
         <label className="campo">
-          Data de nascimento{editando ? " (não editável)" : ""}
+          Data de nascimento{editando ? " (não editável)" : " (18+ anos)"}
           <input
             type="date"
             value={f.data_nascimento}
             onChange={(e) => set("data_nascimento", e.target.value)}
             disabled={editando}
+            max={dataMaximaMaioridade()}
           />
         </label>
         <label className="campo">

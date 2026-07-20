@@ -28,6 +28,24 @@ class ResponsavelCreate(BaseModel):
             raise ValueError("CPF deve conter 11 digitos")
         return digitos
 
+    @field_validator("data_nascimento")
+    @classmethod
+    def _maior_de_idade(cls, v: date | None) -> date | None:
+        # Responsavel LEGAL (§2.2) e por definicao maior de idade: nascimento
+        # ha menos de 18 anos e erro de digitacao, nao um caso valido.
+        if v is not None and v > _data_maxima_maioridade():
+            raise ValueError("responsavel legal deve ter ao menos 18 anos")
+        return v
+
+
+def _data_maxima_maioridade() -> date:
+    """Ultima data de nascimento que ja completou 18 anos hoje."""
+    hoje = date.today()
+    try:
+        return hoje.replace(year=hoje.year - 18)
+    except ValueError:  # 29/02 em ano nao bissexto
+        return hoje.replace(year=hoje.year - 18, day=28)
+
 
 class ResponsavelUpdate(BaseModel):
     nome: str | None = Field(default=None, min_length=1, max_length=200)
