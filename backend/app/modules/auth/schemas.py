@@ -21,3 +21,15 @@ class UsuarioOut(BaseModel):
     nome: str
     papel: str
     tenant_id: uuid.UUID
+
+
+class PerfilOut(BaseModel):
+    """Contexto do utilizador logado para o menu de perfil da SPA (Fase 7c)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    papel: str
+    nome: str
+    email: EmailStr

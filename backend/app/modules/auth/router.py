@@ -12,7 +12,8 @@ from app.core.security import create_access_token
 from app.db.deps import get_db
 from app.modules.auth import service
 from app.modules.auth.dependencies import CurrentUser, get_current_user
-from app.modules.auth.schemas import TokenResponse
+from app.modules.auth.models import Usuario
+from app.modules.auth.schemas import PerfilOut, TokenResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -74,7 +75,17 @@ def logout(response: Response) -> dict[str, str]:
     return {"detail": "sessao encerrada"}
 
 
-@router.get("/me")
-def me(user: CurrentUser = Depends(get_current_user)) -> dict[str, str]:
-    """Devolve o contexto do JWT (id, tenant, papel) — sem ida a BD."""
-    return {"id": str(user.id), "tenant_id": str(user.tenant_id), "papel": user.papel}
+@router.get("/me", response_model=PerfilOut)
+def me(
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Usuario:
+    """Perfil do utilizador logado (id, tenant, papel + nome/e-mail p/ a SPA).
+
+    `usuarios` e control-plane (sem RLS); busca por PK. Se o utilizador do JWT
+    nao existir mais (revogado), 401 — o token nao vale mais.
+    """
+    usuario = db.get(Usuario, user.id)
+    if usuario is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Nao autenticado")
+    return usuario

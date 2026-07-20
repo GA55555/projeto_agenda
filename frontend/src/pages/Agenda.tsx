@@ -35,11 +35,16 @@ export function Agenda() {
 
   return (
     <section>
-      <h2>Agenda de hoje</h2>
-      <p className="muted">{new Date().toLocaleDateString("pt-BR", { dateStyle: "full" })}</p>
+      <div className="page-header">
+        <div>
+          <h2>Agenda de hoje</h2>
+          <p className="muted">{new Date().toLocaleDateString("pt-BR", { dateStyle: "full" })}</p>
+        </div>
+      </div>
       {ags.length === 0 ? (
-        <p className="muted">Nenhum atendimento hoje.</p>
+        <p className="vazio">Nenhum atendimento hoje.</p>
       ) : (
+        <div className="card">
         <table className="tabela">
           <thead>
             <tr>
@@ -68,6 +73,7 @@ export function Agenda() {
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </section>
   );

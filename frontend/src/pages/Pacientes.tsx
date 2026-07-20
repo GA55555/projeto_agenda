@@ -11,19 +11,23 @@ export function Pacientes() {
 
   return (
     <section>
-      <h2>Pacientes</h2>
+      <div className="page-header">
+        <h2>Pacientes</h2>
+      </div>
       {!pacientes || pacientes.length === 0 ? (
-        <p className="muted">Nenhum paciente cadastrado.</p>
+        <p className="vazio">Nenhum paciente cadastrado.</p>
       ) : (
-        <ul className="lista">
-          {pacientes.map((p) => (
-            <li key={p.id}>
-              <Link to={`/pacientes/${p.id}`}>{p.nome}</Link>
-              <span className="muted"> · nasc. {fmtData(p.data_nascimento)}</span>
-              {!p.ativo && <span className="tag tag-cancelado"> inativo</span>}
-            </li>
-          ))}
-        </ul>
+        <div className="card">
+          <ul className="lista">
+            {pacientes.map((p) => (
+              <li key={p.id}>
+                <Link to={`/pacientes/${p.id}`}>{p.nome}</Link>
+                <span className="muted"> · nasc. {fmtData(p.data_nascimento)}</span>
+                {!p.ativo && <span className="tag tag-inativo"> inativo</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </section>
   );

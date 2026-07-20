@@ -61,28 +61,32 @@ export function EditorEvolucao() {
 
   return (
     <section>
-      <p className="muted">
-        <Link to={`/pacientes/${id}`}>← Ficha do paciente</Link>
-      </p>
-      <h2>Nova evolução</h2>
+      <Link className="voltar muted" to={`/pacientes/${id}`}>
+        ← Ficha do paciente
+      </Link>
+      <div className="page-header">
+        <h2>Nova evolução</h2>
+      </div>
 
-      <label className="campo">
-        Nota do dia
-        <textarea
-          rows={4}
-          value={nota}
-          onChange={(e) => setNota(e.target.value)}
-          placeholder="Descreva o atendimento de hoje…"
-        />
-      </label>
-      <button onClick={() => void gerar()} disabled={gerando || nota.trim().length === 0}>
-        {gerando ? "Gerando…" : "Gerar rascunho (IA)"}
-      </button>
+      <div className="card">
+        <label className="campo">
+          Nota do dia
+          <textarea
+            rows={4}
+            value={nota}
+            onChange={(e) => setNota(e.target.value)}
+            placeholder="Descreva o atendimento de hoje…"
+          />
+        </label>
+        <button onClick={() => void gerar()} disabled={gerando || nota.trim().length === 0}>
+          {gerando ? "Gerando…" : "Gerar rascunho (IA)"}
+        </button>
+      </div>
 
       {erro && <p className="erro">{erro}</p>}
 
       {(texto || destaques.length > 0) && (
-        <>
+        <div className="card">
           <label className="campo">
             Evolução (revise antes de gravar)
             <textarea rows={10} value={texto} onChange={(e) => setTexto(e.target.value)} />
@@ -105,7 +109,7 @@ export function EditorEvolucao() {
           <button onClick={() => void aprovarEGravar()} disabled={salvando || texto.trim().length === 0}>
             {salvando ? "Gravando…" : "Aprovar e gravar"}
           </button>
-        </>
+        </div>
       )}
     </section>
   );

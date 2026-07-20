@@ -74,6 +74,12 @@ def test_login_e_isolamento_via_api(seed_dois_tenants):
     va = client.get("/api/v1/tenants/atual", headers={"Authorization": f"Bearer {tok_a}"})
     assert va.status_code == 200 and va.json()["slug"] == "seed-a"
 
+    # /auth/me enriquecido (Fase 7c): nome + e-mail do usuario logado.
+    me_a = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {tok_a}"})
+    assert me_a.status_code == 200
+    assert me_a.json()["email"] == EMAIL_A and me_a.json()["papel"] == "psicologa"
+    assert "nome" in me_a.json()
+
     # Login B -> ve apenas o tenant B.
     tok_b = _login(client, EMAIL_B, "senhaB").json()["access_token"]
     vb = client.get("/api/v1/tenants/atual", headers={"Authorization": f"Bearer {tok_b}"})

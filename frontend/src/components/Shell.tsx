@@ -1,12 +1,24 @@
-// Layout das telas autenticadas: barra de navegacao + area de conteudo (Outlet).
+// Layout autenticado: sidebar (navegação + perfil) + área de conteúdo (Outlet).
 import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { api } from "../api/client";
 import type { Tenant } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 
+const ITENS = [
+  { to: "/dashboard", rotulo: "Dashboard" },
+  { to: "/agenda", rotulo: "Agenda" },
+  { to: "/pacientes", rotulo: "Pacientes" },
+  { to: "/responsaveis", rotulo: "Responsáveis" },
+];
+
+const PAPEL_ROTULO: Record<string, string> = {
+  psicologa: "Psicóloga",
+  admin: "Administração",
+};
+
 export function Shell() {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const [tenant, setTenant] = useState<Tenant | null>(null);
 
   useEffect(() => {
@@ -14,20 +26,28 @@ export function Shell() {
   }, []);
 
   return (
-    <div className="app">
-      <header className="topo">
-        <strong>{tenant?.nome ?? "Agenda de Atendimentos"}</strong>
-        <nav className="nav">
-          <NavLink to="/" end>
-            Agenda
-          </NavLink>
-          <NavLink to="/pacientes">Pacientes</NavLink>
+    <div className="layout">
+      <aside className="sidebar">
+        <div className="marca">{tenant?.nome ?? "Agenda"}</div>
+        <nav className="sidebar-nav">
+          {ITENS.map((i) => (
+            <NavLink key={i.to} to={i.to}>
+              {i.rotulo}
+            </NavLink>
+          ))}
         </nav>
-        <button className="link" onClick={() => void logout()}>
-          Sair
-        </button>
-      </header>
-      <main className="conteudo">
+        <div className="perfil">
+          <div>
+            <div className="nome">{user?.nome ?? "—"}</div>
+            <div className="email">{user?.email}</div>
+          </div>
+          <span className="papel">{PAPEL_ROTULO[user?.papel ?? ""] ?? user?.papel}</span>
+          <button className="secundario" onClick={() => void logout()}>
+            Sair
+          </button>
+        </div>
+      </aside>
+      <main className="main">
         <Outlet />
       </main>
     </div>

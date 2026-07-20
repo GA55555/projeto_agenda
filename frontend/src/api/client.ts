@@ -44,6 +44,8 @@ export interface Me {
   id: string;
   tenant_id: string;
   papel: string;
+  nome: string;
+  email: string;
 }
 
 export interface Tenant {

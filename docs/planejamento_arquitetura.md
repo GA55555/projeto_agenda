@@ -14,10 +14,10 @@
 
 | Campo | Valor |
 | --- | --- |
-| Fase corrente | **Fase 7 ✅ concluída e validada no servidor (loop completo + RAG provados no browser)** — próxima: **Fase 8 (n8n & backups)** |
+| Fase corrente | **Fase 7 núcleo ✅** — em andamento a **sub-fase 7c (Melhorias de Frontend)**; construindo **7c.1 (design+navegação)** |
 | Última atualização | 2026-07-20 |
 | Bloqueios ativos | Nenhum |
-| Próximo passo imediato | Planejar a **Fase 8 (Automação n8n & Backups, §4.2)**: webhook autenticado FastAPI→n8n **após aprovação/assinatura**; OAuth2 do Google **inteiramente no n8n** (Drive+Docs API); JSON→PDF/Sheets no diretório da psicóloga; rotina diária `pg_dump`+**WAL** no **HDD 500 GB**; teste de restauração. Usuário quer plano + perguntas antes de codar. Acesso à SPA: túnel SSH via Tailscale (`ssh -L 8090:127.0.0.1:8090 hades@<tailscale-ip>`) ou `tailscale serve`. |
+| Próximo passo imediato | **7c.1 — Design & Navegação:** design system clínico calmo + sidebar (Dashboard·Agenda·Pacientes·Responsáveis) + menu de perfil; enriquecer `/auth/me` (nome/e-mail). Depois **7c.2 (cadastros: agendar, criar paciente/responsável)** e **7c.3 (dashboard)**. Só então **Fase 8 (n8n & backups)**. Acesso à SPA: túnel SSH via Tailscale (`ssh -L 8090:127.0.0.1:8090 hades@100.121.137.44`). |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
@@ -304,6 +304,17 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 > 🟡 **7b construída e validada localmente (2026-07-19).** Frontend-only (sem mudança de backend). Telas: Shell (nav), **Agenda do dia** (read-only), **Pacientes**, **Ficha do paciente** (TCLE ativo/revogado + botão "Nova evolução" só com TCLE), **Editor de evolução** (loop IA: nota→rascunho→revisar→aprovar→gravar). Cliente de API estendido (7 métodos + tipos), hook `useAsync`, datas pt-BR. `tsc`+`build` OK (JS ~57 KB gzip). Code-review → **5 achados aplicados** (422 mostra `detail` real — não confunde guard-rail de PII com TCLE; agenda-do-dia filtrada; ordena no BD; `Promise.allSettled` na ficha; confirma antes de sobrescrever rascunho). **Aguarda deploy/validação visual no servidor** (`8090`, chave OpenAI ativa; paciente `b0707184` tem TCLE).
 >
 > ✅ **7a deployada e validada no servidor (2026-07-19).** Backend: **61 unit tests** (6 novos de cookie/bearer); frontend `build`+`tsc` OK. Code-review → **7 achados, 6 aplicados** (#4 mantido dual-mode de propósito). No servidor: SPA servida (`200`, headers de segurança/CSP), e **auth por cookie httpOnly provado ponta a ponta** — `login`→`/auth/me` só com cookie devolveu o contexto do JWT via Nginx→backend. **Infra do deploy:** porta host **8090** (a 8080 é do Homarr — conflito, igual à 8000/Portainer→8010); **`COOKIE_SECURE=false`** no `.env` (HTTP). Bug do healthcheck (`wget -qO-` não parseia no BusyBox) corrigido p/ `wget -q -O /dev/null`.
+
+### 7c — Melhorias de Frontend (pedido do usuário, 2026-07-20)
+
+**Objetivo:** app mais completo e usável — dashboard, cadastros (agendar, criar paciente/responsável), menu de perfil e um design **sóbrio, efetivo e fácil** (não mais minimalista).
+
+**Decisões (via AskUserQuestion):** começar por **7c.1 (design+navegação)**; criar paciente por **assistente guiado** (responsável novo/existente → dados → TCLE, uma transação); **enriquecer `/auth/me`** com nome/e-mail p/ o menu de perfil; direção visual **clínico calmo** (sidebar clara, cards, acento verde-azulado, espaçamento generoso, badges suaves).
+
+**Incrementos:**
+- **7c.1 — Design & Navegação:** design system (paleta clínica, componentes reutilizáveis), **layout com sidebar** (Dashboard·Agenda·Pacientes·Responsáveis) + **menu de perfil** (nome/e-mail/papel + Sair). Backend: `/auth/me` passa a devolver nome/e-mail (1 query, sem migration). Telas Dashboard/Responsáveis entram como placeholder. → 🟡 **construída + revisada + validada local (2026-07-20)**; `tsc`+`build` OK, 61 unit tests; code-review (2 achados aplicados: CSS morto removido; landing=Agenda enquanto Dashboard placeholder em `/dashboard`). Aguarda deploy.
+- **7c.2 — Cadastros:** criar **agendamento** (form + 409 de sobreposição); **Responsáveis** (lista + criar/editar + detalhe com contato: nome, cpf, nascimento, telefone, e-mail, endereço); criar **paciente** (wizard responsável→dados→TCLE). Endpoints já existem (`POST /agendamentos`, `/responsaveis`, `/pacientes`).
+- **7c.3 — Dashboard:** visão geral — hoje na agenda, contadores, evoluções recentes, pendências (sem TCLE / embeddings pendentes), acesso rápido.
 
 ---
 
