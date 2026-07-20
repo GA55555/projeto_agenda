@@ -6,10 +6,10 @@ import type { Tenant } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 
 const ITENS = [
-  { to: "/dashboard", rotulo: "Dashboard" },
-  { to: "/agenda", rotulo: "Agenda" },
-  { to: "/pacientes", rotulo: "Pacientes" },
-  { to: "/responsaveis", rotulo: "Responsáveis" },
+  { to: "/", rotulo: "Dashboard", end: true },
+  { to: "/agenda", rotulo: "Agenda", end: false },
+  { to: "/pacientes", rotulo: "Pacientes", end: false },
+  { to: "/responsaveis", rotulo: "Responsáveis", end: false },
 ];
 
 const PAPEL_ROTULO: Record<string, string> = {
@@ -31,7 +31,7 @@ export function Shell() {
         <div className="marca">{tenant?.nome ?? "Agenda"}</div>
         <nav className="sidebar-nav">
           {ITENS.map((i) => (
-            <NavLink key={i.to} to={i.to}>
+            <NavLink key={i.to} to={i.to} end={i.end}>
               {i.rotulo}
             </NavLink>
           ))}

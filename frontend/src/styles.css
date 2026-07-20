@@ -155,6 +155,16 @@ label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.86rem;
   border-radius: var(--raio); padding: 1.1rem 1.2rem; box-shadow: var(--shadow);
   margin-bottom: 1rem;
 }
+/* ---- Stat tiles (Dashboard) ---- */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 1rem; margin-bottom: 1.4rem; }
+.stat {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--raio); padding: 1rem 1.1rem; box-shadow: var(--shadow);
+  display: flex; flex-direction: column; gap: 0.2rem;
+}
+.stat .num { font-size: 1.9rem; font-weight: 700; line-height: 1; color: var(--accent); }
+.stat .rot { font-size: 0.82rem; color: var(--muted); }
+
 .tabela { width: 100%; border-collapse: collapse; }
 .tabela th, .tabela td { text-align: left; padding: 0.6rem 0.7rem; border-bottom: 1px solid var(--border); font-size: 0.92rem; }
 .tabela th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }

@@ -28,9 +28,7 @@ export function App() {
               </ProtectedRoute>
             }
           >
-            {/* Landing = Agenda enquanto o Dashboard (7c.3) e placeholder. */}
-            <Route path="/" element={<Navigate to="/agenda" replace />} />
-            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/" element={<Dashboard />} />
             <Route path="/agenda" element={<Agenda />} />
             <Route path="/agenda/novo" element={<AgendamentoForm />} />
             <Route path="/pacientes" element={<Pacientes />} />
@@ -42,7 +40,7 @@ export function App() {
             <Route path="/responsaveis/:id" element={<ResponsavelDetalhe />} />
             <Route path="/responsaveis/:id/editar" element={<ResponsavelForm />} />
           </Route>
-          <Route path="*" element={<Navigate to="/agenda" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

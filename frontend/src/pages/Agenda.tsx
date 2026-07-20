@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import type { Agendamento, Paciente } from "../api/client";
 import { useAsync } from "../utils/useAsync";
-import { fmtDataHora } from "../utils/format";
+import { fmtDataHora, janelaDeHoje } from "../utils/format";
 
 const ROTULO_STATUS: Record<string, string> = {
   agendado: "Agendado",
@@ -11,15 +11,7 @@ const ROTULO_STATUS: Record<string, string> = {
   falta: "Falta",
 };
 
-// Janela [inicio de hoje, inicio de amanha) no fuso local, como instantes ISO.
-function janelaDeHoje(): { de: string; ate: string } {
-  const h = new Date();
-  const de = new Date(h.getFullYear(), h.getMonth(), h.getDate()).toISOString();
-  const ate = new Date(h.getFullYear(), h.getMonth(), h.getDate() + 1).toISOString();
-  return { de, ate };
-}
-
-// Landing: AGENDA DO DIA (read-only). O backend filtra por [de, ate) e ja ordena
+// AGENDA DO DIA (read-only). O backend filtra por [de, ate) e ja ordena
 // por `inicio`. Clicar num paciente -> ficha.
 export function Agenda() {
   const { data, loading, error } = useAsync(() => {
