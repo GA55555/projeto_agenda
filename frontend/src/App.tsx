@@ -9,6 +9,7 @@ import { EditorEvolucao } from "./pages/EditorEvolucao";
 import { FichaPaciente } from "./pages/FichaPaciente";
 import { Login } from "./pages/Login";
 import { PacienteWizard } from "./pages/PacienteWizard";
+import { Perfil } from "./pages/Perfil";
 import { Pacientes } from "./pages/Pacientes";
 import { Responsaveis } from "./pages/Responsaveis";
 import { ResponsavelDetalhe } from "./pages/ResponsavelDetalhe";
@@ -39,6 +40,7 @@ export function App() {
             <Route path="/responsaveis/novo" element={<ResponsavelForm />} />
             <Route path="/responsaveis/:id" element={<ResponsavelDetalhe />} />
             <Route path="/responsaveis/:id/editar" element={<ResponsavelForm />} />
+            <Route path="/perfil" element={<Perfil />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

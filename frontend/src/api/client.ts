@@ -177,6 +177,30 @@ export interface Rascunho {
   chunks_contexto: number;
 }
 
+// Resumo agregado do dashboard (GET /dashboard/resumo). Espelha ResumoDashboard.
+export interface Resumo {
+  atendimentos_hoje: number;
+  pacientes_ativos: number;
+  responsaveis: number;
+  realizados_mes: number;
+  faltas_mes: number;
+  cancelados_mes: number;
+  taxa_comparecimento_mes: number | null;
+  dias_com_atendimento_mes: number;
+  evolucoes_mes: number;
+  pacientes_sem_tcle: number;
+  pacientes_sem_agendamento_futuro: number;
+  atendimentos_proxima_semana: number;
+}
+
+// Edição do próprio perfil (PATCH /auth/me). Só o campo enviado muda.
+// Trocar o e-mail (identificador de login) exige a senha atual (re-auth).
+export interface PerfilUpdate {
+  nome?: string;
+  email?: string;
+  senha_atual?: string;
+}
+
 function qs(params: Record<string, string | undefined>): string {
   const p = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) if (v) p.set(k, v);
@@ -204,6 +228,18 @@ export const api = {
   me: () => request<Me>("/auth/me"),
   tenantAtual: () => request<Tenant>("/tenants/atual"),
 
+  // ---- Perfil (7c) ----
+  atualizarPerfil: (d: PerfilUpdate) =>
+    request<Me>("/auth/me", { method: "PATCH", body: JSON.stringify(d) }),
+  trocarSenha: (senha_atual: string, senha_nova: string) =>
+    request<void>("/auth/me/senha", {
+      method: "POST",
+      body: JSON.stringify({ senha_atual, senha_nova }),
+    }),
+
+  // ---- Dashboard (7c) ----
+  resumo: () => request<Resumo>("/dashboard/resumo"),
+
   // ---- Dominio (7b) ----
   pacientes: () => request<Paciente[]>("/pacientes"),
   paciente: (id: string) => request<PacienteDetalhado>(`/pacientes/${id}`),
@@ -223,6 +259,17 @@ export const api = {
     request<Responsavel>(`/responsaveis/${id}`, { method: "PATCH", body: JSON.stringify(d) }),
   criarAgendamento: (d: AgendamentoCreate) =>
     request<Agendamento>("/agendamentos", { method: "POST", body: JSON.stringify(d) }),
+  // Ações na agenda (7c): PATCH muda status; cancelar é rota própria (soft, motivo).
+  mudarStatusAgendamento: (id: string, status: string) =>
+    request<Agendamento>(`/agendamentos/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
+  cancelarAgendamento: (id: string, motivo?: string) =>
+    request<Agendamento>(`/agendamentos/${id}/cancelar`, {
+      method: "POST",
+      body: JSON.stringify({ motivo: motivo || null }),
+    }),
   criarPaciente: (d: PacienteCreate) =>
     request<PacienteDetalhado>("/pacientes", { method: "POST", body: JSON.stringify(d) }),
 

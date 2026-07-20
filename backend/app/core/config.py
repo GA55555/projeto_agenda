@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     cookie_secure: bool = False
     cookie_samesite: str = "strict"
 
+    # ---- Fuso horario da clinica (Fase 7c) ----
+    # Usado para agregar "hoje"/"mes"/"dias com atendimento" no dashboard: os
+    # timestamps sao `timestamptz`, mas o RECORTE por dia/mes precisa do fuso
+    # local da clinica (senao "hoje" vira o dia UTC). Sem impacto nos dados.
+    app_timezone: str = "America/Sao_Paulo"
+
     # ---- Pseudonimizacao / NER (§2.3/§1.3) ----
     # Camada NER (Presidio + spaCy) e reforco OPCIONAL sobre termos cadastrados
     # + regex. Import lazy (§1.3); requer o extra `[nlp]` instalado. Modelo

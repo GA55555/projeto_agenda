@@ -9,11 +9,17 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.security import create_access_token
-from app.db.deps import get_db
+from app.db.deps import get_db, get_tenant_session
 from app.modules.auth import service
 from app.modules.auth.dependencies import CurrentUser, get_current_user
+from app.modules.auth.exceptions import EmailDuplicado, SenhaAtualIncorreta
 from app.modules.auth.models import Usuario
-from app.modules.auth.schemas import PerfilOut, TokenResponse
+from app.modules.auth.schemas import (
+    PerfilOut,
+    PerfilUpdate,
+    SenhaUpdate,
+    TokenResponse,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -89,3 +95,49 @@ def me(
     if usuario is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Nao autenticado")
     return usuario
+
+
+@router.patch("/me", response_model=PerfilOut)
+def atualizar_meu_perfil(
+    dados: PerfilUpdate,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_tenant_session),
+) -> Usuario:
+    """Edita nome/e-mail do proprio utilizador. E-mail em uso -> 409.
+
+    Sessao COM contexto de tenant: a troca de e-mail grava evento na auditoria
+    (append-only, sob RLS §2.2) na mesma transacao, e exige a senha atual.
+    """
+    try:
+        usuario = service.atualizar_perfil(db, user, dados)
+    except EmailDuplicado:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ja existe uma conta com este e-mail.",
+        )
+    except SenhaAtualIncorreta:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Trocar o e-mail exige a senha atual correta.",
+        )
+    if usuario is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Nao autenticado")
+    return usuario
+
+
+@router.post("/me/senha", status_code=status.HTTP_204_NO_CONTENT)
+def trocar_minha_senha(
+    dados: SenhaUpdate,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    """Troca a senha apos conferir a senha atual. Senha atual errada -> 400."""
+    try:
+        usuario = service.trocar_senha(db, user.id, dados)
+    except SenhaAtualIncorreta:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Senha atual incorreta."
+        )
+    if usuario is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Nao autenticado")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -11,6 +11,7 @@ interface AuthState {
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  refresh: () => Promise<Me>;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
@@ -48,7 +49,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
-  const value = useMemo(() => ({ user, loading, login, logout }), [user, loading, login, logout]);
+  // Reidrata o usuário do backend (ex.: após editar nome/e-mail no perfil).
+  // Devolve o Me fresco para o chamador sincronizar estado local (form).
+  const refresh = useCallback(async () => {
+    const me = await api.me();
+    setUser(me);
+    return me;
+  }, []);
+
+  const value = useMemo(
+    () => ({ user, loading, login, logout, refresh }),
+    [user, loading, login, logout, refresh],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

@@ -42,9 +42,14 @@ export function Shell() {
             <div className="email">{user?.email}</div>
           </div>
           <span className="papel">{PAPEL_ROTULO[user?.papel ?? ""] ?? user?.papel}</span>
-          <button className="secundario" onClick={() => void logout()}>
-            Sair
-          </button>
+          <div className="perfil-acoes">
+            <NavLink className="botao secundario mini" to="/perfil">
+              Meu perfil
+            </NavLink>
+            <button className="secundario mini" onClick={() => void logout()}>
+              Sair
+            </button>
+          </div>
         </div>
       </aside>
       <main className="main">

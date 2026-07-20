@@ -18,6 +18,7 @@ from app.modules.agendamentos.exceptions import (
     HorarioIndisponivel,
     IntervaloInvalido,
     PacienteInexistente,
+    TransicaoInvalida,
 )
 from app.modules.agendamentos.schemas import (
     AgendamentoCreate,
@@ -85,6 +86,8 @@ def atualizar_agendamento(
         )
     except HorarioIndisponivel:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_CONFLITO_HORARIO)
+    except TransicaoInvalida as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
     if ag is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agendamento nao encontrado")
     return ag
@@ -96,7 +99,10 @@ def cancelar_agendamento(
     dados: CancelamentoIn,
     db: Session = Depends(get_tenant_session),
 ) -> AgendamentoOut:
-    ag = service.cancelar(db, agendamento_id, dados.motivo)
+    try:
+        ag = service.cancelar(db, agendamento_id, dados.motivo)
+    except TransicaoInvalida as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
     if ag is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agendamento nao encontrado")
     return ag

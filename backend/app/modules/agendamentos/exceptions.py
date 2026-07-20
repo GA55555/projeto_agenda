@@ -15,3 +15,7 @@ class HorarioIndisponivel(Exception):
 
 class IntervaloInvalido(Exception):
     """Apos aplicar a atualizacao, `fim <= inicio` (violaria o CHECK do BD)."""
+
+
+class TransicaoInvalida(Exception):
+    """Transicao de status nao permitida (ex.: reviver um cancelado). Fase 7c."""

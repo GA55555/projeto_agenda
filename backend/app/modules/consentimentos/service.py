@@ -33,19 +33,29 @@ def obter(db: Session, consentimento_id: uuid.UUID) -> Consentimento | None:
     return db.get(Consentimento, consentimento_id)
 
 
+def clausula_consentimento_ativo(paciente_id_ref):
+    """Predicado EXISTS "paciente tem >=1 TCLE nao revogado" (§2.2).
+
+    FONTE UNICA da definicao de "consentimento vigente". `paciente_id_ref` pode
+    ser um valor (uuid) ou uma coluna (ex.: `Paciente.id`, para agregacoes como
+    o dashboard) — assim gate e contadores nunca divergem se a definicao mudar
+    (ex.: ganhar validade/expiracao).
+    """
+    return (
+        select(Consentimento.id)
+        .where(Consentimento.paciente_id == paciente_id_ref)
+        .where(Consentimento.revogado_em.is_(None))
+        .exists()
+    )
+
+
 def tem_consentimento_ativo(db: Session, paciente_id: uuid.UUID) -> bool:
     """True se o paciente tem >=1 TCLE nao revogado (§2.2).
 
     Fonte unica do gate de consentimento — usado por quem processa/grava dados
     clinicos do paciente (evolucoes, geracao via LLM). Roda sob RLS (§2.1).
     """
-    stmt = (
-        select(Consentimento.id)
-        .where(Consentimento.paciente_id == paciente_id)
-        .where(Consentimento.revogado_em.is_(None))
-        .limit(1)
-    )
-    return db.execute(stmt).first() is not None
+    return bool(db.execute(select(clausula_consentimento_ativo(paciente_id))).scalar())
 
 
 def revogar(

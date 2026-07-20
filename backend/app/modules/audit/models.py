@@ -26,7 +26,9 @@ from app.db.base import Base
 # Tipos de evento canonicos mandatados pela §2.2 (nao exaustivo — String livre).
 TIPO_CONSENTIMENTO_REVOGADO = "consentimento_revogado"
 TIPO_GUARDA_ALTERADA = "guarda_alterada"
-TIPOS_EVENTO = (TIPO_CONSENTIMENTO_REVOGADO, TIPO_GUARDA_ALTERADA)
+# Fase 7c: troca do identificador de login e mutacao sensivel -> auditavel.
+TIPO_PERFIL_EMAIL_ALTERADO = "perfil_email_alterado"
+TIPOS_EVENTO = (TIPO_CONSENTIMENTO_REVOGADO, TIPO_GUARDA_ALTERADA, TIPO_PERFIL_EMAIL_ALTERADO)
 
 
 class Auditoria(Base):
