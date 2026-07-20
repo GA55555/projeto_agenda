@@ -5,7 +5,7 @@ Fase do roadmap: Fase 2
 """
 import uuid
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict
 
 
 class TokenResponse(BaseModel):
@@ -17,7 +17,10 @@ class UsuarioOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    email: EmailStr
+    # Response model: serializa e-mail JA gravado (confiavel) -> `str`, nao
+    # `EmailStr`. Revalidar na saida quebra e-mails validos-mas-reservados
+    # (ex.: `.local`), que o email-validator rejeita. EmailStr fica so na entrada.
+    email: str
     nome: str
     papel: str
     tenant_id: uuid.UUID
@@ -32,4 +35,4 @@ class PerfilOut(BaseModel):
     tenant_id: uuid.UUID
     papel: str
     nome: str
-    email: EmailStr
+    email: str  # str, nao EmailStr (ver UsuarioOut) — nao revalidar na saida

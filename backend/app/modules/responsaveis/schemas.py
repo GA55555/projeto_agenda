@@ -51,6 +51,6 @@ class ResponsavelOut(BaseModel):
     cpf: str
     data_nascimento: date | None
     telefone: str | None
-    email: EmailStr | None
+    email: str | None  # response model: `str` (nao revalidar na saida; ver auth PerfilOut)
     endereco: str | None
     criado_em: datetime
