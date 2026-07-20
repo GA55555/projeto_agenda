@@ -62,6 +62,8 @@ class Agendamento(Base):
         Index("ix_agendamentos_paciente_id", "paciente_id"),
         # Alvo do FK composto (tenant_id, id) vindo das evolucoes (Fase 7e, §2.1).
         UniqueConstraint("tenant_id", "id", name="uq_agendamentos_tenant_id_id"),
+        # Ocorrencias de uma mesma recorrencia (Fase 7f) — desfazer/agrupar.
+        Index("ix_agendamentos_tenant_id_serie_id", "tenant_id", "serie_id"),
         # A constraint EXCLUDE anti-sobreposicao vive na migration (§2.1).
     )
 
@@ -78,6 +80,11 @@ class Agendamento(Base):
     tipo: Mapped[str | None] = mapped_column(String(40), nullable=True)
     observacao: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     motivo_cancelamento: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Agrupa as ocorrencias de uma recorrencia (Fase 7f). Null = avulso.
+    serie_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    # Cadencia da serie (semanal/quinzenal/mensal). Persistida p/ a REGRA
+    # sobreviver (extensao da serie na Fase 8). Null quando avulso/dissolvido.
+    serie_frequencia: Mapped[str | None] = mapped_column(String(12), nullable=True)
     criado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )

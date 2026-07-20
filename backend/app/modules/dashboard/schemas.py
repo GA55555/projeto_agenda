@@ -1,48 +1,46 @@
-"""Schema do resumo do dashboard (visao geral + historico, Fase 7c/7e).
+"""Schemas do dashboard (visao geral + historico, Fase 7c/7e/7f).
 
-Response model puro: numeros ja agregados no BD, para um DIA e um MES
-selecionaveis (historico desde a criacao da conta). Pendencias sao sempre
-relativas a AGORA (independem do periodo escolhido).
+Divididos em DIA e MES (Fase 7f): o dashboard tem dois seletores independentes
+(calendario/dia e mes de estatisticas). Buscar cada um por conta evita recomputar
+as agregacoes do mes/pacientes a cada clique no calendario.
 
 Regras de ouro: §2.1
-Fase do roadmap: Fase 7c/7e
+Fase do roadmap: Fase 7c/7e/7f
 """
 from datetime import date, datetime
 
 from pydantic import BaseModel
 
 
-class ResumoDashboard(BaseModel):
-    # ---- Contexto do periodo selecionado ----
-    dia: date   # dia selecionado (fuso da clinica); default = hoje
-    mes: str    # "YYYY-MM" selecionado; default = mes atual
-    desde: str  # "YYYY-MM" da criacao da conta — limite inferior dos seletores
+class ResumoDia(BaseModel):
+    dia: date  # dia selecionado (fuso da clinica); default = hoje
     # Bordas [inicio, fim) do dia como INSTANTES (fuso da clinica): a SPA usa
-    # estas p/ buscar a agenda do dia -> tile e lista sempre no mesmo dia-clinica
-    # (o browser nao recalcula o dia no fuso local).
+    # estas p/ buscar a agenda do dia -> tile e lista sempre no mesmo dia-clinica.
     dia_inicio: datetime
     dia_fim: datetime
-
-    # ---- Estado atual (independe do periodo) ----
-    pacientes_ativos: int
-    responsaveis: int
-
-    # ---- Dia selecionado ----
     atendimentos_dia: int  # nao-cancelados com inicio no dia
     realizados_dia: int
     faltas_dia: int
     cancelados_dia: int
 
-    # ---- Mes selecionado (gestao de recursos) ----
+
+class ResumoMes(BaseModel):
+    mes: str    # "YYYY-MM" selecionado; default = mes atual
+    desde: str  # "YYYY-MM" da criacao da conta — limite inferior do seletor
+
+    # Estado atual (independe do periodo)
+    pacientes_ativos: int
+    responsaveis: int
+
+    # Mes selecionado (gestao)
     realizados_mes: int
     faltas_mes: int
     cancelados_mes: int
-    # realizados / (realizados + faltas); None sem base -> a SPA mostra "—".
-    taxa_comparecimento_mes: float | None
-    dias_com_atendimento_mes: int  # dias distintos com >=1 atendimento realizado
+    taxa_comparecimento_mes: float | None  # realizados/(realizados+faltas); None sem base
+    dias_com_atendimento_mes: int
     evolucoes_mes: int
 
-    # ---- Pendencias / atencao (sempre "agora") ----
-    pacientes_sem_tcle: int  # pacientes ativos sem consentimento vigente (§2.2)
+    # Pendencias (sempre relativas a AGORA)
+    pacientes_sem_tcle: int
     pacientes_sem_agendamento_futuro: int
     atendimentos_proxima_semana: int

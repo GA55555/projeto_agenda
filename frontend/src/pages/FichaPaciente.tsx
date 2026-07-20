@@ -1,10 +1,9 @@
-import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { Consentimento, Evolucao, PacienteDetalhado } from "../api/client";
 import { useAsync } from "../utils/useAsync";
 import { fmtData, fmtDataHora } from "../utils/format";
-import { mensagemDeErro } from "../utils/erro";
+import { useAcao } from "../utils/useAcao";
 
 const SEXO_ROTULO: Record<string, string> = {
   masculino: "Masculino",
@@ -26,21 +25,7 @@ export function FichaPaciente() {
     };
   }, [id]);
 
-  const [acaoErro, setAcaoErro] = useState<string | null>(null);
-  const [ocupado, setOcupado] = useState(false);
-
-  // Wrapper único do ciclo ocupado/erro das ações de administração.
-  async function executar(fn: () => Promise<unknown>) {
-    setAcaoErro(null);
-    setOcupado(true);
-    try {
-      await fn();
-    } catch (e) {
-      setAcaoErro(mensagemDeErro(e));
-    } finally {
-      setOcupado(false);
-    }
-  }
+  const { ocupado, acaoErro, executar } = useAcao();
 
   function arquivarOuReativar(paciente: PacienteDetalhado) {
     const msg = paciente.ativo

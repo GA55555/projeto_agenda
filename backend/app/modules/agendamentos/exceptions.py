@@ -19,3 +19,7 @@ class IntervaloInvalido(Exception):
 
 class TransicaoInvalida(Exception):
     """Transicao de status nao permitida (ex.: reviver um cancelado). Fase 7c."""
+
+
+class NaoRecorrente(Exception):
+    """Agendamento nao faz parte de uma serie (nao ha recorrencia a desfazer). Fase 7f."""

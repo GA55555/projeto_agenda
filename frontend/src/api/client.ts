@@ -83,6 +83,7 @@ export interface AgendamentoCreate {
   fim: string;
   tipo?: string;
   observacao?: string;
+  recorrencia?: { frequencia: Frequencia };
 }
 
 export interface ResponsavelCreate {
@@ -147,8 +148,17 @@ export interface Agendamento {
   tipo: string | null;
   observacao: string | null;
   motivo_cancelamento: string | null;
+  serie_id: string | null; // != null -> faz parte de uma recorrência (7f)
   criado_em: string;
 }
+
+// Resposta do POST /agendamentos: o criado + resumo da série (7f).
+export interface AgendamentoCriado extends Agendamento {
+  serie_criados: number;
+  serie_pulados_datas: string[]; // ISO dos inícios pulados por conflito
+}
+
+export type Frequencia = "semanal" | "quinzenal" | "mensal";
 
 export interface Consentimento {
   id: string;
@@ -179,20 +189,22 @@ export interface Rascunho {
   chunks_contexto: number;
 }
 
-// Resumo agregado do dashboard (GET /dashboard/resumo). Espelha ResumoDashboard.
-// dia/mes selecionáveis (histórico desde `desde` = mês de criação da conta).
-export interface Resumo {
+// Dashboard dividido em DIA e MÊS (7f) — seletores independentes.
+export interface ResumoDia {
   dia: string; // YYYY-MM-DD selecionado
-  mes: string; // YYYY-MM selecionado
-  desde: string; // YYYY-MM da criação da conta (limite dos seletores)
   dia_inicio: string; // instante ISO — início do dia no fuso da clínica
   dia_fim: string; // instante ISO — fim do dia (exclusivo)
-  pacientes_ativos: number;
-  responsaveis: number;
   atendimentos_dia: number;
   realizados_dia: number;
   faltas_dia: number;
   cancelados_dia: number;
+}
+
+export interface ResumoMes {
+  mes: string; // YYYY-MM selecionado
+  desde: string; // YYYY-MM da criação da conta (limite do seletor de mês)
+  pacientes_ativos: number;
+  responsaveis: number;
   realizados_mes: number;
   faltas_mes: number;
   cancelados_mes: number;
@@ -248,15 +260,17 @@ export const api = {
       body: JSON.stringify({ senha_atual, senha_nova }),
     }),
 
-  // ---- Dashboard (7c/7e) ----
-  resumo: (params: { dia?: string; mes?: string } = {}) =>
-    request<Resumo>(`/dashboard/resumo${qs(params)}`),
+  // ---- Dashboard (7c/7e/7f) ----
+  resumoDia: (dia: string) => request<ResumoDia>(`/dashboard/dia${qs({ dia })}`),
+  resumoMes: (mes: string) => request<ResumoMes>(`/dashboard/mes${qs({ mes })}`),
+  calendario: (mes: string) => request<Record<string, number>>(`/dashboard/calendario${qs({ mes })}`),
 
   // ---- Dominio (7b) ----
   pacientes: () => request<Paciente[]>("/pacientes"),
   paciente: (id: string) => request<PacienteDetalhado>(`/pacientes/${id}`),
   agendamentos: (params: { de?: string; ate?: string; paciente_id?: string } = {}) =>
     request<Agendamento[]>(`/agendamentos${qs(params)}`),
+  agendamento: (id: string) => request<Agendamento>(`/agendamentos/${id}`),
   consentimentos: (pacienteId: string) =>
     request<Consentimento[]>(`/consentimentos${qs({ paciente_id: pacienteId })}`),
   evolucoes: (pacienteId: string) =>
@@ -270,7 +284,9 @@ export const api = {
   atualizarResponsavel: (id: string, d: ResponsavelUpdate) =>
     request<Responsavel>(`/responsaveis/${id}`, { method: "PATCH", body: JSON.stringify(d) }),
   criarAgendamento: (d: AgendamentoCreate) =>
-    request<Agendamento>("/agendamentos", { method: "POST", body: JSON.stringify(d) }),
+    request<AgendamentoCriado>("/agendamentos", { method: "POST", body: JSON.stringify(d) }),
+  desfazerRecorrencia: (id: string) =>
+    request<{ removidos: number }>(`/agendamentos/${id}/desfazer-recorrencia`, { method: "POST" }),
   // Ações na agenda (7c): PATCH muda status; cancelar é rota própria (soft, motivo).
   mudarStatusAgendamento: (id: string, status: string) =>
     request<Agendamento>(`/agendamentos/${id}`, {

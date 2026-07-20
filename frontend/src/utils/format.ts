@@ -41,3 +41,11 @@ export function mesAtualISO(): string {
 export function fmtHora(iso: string | Date): string {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
+
+// "julho de 2026" a partir de "YYYY-MM".
+export function fmtMesTitulo(mesISO: string): string {
+  return new Date(`${mesISO}-01T00:00:00`).toLocaleDateString("pt-BR", {
+    month: "long",
+    year: "numeric",
+  });
+}

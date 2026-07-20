@@ -266,6 +266,43 @@ label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.86rem;
 .seletor-periodo { display: flex; gap: 0.4rem; align-items: center; }
 .seletor-periodo input { width: auto; padding: 0.3rem 0.5rem; font-size: 0.85rem; }
 
+/* ---- Calendário (7f) ---- */
+.calendario {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--raio); padding: 0.9rem 1rem; box-shadow: var(--shadow);
+  margin-bottom: 1.2rem;
+}
+.cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; }
+.cal-titulo { font-weight: 600; text-transform: capitalize; }
+.cal-grade { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.3rem; }
+.cal-cab { text-align: center; font-size: 0.72rem; color: var(--muted); font-weight: 600; padding-bottom: 0.2rem; }
+.cal-vazio { aspect-ratio: 1; }
+.cal-dia {
+  aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 0.1rem; padding: 0; border: 1px solid transparent; border-radius: 9px;
+  background: var(--surface-2); color: var(--fg); font: inherit; cursor: pointer;
+  position: relative; transition: background 0.12s;
+}
+.cal-dia:hover { background: var(--accent-soft); }
+.cal-dia .cal-num { font-size: 0.9rem; font-weight: 500; line-height: 1; }
+/* Dia COM atendimentos: colorido; badge com a contagem. */
+.cal-dia.tem { background: var(--accent-soft); color: var(--accent-soft-fg); font-weight: 600; }
+.cal-dia .cal-badge {
+  font-size: 0.66rem; font-weight: 700; line-height: 1;
+  background: var(--accent); color: var(--accent-fg);
+  border-radius: 999px; padding: 0.05rem 0.32rem;
+}
+.cal-dia.hoje { border-color: var(--accent); }
+.cal-dia.selecionado { background: var(--accent); color: var(--accent-fg); }
+.cal-dia.selecionado .cal-badge { background: var(--accent-fg); color: var(--accent); }
+
+.serie-tag { font-size: 0.85rem; }
+
+@media (max-width: 480px) {
+  .cal-dia .cal-num { font-size: 0.78rem; }
+  .cal-dia .cal-badge { font-size: 0.6rem; padding: 0.05rem 0.25rem; }
+}
+
 /* ---- Zona de administração/perigo (7e) ---- */
 button.perigo { background: var(--erro-bg); color: var(--erro-fg); }
 button.perigo:hover { filter: brightness(0.95); background: var(--erro-bg); }

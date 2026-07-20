@@ -99,7 +99,15 @@ export function Agenda() {
                 const ocupado = ocupadoId === a.id;
                 return (
                   <tr key={a.id} className={a.status === "cancelado" ? "linha-inativa" : undefined}>
-                    <td>{fmtDataHora(a.inicio)}</td>
+                    <td>
+                      <Link to={`/agenda/${a.id}`}>{fmtDataHora(a.inicio)}</Link>
+                      {a.serie_id && (
+                        <span className="serie-tag" title="Faz parte de uma recorrência">
+                          {" "}
+                          🔁
+                        </span>
+                      )}
+                    </td>
                     <td>{fmtDataHora(a.fim)}</td>
                     <td>
                       <Link to={`/pacientes/${a.paciente_id}`}>

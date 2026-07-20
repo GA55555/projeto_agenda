@@ -3,6 +3,7 @@ import { AuthProvider } from "./auth/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Shell } from "./components/Shell";
 import { Agenda } from "./pages/Agenda";
+import { AgendamentoDetalhe } from "./pages/AgendamentoDetalhe";
 import { AgendamentoForm } from "./pages/AgendamentoForm";
 import { Dashboard } from "./pages/Dashboard";
 import { EditorEvolucao } from "./pages/EditorEvolucao";
@@ -32,6 +33,7 @@ export function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/agenda" element={<Agenda />} />
             <Route path="/agenda/novo" element={<AgendamentoForm />} />
+            <Route path="/agenda/:id" element={<AgendamentoDetalhe />} />
             <Route path="/pacientes" element={<Pacientes />} />
             <Route path="/pacientes/novo" element={<PacienteWizard />} />
             <Route path="/pacientes/:id" element={<FichaPaciente />} />

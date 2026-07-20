@@ -17,11 +17,13 @@ from app.modules.agendamentos import service
 from app.modules.agendamentos.exceptions import (
     HorarioIndisponivel,
     IntervaloInvalido,
+    NaoRecorrente,
     PacienteInexistente,
     TransicaoInvalida,
 )
 from app.modules.agendamentos.schemas import (
     AgendamentoCreate,
+    AgendamentoCriadoOut,
     AgendamentoOut,
     AgendamentoUpdate,
     CancelamentoIn,
@@ -33,14 +35,14 @@ router = APIRouter(prefix="/agendamentos", tags=["agendamentos"])
 _CONFLITO_HORARIO = "Conflito de horario: sobreposicao com outro atendimento"
 
 
-@router.post("", response_model=AgendamentoOut, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=AgendamentoCriadoOut, status_code=status.HTTP_201_CREATED)
 def criar_agendamento(
     dados: AgendamentoCreate,
     db: Session = Depends(get_tenant_session),
     user: CurrentUser = Depends(get_current_user),
-) -> AgendamentoOut:
+) -> AgendamentoCriadoOut:
     try:
-        return service.criar(db, user.tenant_id, dados)
+        ag, criados, datas_puladas = service.criar(db, user.tenant_id, dados)
     except PacienteInexistente as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -48,6 +50,10 @@ def criar_agendamento(
         )
     except HorarioIndisponivel:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_CONFLITO_HORARIO)
+    out = AgendamentoCriadoOut.model_validate(ag)  # valida a linha ORM uma vez
+    out.serie_criados = criados
+    out.serie_pulados_datas = datas_puladas
+    return out
 
 
 @router.get("", response_model=list[AgendamentoOut])
@@ -106,6 +112,25 @@ def apagar_agendamento(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
     if not encontrado:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agendamento nao encontrado")
+
+
+@router.post("/{agendamento_id}/desfazer-recorrencia")
+def desfazer_recorrencia(
+    agendamento_id: uuid.UUID,
+    db: Session = Depends(get_tenant_session),
+    user: CurrentUser = Depends(get_current_user),
+) -> dict[str, int]:
+    """Remove as ocorrencias futuras ainda 'agendado' da serie (Fase 7f)."""
+    try:
+        removidos = service.desfazer_recorrencia(db, user, agendamento_id)
+    except NaoRecorrente:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Este agendamento nao faz parte de uma recorrencia.",
+        )
+    if removidos is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agendamento nao encontrado")
+    return {"removidos": removidos}
 
 
 @router.post("/{agendamento_id}/cancelar", response_model=AgendamentoOut)

@@ -1,10 +1,16 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import type { Agendamento } from "../api/client";
+import type { Agendamento, Frequencia } from "../api/client";
 import { useAsync } from "../utils/useAsync";
 import { mensagemDeErro } from "../utils/erro";
 import { fmtHora, hojeISO } from "../utils/format";
+
+const FREQ_ROTULO: Record<Frequencia, string> = {
+  semanal: "Toda semana (mesmo dia da semana)",
+  quinzenal: "A cada 15 dias",
+  mensal: "Todo mês (mesma data)",
+};
 
 // Novo agendamento por CLIQUES (Fase 7e): escolhe o dia -> vê a ocupação ->
 // clica num horário livre -> escolhe a duração (presets ou valor livre).
@@ -32,6 +38,8 @@ export function AgendamentoForm() {
   const [duracao, setDuracao] = useState<number>(50);
   const [tipo, setTipo] = useState("");
   const [observacao, setObservacao] = useState("");
+  const [repetir, setRepetir] = useState(false);
+  const [frequencia, setFrequencia] = useState<Frequencia>("semanal");
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
@@ -77,13 +85,24 @@ export function AgendamentoForm() {
     setErro(null);
     setSalvando(true);
     try {
-      await api.criarAgendamento({
+      const criado = await api.criarAgendamento({
         paciente_id: pacienteId,
         inicio: inicioSel.toISOString(),
         fim: fimSel.toISOString(),
         tipo: tipo || undefined,
         observacao: observacao || undefined,
+        recorrencia: repetir ? { frequencia } : undefined,
       });
+      if (repetir) {
+        let msg = `Recorrência criada: ${criado.serie_criados} atendimento(s) futuro(s).`;
+        if (criado.serie_pulados_datas.length > 0) {
+          const datas = criado.serie_pulados_datas
+            .map((d) => new Date(d).toLocaleDateString("pt-BR"))
+            .join(", ");
+          msg += `\n\nPuladas por conflito (${criado.serie_pulados_datas.length}): ${datas}.`;
+        }
+        window.alert(msg);
+      }
       navigate("/agenda", { replace: true });
     } catch (e) {
       setErro(
@@ -200,6 +219,32 @@ export function AgendamentoForm() {
               : `Agendar ${fmtHora(inicioSel)}–${fmtHora(fimSel)}.`}
           </p>
         )}
+
+        <div className="campo">
+          <label className="inline">
+            <input type="checkbox" checked={repetir} onChange={(e) => setRepetir(e.target.checked)} />
+            Repetir neste mesmo dia e horário (recorrência)
+          </label>
+          {repetir && (
+            <>
+              <select
+                value={frequencia}
+                onChange={(e) => setFrequencia(e.target.value as Frequencia)}
+                style={{ marginTop: "0.4rem", maxWidth: "16rem" }}
+              >
+                {(Object.keys(FREQ_ROTULO) as Frequencia[]).map((f) => (
+                  <option key={f} value={f}>
+                    {FREQ_ROTULO[f]}
+                  </option>
+                ))}
+              </select>
+              <p className="muted" style={{ fontSize: "0.82rem", marginTop: "0.3rem" }}>
+                Cria os atendimentos futuros por ~6 meses. Para desfazer, abra um atendimento da
+                série na agenda e clique em “Desfazer recorrência”.
+              </p>
+            </>
+          )}
+        </div>
 
         <label className="campo">
           Tipo

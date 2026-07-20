@@ -9,10 +9,17 @@ Fase do roadmap: Fase 3.5
 """
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.modules.agendamentos.models import STATUS_AGENDAMENTO
+
+
+class Recorrencia(BaseModel):
+    # "esse dia e esse horario" repetido. Semanal/quinzenal preservam o dia da
+    # semana; mensal preserva a DATA (mesmo dia do mes) — ver rotulo na SPA.
+    frequencia: Literal["semanal", "quinzenal", "mensal"]
 
 
 class AgendamentoCreate(BaseModel):
@@ -22,6 +29,8 @@ class AgendamentoCreate(BaseModel):
     fim: AwareDatetime
     tipo: str | None = Field(default=None, max_length=40)
     observacao: str | None = Field(default=None, max_length=1000)
+    # Se presente, cria a serie de ocorrencias futuras (Fase 7f).
+    recorrencia: Recorrencia | None = None
 
     @model_validator(mode="after")
     def _fim_apos_inicio(self) -> "AgendamentoCreate":
@@ -70,4 +79,17 @@ class AgendamentoOut(BaseModel):
     tipo: str | None
     observacao: str | None
     motivo_cancelamento: str | None
+    serie_id: uuid.UUID | None  # != None -> faz parte de uma recorrencia (Fase 7f)
     criado_em: datetime
+
+
+class AgendamentoCriadoOut(AgendamentoOut):
+    """Resposta do POST: o atendimento criado + resumo da serie (Fase 7f).
+
+    `serie_criados` = ocorrencias futuras criadas ALEM desta; `serie_pulados_datas`
+    = inicios das ocorrencias puladas por conflito (a SPA lista as datas p/ o
+    usuario saber onde ficaram lacunas). Vazios em agendamento avulso.
+    """
+
+    serie_criados: int = 0
+    serie_pulados_datas: list[datetime] = []
