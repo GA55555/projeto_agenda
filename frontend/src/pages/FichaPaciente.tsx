@@ -2,13 +2,8 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { Consentimento, Evolucao, PacienteDetalhado } from "../api/client";
 import { useAsync } from "../utils/useAsync";
-import { fmtData, fmtDataHora } from "../utils/format";
+import { fmtData, fmtDataHora, rotuloSexo } from "../utils/format";
 import { useAcao } from "../utils/useAcao";
-
-const SEXO_ROTULO: Record<string, string> = {
-  masculino: "Masculino",
-  feminino: "Feminino",
-};
 
 export function FichaPaciente() {
   const { id = "" } = useParams();
@@ -95,7 +90,7 @@ export function FichaPaciente() {
           </div>
           <div>
             <dt>Sexo</dt>
-            <dd>{paciente.sexo ? SEXO_ROTULO[paciente.sexo] ?? paciente.sexo : "—"}</dd>
+            <dd>{paciente.sexo ? rotuloSexo(paciente.sexo) : "—"}</dd>
           </div>
           <div>
             <dt>Observações gerais</dt>

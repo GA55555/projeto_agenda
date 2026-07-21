@@ -49,3 +49,33 @@ export function fmtMesTitulo(mesISO: string): string {
     year: "numeric",
   });
 }
+
+// Rótulo pt-BR do sexo (fonte única — antes duplicado em telas).
+export function rotuloSexo(sexo: string): string {
+  return ({ masculino: "Masculino", feminino: "Feminino" } as Record<string, string>)[sexo] ?? sexo;
+}
+
+// Idade em anos completos a partir de "YYYY-MM-DD". null se vazio/inválido.
+export function idadeEmAnos(iso: string): number | null {
+  if (!iso) return null;
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  if (!y || !m || !d) return null;
+  // Rejeita datas fora de faixa (ex.: 2020-13-45): se o Date normalizar para
+  // outro mês/dia, não bate com o informado -> inválida.
+  const nasc = new Date(y, m - 1, d);
+  if (nasc.getFullYear() !== y || nasc.getMonth() !== m - 1 || nasc.getDate() !== d) return null;
+  const hoje = new Date();
+  let idade = hoje.getFullYear() - y;
+  const aindaNaoFez = hoje.getMonth() + 1 < m || (hoje.getMonth() + 1 === m && hoje.getDate() < d);
+  if (aindaNaoFez) idade--;
+  return idade >= 0 ? idade : null;
+}
+
+// Iniciais (1ª e última palavra) para o avatar. "Ana Clara Souza" -> "AS".
+export function iniciais(nome: string): string {
+  const partes = nome.trim().split(/\s+/).filter(Boolean);
+  if (partes.length === 0) return "?";
+  const a = partes[0][0];
+  const b = partes.length > 1 ? partes[partes.length - 1][0] : "";
+  return (a + b).toUpperCase();
+}

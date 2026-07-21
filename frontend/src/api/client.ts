@@ -305,7 +305,7 @@ export const api = {
     request<PacienteDetalhado>("/pacientes", { method: "POST", body: JSON.stringify(d) }),
   // Arquivar/reativar = PATCH ativo (auditado no backend). Apagar só é
   // possível SEM prontuário (CFP 5 anos) — 409 caso contrário.
-  atualizarPaciente: (id: string, d: { ativo?: boolean }) =>
+  atualizarPaciente: (id: string, d: { ativo?: boolean; observacoes_gerais?: string }) =>
     request<Paciente>(`/pacientes/${id}`, { method: "PATCH", body: JSON.stringify(d) }),
   apagarPaciente: (id: string) => request<void>(`/pacientes/${id}`, { method: "DELETE" }),
 

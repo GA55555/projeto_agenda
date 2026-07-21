@@ -42,14 +42,19 @@
 
 * { box-sizing: border-box; }
 html, body { height: 100%; }
+/* Base tipográfica maior p/ leitura confortável (tudo em rem escala junto). */
+html { font-size: 112.5%; }  /* ~18px */
 body {
   margin: 0;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   background: var(--bg);
   color: var(--fg);
-  line-height: 1.5;
+  line-height: 1.55;
+  font-size: 1rem;
 }
 h1, h2, h3 { line-height: 1.25; }
+h2 { font-size: 1.5rem; }
+h3 { font-size: 1.18rem; }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 .muted { color: var(--muted); }
@@ -100,7 +105,7 @@ input:focus, textarea:focus, select:focus {
   border-color: var(--accent);
 }
 textarea { resize: vertical; }
-label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.86rem; color: var(--muted); }
+label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.92rem; color: var(--muted); }
 .campo { margin: 0.9rem 0; }
 
 /* ---- Login (centralizado) ---- */
@@ -148,12 +153,23 @@ label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.86rem;
 }
 
 /* Ocupa bem telas grandes (centralizado) e encolhe sem perder função. */
-.main { padding: 1.6rem 2rem; max-width: 72rem; margin: 0 auto; width: 100%; min-width: 0; }
-.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem; gap: 1rem; }
+.main { padding: 1.8rem 2.2rem; max-width: 74rem; margin: 0 auto; width: 100%; min-width: 0; }
+.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.1rem; gap: 1rem; }
 .page-header h2 { margin: 0; }
-.cabecalho-secao { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1.2rem; }
+.page-header .muted { margin: 0.25rem 0 0; }
+/* Cabeçalho de seção: título + ação, com respiro consistente. */
+.cabecalho-secao { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 1.9rem 0 0.85rem; }
 .cabecalho-secao h3 { margin: 0; }
-.voltar { display: inline-block; margin-bottom: 0.6rem; font-size: 0.9rem; }
+.cabecalho-secao .titulo-bloco { margin: 0; }
+/* Ação da seção (ex.: "Ver agenda →") — pílula discreta. `:not(.botao)` para
+   NÃO atropelar Links que são botões primários (ex.: "Nova evolução"). */
+.cabecalho-secao a:not(.botao) {
+  font-size: 0.95rem; font-weight: 600; color: var(--accent);
+  padding: 0.35rem 0.7rem; border-radius: 8px; white-space: nowrap;
+  transition: background 0.12s;
+}
+.cabecalho-secao a:not(.botao):hover { background: var(--accent-soft); color: var(--accent-soft-fg); text-decoration: none; }
+.voltar { display: inline-block; margin-bottom: 0.8rem; font-size: 0.92rem; }
 
 /* ---- Cards / tabelas / listas ---- */
 .card {
@@ -171,13 +187,14 @@ label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.86rem;
   border-radius: var(--raio); padding: 1rem 1.1rem; box-shadow: var(--shadow);
   display: flex; flex-direction: column; gap: 0.2rem;
 }
-.stat .num { font-size: 1.9rem; font-weight: 700; line-height: 1; color: var(--accent); }
-.stat .rot { font-size: 0.82rem; color: var(--muted); }
+.stat .num { font-size: 2.05rem; font-weight: 700; line-height: 1; color: var(--accent); }
+.stat .rot { font-size: 0.9rem; color: var(--muted); }
 /* Tile de pendencia com valor > 0: destaque de atencao. */
 .stat.alerta { background: var(--warn-bg); border-color: transparent; }
 .stat.alerta .num { color: var(--warn-fg); }
 .stat.alerta .rot { color: var(--warn-fg); }
-.titulo-bloco { margin: 0.4rem 0 0.7rem; font-size: 0.95rem; color: var(--muted); }
+/* Subtítulo de seção — hierarquia clara (não mais um rótulo apagado). */
+.titulo-bloco { margin: 1.9rem 0 0.85rem; font-size: 1.08rem; font-weight: 600; color: var(--fg); }
 
 .tabela { width: 100%; border-collapse: collapse; }
 .tabela th, .tabela td { text-align: left; padding: 0.6rem 0.7rem; border-bottom: 1px solid var(--border); font-size: 0.92rem; }
@@ -191,8 +208,8 @@ label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.86rem;
 
 /* ---- Badges ---- */
 .tag {
-  display: inline-block; padding: 0.12rem 0.6rem; border-radius: 999px;
-  font-size: 0.76rem; font-weight: 600;
+  display: inline-block; padding: 0.15rem 0.62rem; border-radius: 999px;
+  font-size: 0.82rem; font-weight: 600;
   background: var(--surface-2); color: var(--muted);
 }
 .tag-realizado, .tag-ativo { background: var(--ok-bg); color: var(--ok-fg); }
@@ -272,36 +289,83 @@ label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.86rem;
   border-radius: var(--raio); padding: 0.9rem 1rem; box-shadow: var(--shadow);
   margin-bottom: 1.2rem;
 }
-.cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; }
-.cal-titulo { font-weight: 600; text-transform: capitalize; }
-.cal-grade { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.3rem; }
-.cal-cab { text-align: center; font-size: 0.72rem; color: var(--muted); font-weight: 600; padding-bottom: 0.2rem; }
+.cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.7rem; }
+.cal-titulo { font-weight: 600; font-size: 1.05rem; text-transform: capitalize; }
+.cal-grade { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.4rem; }
+.cal-cab { text-align: center; font-size: 0.82rem; color: var(--muted); font-weight: 600; padding-bottom: 0.3rem; }
 .cal-vazio { aspect-ratio: 1; }
+/* Célula: dia no topo, contagem ancorada embaixo (space-between). */
 .cal-dia {
-  aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 0.1rem; padding: 0; border: 1px solid transparent; border-radius: 9px;
+  aspect-ratio: 1; min-height: 3rem;
+  display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+  padding: 0.35rem 0.2rem 0.4rem; border: 1px solid transparent; border-radius: 10px;
   background: var(--surface-2); color: var(--fg); font: inherit; cursor: pointer;
-  position: relative; transition: background 0.12s;
+  position: relative; transition: background 0.12s, border-color 0.12s;
 }
 .cal-dia:hover { background: var(--accent-soft); }
-.cal-dia .cal-num { font-size: 0.9rem; font-weight: 500; line-height: 1; }
-/* Dia COM atendimentos: colorido; badge com a contagem. */
-.cal-dia.tem { background: var(--accent-soft); color: var(--accent-soft-fg); font-weight: 600; }
+.cal-dia .cal-num { font-size: 1.05rem; font-weight: 600; line-height: 1; }
+/* Dia COM atendimentos: colorido; badge da contagem BEM visível na base. */
+.cal-dia.tem { background: var(--accent-soft); color: var(--accent-soft-fg); }
 .cal-dia .cal-badge {
-  font-size: 0.66rem; font-weight: 700; line-height: 1;
+  min-width: 1.35rem; font-size: 0.82rem; font-weight: 700; line-height: 1.35;
   background: var(--accent); color: var(--accent-fg);
-  border-radius: 999px; padding: 0.05rem 0.32rem;
+  border-radius: 999px; padding: 0 0.4rem; text-align: center;
 }
 .cal-dia.hoje { border-color: var(--accent); }
 .cal-dia.selecionado { background: var(--accent); color: var(--accent-fg); }
 .cal-dia.selecionado .cal-badge { background: var(--accent-fg); color: var(--accent); }
 
-.serie-tag { font-size: 0.85rem; }
+.serie-tag { font-size: 0.95rem; }
 
 @media (max-width: 480px) {
-  .cal-dia .cal-num { font-size: 0.78rem; }
-  .cal-dia .cal-badge { font-size: 0.6rem; padding: 0.05rem 0.25rem; }
+  .cal-grade { gap: 0.25rem; }
+  .cal-dia { min-height: 2.6rem; padding: 0.25rem 0.1rem 0.3rem; }
+  .cal-dia .cal-num { font-size: 0.92rem; }
+  .cal-dia .cal-badge { font-size: 0.74rem; min-width: 1.15rem; }
 }
+
+/* ---- Cartões de paciente (7g) ---- */
+.pac-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: 1rem; margin-top: 0.6rem;
+}
+.pac-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--raio); padding: 1rem 1.1rem; box-shadow: var(--shadow);
+  display: flex; flex-direction: column; gap: 0.7rem;
+}
+.pac-card.inativo { opacity: 0.72; }
+.pac-topo { display: flex; align-items: center; gap: 0.75rem; }
+.pac-avatar {
+  width: 2.7rem; height: 2.7rem; border-radius: 999px; flex-shrink: 0;
+  background: var(--accent-soft); color: var(--accent-soft-fg);
+  display: grid; place-items: center; font-weight: 700; font-size: 0.95rem;
+}
+.pac-id { min-width: 0; flex: 1; }
+.pac-nome { font-weight: 600; font-size: 1.08rem; line-height: 1.2; }
+.pac-nome a { color: var(--fg); }
+.pac-nome a:hover { color: var(--accent); text-decoration: none; }
+.pac-meta { font-size: 0.92rem; color: var(--muted); margin-top: 0.1rem; }
+.pac-topo .tag { flex-shrink: 0; }
+
+.pac-obs { border-top: 1px dashed var(--border); padding-top: 0.6rem; }
+.pac-obs-label {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--muted); font-weight: 600; margin-bottom: 0.3rem;
+}
+.pac-obs-editar {
+  background: none; border: none; padding: 0.1rem 0.3rem;
+  color: var(--accent); font-size: 0.82rem; font-weight: 600; cursor: pointer;
+}
+.pac-obs-editar:hover { text-decoration: underline; background: none; }
+.pac-obs-texto { margin: 0; font-size: 0.92rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pac-obs-vazio { margin: 0; font-size: 0.92rem; color: var(--muted); font-style: italic; }
+/* Caixa de tamanho FIXO: sem alça de resize; excedente rola dentro dela — o
+   cartão nunca muda de altura. Limite de caracteres reforça (ver contador). */
+.pac-obs textarea { font-size: 0.92rem; height: 4rem; resize: none; max-width: 100%; }
+.pac-obs-contador { font-size: 0.76rem; color: var(--muted); text-align: right; margin: 0.25rem 0 0; }
+.pac-obs-contador.no-limite { color: var(--erro-fg); }
 
 /* ---- Zona de administração/perigo (7e) ---- */
 button.perigo { background: var(--erro-bg); color: var(--erro-fg); }

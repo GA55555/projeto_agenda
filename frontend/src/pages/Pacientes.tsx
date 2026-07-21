@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
+import { PacienteCard } from "../components/PacienteCard";
 import { useAsync } from "../utils/useAsync";
-import { fmtData } from "../utils/format";
 
 export function Pacientes() {
   const { data: pacientes, loading, error } = useAsync(() => api.pacientes(), []);
@@ -40,16 +40,10 @@ export function Pacientes() {
             : "Nenhum paciente cadastrado."}
         </p>
       ) : (
-        <div className="card">
-          <ul className="lista">
-            {visiveis.map((p) => (
-              <li key={p.id}>
-                <Link to={`/pacientes/${p.id}`}>{p.nome}</Link>
-                <span className="muted"> · nasc. {fmtData(p.data_nascimento)}</span>
-                {!p.ativo && <span className="tag tag-inativo"> arquivado</span>}
-              </li>
-            ))}
-          </ul>
+        <div className="pac-grid">
+          {visiveis.map((p) => (
+            <PacienteCard key={p.id} paciente={p} />
+          ))}
         </div>
       )}
     </section>
