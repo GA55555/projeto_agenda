@@ -17,9 +17,9 @@ interface Props {
   onSelecionar: (dia: string) => void;
 }
 
-// Calendário mensal (Fase 7f): dias com atendimento ficam coloridos; clicar num
-// dia o seleciona (a agenda do dia abaixo passa a mostrá-lo). Navega livremente
-// para meses futuros/passados — serve para ver a agenda à frente.
+// Calendário mensal (Fase 7f/7h): dias com atendimento ficam coloridos; o pai
+// decide o destino do clique. No dashboard, clicar abre o novo agendamento já
+// contextualizado naquela data.
 export function Calendario({ diaSelecionado, onSelecionar }: Props) {
   const [mes, setMes] = useState(() => diaSelecionado.slice(0, 7));
 
@@ -81,7 +81,7 @@ export function Calendario({ diaSelecionado, onSelecionar }: Props) {
               type="button"
               className={classes}
               onClick={() => onSelecionar(diaISO)}
-              title={n > 0 ? `${n} atendimento(s)` : "Sem atendimentos"}
+              title={n > 0 ? `${n} atendimento(s) — criar outro` : "Criar agendamento neste dia"}
             >
               <span className="cal-num">{dia}</span>
               {n > 0 && <span className="cal-badge">{n}</span>}

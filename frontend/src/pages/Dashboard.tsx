@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { Calendario } from "../components/Calendario";
@@ -12,17 +12,27 @@ function pct(taxa: number | null | undefined): string {
   return taxa == null ? "—" : `${Math.round(taxa * 100)}%`;
 }
 
-function fmtDiaTitulo(diaISO: string): string {
-  return new Date(`${diaISO}T00:00:00`).toLocaleDateString("pt-BR", { dateStyle: "full" });
+function deslocarMes(mesISO: string, meses: number): string {
+  const [ano, mes] = mesISO.split("-").map(Number);
+  const data = new Date(ano, mes - 1 + meses, 1);
+  return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}`;
 }
 
-// Visão geral com HISTÓRICO. Dia (calendário) e mês são seletores INDEPENDENTES:
-// buscados em hooks separados (mudar o dia não recomputa as agregações do mês).
-// Cada tile explica no ⓘ como o número é construído.
+function limitarMes(mesISO: string, minimo?: string): string {
+  const maximo = mesAtualISO();
+  if (mesISO > maximo) return maximo;
+  if (minimo && mesISO < minimo) return minimo;
+  return mesISO;
+}
+
+// Visão geral com HOJE fixo e consulta histórica mensal aplicada pela lupa.
+// O calendário é o atalho de entrada para criar um agendamento na data clicada.
 export function Dashboard() {
   const { user } = useAuth();
-  const [dia, setDia] = useState(hojeISO()); // sempre nasce no dia atual
+  const navigate = useNavigate();
+  const dia = hojeISO();
   const [mes, setMes] = useState(mesAtualISO());
+  const [mesConsulta, setMesConsulta] = useState(mesAtualISO());
 
   // Roster de pacientes (só nomes p/ a lista) — buscado UMA vez.
   const { data: pacientes } = useAsync(() => api.pacientes(), []);
@@ -48,7 +58,13 @@ export function Dashboard() {
   const primeiroNome = user?.nome?.split(" ")[0];
   const n = (v: number | undefined) => v ?? "—";
   const desdeMes = mesData?.desde;
-  const ehHoje = dia === hojeISO();
+  const ajustarConsulta = (meses: number) =>
+    setMesConsulta((atual) => limitarMes(deslocarMes(atual, meses), desdeMes));
+
+  const ajustarAnoConsulta = (anos: number) =>
+    setMesConsulta((atual) => limitarMes(deslocarMes(atual, anos * 12), desdeMes));
+
+  const consultarMes = () => setMes(limitarMes(mesConsulta, desdeMes));
 
   return (
     <section>
@@ -56,33 +72,8 @@ export function Dashboard() {
         <h2>{primeiroNome ? `Olá, ${primeiroNome}` : "Dashboard"}</h2>
       </div>
 
-      {/* ---- Estado atual ---- */}
-      <div className="stats">
-        <Stat
-          valor={n(mesData?.pacientes_ativos)}
-          rotulo="Pacientes ativos"
-          info="Pacientes com cadastro ativo (não arquivados), independente do período selecionado."
-        />
-        <Stat
-          valor={n(mesData?.responsaveis)}
-          rotulo="Responsáveis"
-          info="Total de responsáveis legais cadastrados."
-        />
-      </div>
-
-      {/* ---- Calendário: escolher o dia (inclui meses futuros) ---- */}
-      <div className="cabecalho-secao">
-        <h3 className="titulo-bloco">Calendário</h3>
-        {!ehHoje && (
-          <button className="mini secundario" onClick={() => setDia(hojeISO())}>
-            Ir para hoje
-          </button>
-        )}
-      </div>
-      <Calendario diaSelecionado={dia} onSelecionar={setDia} />
-
-      {/* ---- Dia selecionado ---- */}
-      <h3 className="titulo-bloco">{ehHoje ? "Hoje" : fmtDiaTitulo(dia)}</h3>
+      {/* ---- Hoje: informação mais imediata vem antes do calendário ---- */}
+      <h3 className="titulo-bloco">Hoje</h3>
       <div className="stats">
         <Stat
           valor={n(rd?.atendimentos_dia)}
@@ -106,23 +97,59 @@ export function Dashboard() {
         />
       </div>
 
+      <div className="cabecalho-secao">
+        <h3>Agenda de hoje</h3>
+        <Link to="/agenda">Ver agenda →</Link>
+      </div>
+      <div className="card">
+        {carregandoDia && !diaData ? (
+          <p className="muted">Carregando…</p>
+        ) : ags === null ? (
+          <p className="muted">Não foi possível carregar a agenda agora.</p>
+        ) : ags.length === 0 ? (
+          <p className="vazio">Nenhum atendimento hoje.</p>
+        ) : (
+          <ul className="lista">
+            {ags.map((a) => (
+              <li key={a.id}>
+                <span className="muted">{fmtDataHora(a.inicio)}</span> —{" "}
+                <Link to={`/pacientes/${a.paciente_id}`}>{nomePorId.get(a.paciente_id) ?? "—"}</Link>{" "}
+                <span className={`tag tag-${a.status}`}>{rotuloStatus(a.status)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* ---- Calendário: clicar no dia inicia um novo agendamento ---- */}
+      <div className="cabecalho-secao">
+        <div>
+          <h3 className="titulo-bloco">Calendário</h3>
+          <p className="muted subtitulo-bloco">Selecione um dia para criar um agendamento.</p>
+        </div>
+      </div>
+      <Calendario
+        diaSelecionado={dia}
+        onSelecionar={(diaSelecionado) => navigate(`/agenda/novo?dia=${diaSelecionado}`)}
+      />
+
       {/* ---- Mês selecionado ---- */}
       <div className="cabecalho-secao">
         <h3 className="titulo-bloco">{fmtMesTitulo(mes)}</h3>
-        <div className="seletor-periodo">
-          <input
-            type="month"
-            value={mes}
-            min={desdeMes}
-            max={mesAtualISO()}
-            onChange={(e) => e.target.value && setMes(e.target.value)}
-            aria-label="Escolher mês"
-          />
-          {mes !== mesAtualISO() && (
-            <button className="mini secundario" onClick={() => setMes(mesAtualISO())}>
-              Mês atual
-            </button>
-          )}
+        <div className="seletor-periodo" aria-label="Selecionar mês e ano do dashboard">
+          <div className="periodo-stepper">
+            <button type="button" onClick={() => ajustarConsulta(1)} disabled={mesConsulta >= mesAtualISO()} aria-label="Próximo mês">▲</button>
+            <span>{fmtMesTitulo(mesConsulta).split(" de ")[0]}</span>
+            <button type="button" onClick={() => ajustarConsulta(-1)} disabled={Boolean(desdeMes && mesConsulta <= desdeMes)} aria-label="Mês anterior">▼</button>
+          </div>
+          <div className="periodo-stepper periodo-ano">
+            <button type="button" onClick={() => ajustarAnoConsulta(1)} disabled={mesConsulta >= mesAtualISO()} aria-label="Próximo ano">▲</button>
+            <span>{mesConsulta.slice(0, 4)}</span>
+            <button type="button" onClick={() => ajustarAnoConsulta(-1)} disabled={Boolean(desdeMes && mesConsulta <= desdeMes)} aria-label="Ano anterior">▼</button>
+          </div>
+          <button type="button" className="periodo-buscar" onClick={consultarMes} aria-label="Consultar período" title="Consultar período">
+            🔍
+          </button>
         </div>
       </div>
       <div className="stats">
@@ -184,36 +211,23 @@ export function Dashboard() {
         />
       </div>
 
-      {/* ---- Agenda do dia selecionado ---- */}
-      <div className="cabecalho-secao">
-        <h3>{ehHoje ? "Agenda de hoje" : `Agenda de ${fmtDiaTitulo(dia)}`}</h3>
-        <Link to="/agenda">Ver agenda →</Link>
-      </div>
-      <div className="card">
-        {carregandoDia && !diaData ? (
-          <p className="muted">Carregando…</p>
-        ) : ags === null ? (
-          <p className="muted">Não foi possível carregar a agenda agora.</p>
-        ) : ags.length === 0 ? (
-          <p className="vazio">Nenhum atendimento neste dia.</p>
-        ) : (
-          <ul className="lista">
-            {ags.map((a) => (
-              <li key={a.id}>
-                <span className="muted">{fmtDataHora(a.inicio)}</span> —{" "}
-                <Link to={`/pacientes/${a.paciente_id}`}>{nomePorId.get(a.paciente_id) ?? "—"}</Link>{" "}
-                <span className={`tag tag-${a.status}`}>{rotuloStatus(a.status)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+      {/* ---- Estado atual: depois das pendências ---- */}
+      <h3 className="titulo-bloco">Cadastros ativos</h3>
+      <div className="stats">
+        <Stat
+          valor={n(mesData?.pacientes_ativos)}
+          rotulo="Pacientes ativos"
+          info="Pacientes com cadastro ativo (não arquivados), independente do período selecionado."
+        />
+        <Stat
+          valor={n(mesData?.responsaveis)}
+          rotulo="Responsáveis"
+          info="Total de responsáveis legais cadastrados."
+        />
       </div>
 
       <div className="acoes">
-        <Link className="botao" to="/agenda/novo">
-          Novo agendamento
-        </Link>
-        <Link className="botao secundario" to="/pacientes/novo">
+        <Link className="botao" to="/pacientes/novo">
           Novo paciente
         </Link>
       </div>

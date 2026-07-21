@@ -23,7 +23,7 @@
 ### 0.2. Stack
 
 - **Backend:** Python + FastAPI (Uvicorn)
-- **Frontend:** TypeScript (React ou Vue.js) — SPA servida por Nginx
+- **Frontend:** React + Vite + TypeScript — SPA servida por Nginx
 - **Base de dados:** PostgreSQL + `pgvector` (relacional + vetorial)
 - **Administração da BD:** **sem GUI** — acesso via `psql` (`docker compose exec postgres psql`). Decisão deliberada de menor exposição: nenhum console web, zero superfície de ataque adicional, 0 MB de RAM. Acesso privilegiado tratado como caminho *break-glass* (ver §2.1.1).
 - **Automação:** n8n (já instalado no servidor)
@@ -207,7 +207,10 @@ Regras inegociáveis:
 3. **Só se vetoriza texto anonimizado (§2.3).** Embeddings são **parcialmente reversíveis** (*embedding inversion*): vetorizar texto clínico cru transformaria a coluna `embedding` num depósito de PII recuperável. A vetorização incide **exclusivamente** sobre o texto que já passou pelo túnel — uma inversão devolve marcadores (`<PERSON_1>`), nunca a identidade. A coluna vetorial vive sob o mesmo RLS+FORCE da tabela.
 4. **Guard-rail de saída em TODO payload externo.** A validação que aborta ao detetar PII conhecida (§2.3) aplica-se a **ambas** as chamadas à OpenAI — geração de texto **e** geração de embeddings —, não apenas ao chat.
 5. **Separação instrução/dado no prompt.** O conteúdo da nota entra como **dado delimitado**, nunca concatenado à instrução, para conter *prompt injection* pelo próprio texto clínico. Mesmo no pior caso, o dano máximo é um resumo incorreto **do mesmo paciente** — jamais um vazamento cruzado.
-6. **OpenAI com retenção-zero / opt-out de treino.** O texto que sai é anonimizado (é isto que satisfaz o CFP, §2.3); ainda assim, a conta é configurada para **não reter nem treinar** sobre os dados, reduzindo a superfície residual junto ao terceiro.
+6. **OpenAI com Zero Data Retention (ZDR) e sem opt-in de treino.** O texto que sai é anonimizado (é isto que satisfaz o CFP, §2.3), mas isso não elimina a obrigação de reduzir a retenção no terceiro. Conforme os [controles oficiais de dados da OpenAI](https://platform.openai.com/docs/models/default-usage-policies-by-endpoint), dados da API não são usados para treino por padrão, salvo opt-in; porém, sem ZDR, logs de monitoramento de abuso podem reter conteúdo por até 30 dias. Portanto:
+   - **código:** toda API que oferece controle de estado usa armazenamento desativado (por exemplo, `store=false` no chat), sem background mode, files, assistants ou vector stores externos. Isso reduz estado de aplicação, mas **não prova ZDR**;
+   - **operação:** o projeto/organização deve obter elegibilidade/aprovação para **Zero Data Retention** e configurá-la explicitamente nos Data Controls. Chat Completions e Embeddings usados por este projeto são endpoints elegíveis, sujeitos à configuração da conta;
+   - **evidência:** o administrador registra data, conta/organização, projeto, modo efetivo e responsável pela conferência, sem guardar chaves ou capturas sensíveis no repositório. Se ZDR ainda não estiver aprovado/ativo, isso é **pendência de go-live**, nunca presumida como resolvida pelo `store=false`.
 
 > A **nota crua e legível** permanece no BD (sistema de registo da psicóloga) sob RLS — correto e inevitável. O que **nunca** sai da fronteira é essa versão identificável: para a IA vai só o texto mascarado.
 
@@ -242,7 +245,8 @@ A lógica pesada de formatação/exportação é **descarregada do FastAPI para 
 - [ ] Nenhum PII vai ao LLM sem passar pelo túnel de pseudonimização; dicionário nunca persistido (§2.3)?
 - [ ] Consultas vetoriais sempre pré-filtradas por `tenant_id` + `paciente_id` (§3.2)?
 - [ ] Sem índice vetorial prematuro (§3.1)?
-- [ ] LLM **sem** tool/acesso ao BD; RAG sob RLS; **só texto anonimizado vetorizado**; guard-rail em chat **e** embeddings; OpenAI com retenção-zero (§3.4)?
+- [ ] LLM **sem** tool/acesso ao BD; RAG sob RLS; **só texto anonimizado vetorizado**; guard-rail em chat **e** embeddings; chamadas com armazenamento desativado quando suportado (§3.4)?
+- [ ] O projeto/organização OpenAI tem ZDR aprovado e efetivamente selecionado, sem opt-in de treino, com evidência operacional recente e sem segredos no repositório (§3.4 #6)?
 - [ ] Role de app sem privilégio + `FORCE ROW LEVEL SECURITY` nas tabelas clínicas (§2.1.1)?
 - [ ] Sem console web de administração; acesso privilegiado só por `psql` via `docker compose exec` (§2.1.1, §4.1)?
 - [ ] Segredos fora do código; multi-stage build; webhook n8n autenticado (§4)?

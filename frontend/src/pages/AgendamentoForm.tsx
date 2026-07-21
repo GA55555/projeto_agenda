@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { Agendamento, Frequencia } from "../api/client";
 import { useAsync } from "../utils/useAsync";
@@ -29,11 +29,20 @@ function sobrepoe(a: Agendamento, inicio: Date, fim: Date): boolean {
   return new Date(a.inicio) < fim && new Date(a.fim) > inicio;
 }
 
+function diaInicial(valor: string | null): string {
+  if (!valor || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) return hojeISO();
+  const data = new Date(`${valor}T00:00:00`);
+  return Number.isNaN(data.getTime()) || data.toISOString().slice(0, 10) !== valor
+    ? hojeISO()
+    : valor;
+}
+
 export function AgendamentoForm() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [pacienteId, setPacienteId] = useState("");
-  const [dia, setDia] = useState(hojeISO());
+  const [dia, setDia] = useState(() => diaInicial(searchParams.get("dia")));
   const [horaInicio, setHoraInicio] = useState<string>(""); // "HH:MM"
   const [duracao, setDuracao] = useState<number>(50);
   const [tipo, setTipo] = useState("");

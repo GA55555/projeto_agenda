@@ -279,9 +279,32 @@ label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.92rem;
 /* Perto da borda esquerda da grade, o balão não pode estourar a tela. */
 .stat:first-child .info .tooltip { left: 0; transform: none; }
 
-/* ---- Seletores de período do dashboard (7e) ---- */
-.seletor-periodo { display: flex; gap: 0.4rem; align-items: center; }
-.seletor-periodo input { width: auto; padding: 0.3rem 0.5rem; font-size: 0.85rem; }
+/* ---- Consulta de período do dashboard (7h) ---- */
+.seletor-periodo {
+  display: flex; gap: 0.5rem; align-items: stretch;
+  padding: 0.3rem; border: 1px solid var(--border); border-radius: 12px;
+  background: var(--surface);
+}
+.periodo-stepper {
+  min-width: 7.2rem; display: grid;
+  grid-template-rows: 1.15rem 1.6rem 1.15rem;
+  align-items: center; text-align: center;
+  border-right: 1px solid var(--border); padding-right: 0.5rem;
+}
+.periodo-stepper.periodo-ano { min-width: 4.7rem; }
+.periodo-stepper span { font-weight: 650; text-transform: capitalize; line-height: 1.2; }
+.periodo-stepper button {
+  min-height: 0; padding: 0; border: none; border-radius: 5px;
+  background: transparent; color: var(--muted); font-size: 0.7rem; line-height: 1;
+}
+.periodo-stepper button:hover:not(:disabled) { color: var(--accent); background: var(--accent-soft); }
+.periodo-stepper button:disabled { opacity: 0.25; cursor: default; }
+.periodo-buscar {
+  align-self: stretch; min-width: 2.8rem; padding: 0.35rem;
+  border-radius: 9px; background: var(--accent); color: var(--accent-fg);
+  font-size: 1rem;
+}
+.subtitulo-bloco { margin: -0.45rem 0 0; font-size: 0.88rem; }
 
 /* ---- Calendário (7f) ---- */
 .calendario {
@@ -401,6 +424,7 @@ button.perigo:hover { filter: brightness(0.95); background: var(--erro-bg); }
   .main { padding: 1.2rem 1rem; }
   /* Cabeçalhos com seletor quebram em coluna sem esconder nada. */
   .page-header, .cabecalho-secao { flex-wrap: wrap; }
+  .seletor-periodo { width: 100%; justify-content: flex-end; }
   /* Alvos de toque maiores nas ações por linha. */
   button.mini, .botao.mini { padding: 0.45rem 0.7rem; }
   .grade-horarios { grid-template-columns: repeat(auto-fill, minmax(3.6rem, 1fr)); }

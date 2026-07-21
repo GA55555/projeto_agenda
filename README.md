@@ -12,7 +12,7 @@ saúde de menores — conformidade **LGPD / ECA / CFP**.
 ## Stack
 
 - **Backend:** Python + FastAPI (Uvicorn, 2 workers)
-- **Frontend:** SPA (React/Vue — a decidir, Fase 7) servida por Nginx
+- **Frontend:** SPA React + Vite + TypeScript servida por Nginx
 - **Base de dados:** PostgreSQL + `pgvector`
 - **Admin BD:** sem GUI — `psql` via `docker compose exec` (menor exposição, §2.1.1)
 - **Automação:** n8n · **IA:** OpenAI (`text-embedding-3-small`)
