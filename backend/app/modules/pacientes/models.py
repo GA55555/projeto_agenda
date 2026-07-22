@@ -19,7 +19,17 @@ Fase do roadmap: Fase 3
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKeyConstraint, String, UniqueConstraint, text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKeyConstraint,
+    Index,
+    String,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -32,8 +42,24 @@ TIPOS_VINCULO = ("mae", "pai", "tutor", "avo", "outro")
 
 class Paciente(Base):
     __tablename__ = "pacientes"
-    # Alvo do FK composto (tenant_id, id) vindo dos vinculos/consentimentos (§2.1).
-    __table_args__ = (UniqueConstraint("tenant_id", "id", name="uq_pacientes_tenant_id_id"),)
+    __table_args__ = (
+        # Alvo do FK composto (tenant_id, id) vindo dos vinculos/consentimentos (§2.1).
+        UniqueConstraint("tenant_id", "id", name="uq_pacientes_tenant_id_id"),
+        # O motor impede estado arquivado sem data de arquivamento. Registros
+        # ativos nao carregam metadados obsoletos de um arquivamento anterior.
+        CheckConstraint(
+            "(ativo AND arquivado_em IS NULL AND arquivado_por_usuario_id IS NULL "
+            "AND motivo_arquivamento IS NULL) OR (NOT ativo AND arquivado_em IS NOT NULL)",
+            name="paciente_arquivamento_coerente",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "arquivado_por_usuario_id"],
+            ["usuarios.tenant_id", "usuarios.id"],
+            ondelete="RESTRICT",
+            name="fk_pacientes_arquivado_por_usuario",
+        ),
+        Index("ix_pacientes_tenant_id_ativo_nome", "tenant_id", "ativo", "nome"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
@@ -44,6 +70,11 @@ class Paciente(Base):
     sexo: Mapped[str | None] = mapped_column(String(20), nullable=True)
     observacoes_gerais: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    arquivado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    arquivado_por_usuario_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    motivo_arquivamento: Mapped[str | None] = mapped_column(String(500), nullable=True)
     criado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )

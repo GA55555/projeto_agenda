@@ -79,3 +79,12 @@ export function iniciais(nome: string): string {
   const b = partes.length > 1 ? partes[partes.length - 1][0] : "";
   return (a + b).toUpperCase();
 }
+
+// Busca de nomes tolerante a maiusculas e acentos, sem enviar PII ao backend.
+export function normalizarBusca(valor: string): string {
+  return valor
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("pt-BR")
+    .trim();
+}

@@ -35,6 +35,7 @@ export function App() {
             <Route path="/agenda/novo" element={<AgendamentoForm />} />
             <Route path="/agenda/:id" element={<AgendamentoDetalhe />} />
             <Route path="/pacientes" element={<Pacientes />} />
+            <Route path="/pacientes/arquivados" element={<Pacientes modo="arquivados" />} />
             <Route path="/pacientes/novo" element={<PacienteWizard />} />
             <Route path="/pacientes/:id" element={<FichaPaciente />} />
             <Route path="/pacientes/:id/evolucao/nova" element={<EditorEvolucao />} />

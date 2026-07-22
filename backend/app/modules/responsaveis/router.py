@@ -14,6 +14,7 @@ from app.modules.responsaveis import service
 from app.modules.responsaveis.exceptions import CpfDuplicado
 from app.modules.responsaveis.schemas import (
     ResponsavelCreate,
+    ResponsavelListaOut,
     ResponsavelOut,
     ResponsavelUpdate,
 )
@@ -36,8 +37,8 @@ def criar_responsavel(
         )
 
 
-@router.get("", response_model=list[ResponsavelOut])
-def listar_responsaveis(db: Session = Depends(get_tenant_session)) -> list[ResponsavelOut]:
+@router.get("", response_model=list[ResponsavelListaOut])
+def listar_responsaveis(db: Session = Depends(get_tenant_session)) -> list[ResponsavelListaOut]:
     return service.listar(db)
 
 

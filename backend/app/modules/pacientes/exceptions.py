@@ -15,3 +15,11 @@ class PacienteComProntuario(Exception):
     A guarda de prontuario por >=5 anos (CFP 001/2009, §0.3) impede apagar
     registros clinicos; o caminho correto e o ARQUIVAMENTO (ativo=false).
     """
+
+
+class PacienteComAgendamentosFuturos(Exception):
+    """Arquivamento bloqueado ate resolver consultas futuras agendadas."""
+
+    def __init__(self, quantidade: int):
+        self.quantidade = quantidade
+        super().__init__(str(quantidade))

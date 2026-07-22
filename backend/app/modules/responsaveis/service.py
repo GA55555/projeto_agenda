@@ -14,7 +14,13 @@ from sqlalchemy.orm import Session
 
 from app.modules.responsaveis.exceptions import CpfDuplicado
 from app.modules.responsaveis.models import ResponsavelLegal
-from app.modules.responsaveis.schemas import ResponsavelCreate, ResponsavelUpdate
+from app.modules.responsaveis.schemas import (
+    PacienteVinculadoResumo,
+    ResponsavelCreate,
+    ResponsavelListaOut,
+    ResponsavelOut,
+    ResponsavelUpdate,
+)
 
 _UNIQUE_VIOLATION = "23505"  # Postgres: unique_violation (UNIQUE(tenant_id, cpf))
 
@@ -40,8 +46,42 @@ def criar(db: Session, tenant_id: uuid.UUID, dados: ResponsavelCreate) -> Respon
     return resp
 
 
-def listar(db: Session) -> list[ResponsavelLegal]:
-    return list(db.execute(select(ResponsavelLegal).order_by(ResponsavelLegal.nome)).scalars())
+def listar(db: Session) -> list[ResponsavelListaOut]:
+    """Lista em duas consultas, sem N+1, incluindo criancas vinculadas."""
+    responsaveis = list(
+        db.execute(select(ResponsavelLegal).order_by(ResponsavelLegal.nome)).scalars()
+    )
+    if not responsaveis:
+        return []
+
+    # Import local evita ciclo de mappers no carregamento inicial.
+    from app.modules.pacientes.models import Paciente, VinculoRespPaciente
+
+    ids = [r.id for r in responsaveis]
+    rows = db.execute(
+        select(
+            VinculoRespPaciente.responsavel_id,
+            Paciente.id,
+            Paciente.nome,
+            Paciente.ativo,
+        )
+        .join(Paciente, Paciente.id == VinculoRespPaciente.paciente_id)
+        .where(VinculoRespPaciente.responsavel_id.in_(ids))
+        .order_by(Paciente.nome)
+    ).all()
+    por_responsavel: dict[uuid.UUID, list[PacienteVinculadoResumo]] = {rid: [] for rid in ids}
+    for responsavel_id, paciente_id, nome, ativo in rows:
+        por_responsavel[responsavel_id].append(
+            PacienteVinculadoResumo(id=paciente_id, nome=nome, ativo=ativo)
+        )
+
+    return [
+        ResponsavelListaOut(
+            **ResponsavelOut.model_validate(resp).model_dump(),
+            pacientes=por_responsavel[resp.id],
+        )
+        for resp in responsaveis
+    ]
 
 
 def obter(db: Session, responsavel_id: uuid.UUID) -> ResponsavelLegal | None:

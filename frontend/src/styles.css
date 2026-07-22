@@ -347,20 +347,36 @@ label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.92rem;
   .cal-dia .cal-badge { font-size: 0.74rem; min-width: 1.15rem; }
 }
 
-/* ---- Cartões de paciente (7g) ---- */
-.pac-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
-  gap: 1rem; margin-top: 0.6rem;
+/* ---- Listas localizaveis e pacientes compactos (7i) ---- */
+.abas-lista {
+  display: flex; gap: 0.35rem; margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
 }
+.abas-lista a {
+  padding: 0.6rem 0.85rem; color: var(--muted); font-weight: 650;
+  border-bottom: 3px solid transparent; text-decoration: none;
+}
+.abas-lista a.active { color: var(--accent); border-bottom-color: var(--accent); }
+.filtros-lista {
+  display: grid; grid-template-columns: minmax(14rem, 1fr) minmax(9rem, 13rem);
+  gap: 0.75rem; align-items: end; margin-bottom: 0.75rem;
+}
+.filtros-lista label { margin: 0; }
+.filtros-lista label > span {
+  display: block; margin-bottom: 0.3rem; color: var(--muted);
+  font-size: 0.82rem; font-weight: 650;
+}
+.resultado-contagem { margin: 0.65rem 0; color: var(--muted); font-size: 0.88rem; }
+.pac-lista { display: grid; gap: 0.65rem; }
 .pac-card {
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--raio); padding: 1rem 1.1rem; box-shadow: var(--shadow);
+  border-radius: var(--raio); padding: 0.78rem 0.9rem; box-shadow: var(--shadow);
   display: flex; flex-direction: column; gap: 0.7rem;
 }
-.pac-card.inativo { opacity: 0.72; }
-.pac-topo { display: flex; align-items: center; gap: 0.75rem; }
+.pac-card.inativo { border-style: dashed; }
+.pac-topo { display: flex; align-items: center; gap: 0.7rem; min-width: 0; }
 .pac-avatar {
-  width: 2.7rem; height: 2.7rem; border-radius: 999px; flex-shrink: 0;
+  width: 2.45rem; height: 2.45rem; border-radius: 999px; flex-shrink: 0;
   background: var(--accent-soft); color: var(--accent-soft-fg);
   display: grid; place-items: center; font-weight: 700; font-size: 0.95rem;
 }
@@ -369,14 +385,16 @@ label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.92rem;
 .pac-nome a { color: var(--fg); }
 .pac-nome a:hover { color: var(--accent); text-decoration: none; }
 .pac-meta { font-size: 0.92rem; color: var(--muted); margin-top: 0.1rem; }
+.pac-arquivo-meta { color: var(--muted); font-size: 0.8rem; margin-top: 0.15rem; }
 .pac-topo .tag { flex-shrink: 0; }
+.pac-acoes { display: flex; gap: 0.4rem; align-items: center; flex-shrink: 0; }
 
-.pac-obs { border-top: 1px dashed var(--border); padding-top: 0.6rem; }
-.pac-obs-label {
-  display: flex; align-items: center; justify-content: space-between;
-  font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.04em;
-  color: var(--muted); font-weight: 600; margin-bottom: 0.3rem;
-}
+.pac-obs { border-top: 1px dashed var(--border); padding-top: 0.5rem; }
+.pac-obs summary { color: var(--muted); font-size: 0.84rem; font-weight: 650; cursor: pointer; }
+.pac-obs summary:hover { color: var(--accent); }
+.pac-obs[open] summary { margin-bottom: 0.55rem; }
+.pac-obs-conteudo { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }
+.pac-motivo { margin: 0 0 0.55rem; font-size: 0.88rem; overflow-wrap: anywhere; }
 .pac-obs-editar {
   background: none; border: none; padding: 0.1rem 0.3rem;
   color: var(--accent); font-size: 0.82rem; font-weight: 600; cursor: pointer;
@@ -389,6 +407,7 @@ label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.92rem;
 .pac-obs textarea { font-size: 0.92rem; height: 4rem; resize: none; max-width: 100%; }
 .pac-obs-contador { font-size: 0.76rem; color: var(--muted); text-align: right; margin: 0.25rem 0 0; }
 .pac-obs-contador.no-limite { color: var(--erro-fg); }
+.tabela-container { overflow-x: auto; }
 
 /* ---- Zona de administração/perigo (7e) ---- */
 button.perigo { background: var(--erro-bg); color: var(--erro-fg); }
@@ -430,4 +449,8 @@ button.perigo:hover { filter: brightness(0.95); background: var(--erro-bg); }
   .grade-horarios { grid-template-columns: repeat(auto-fill, minmax(3.6rem, 1fr)); }
   .stats { grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr)); gap: 0.6rem; }
   .acoes { flex-wrap: wrap; }
+  .filtros-lista { grid-template-columns: 1fr; }
+  .pac-topo { flex-wrap: wrap; }
+  .pac-id { min-width: 10rem; }
+  .pac-acoes { width: 100%; justify-content: flex-end; }
 }

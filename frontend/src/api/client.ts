@@ -62,6 +62,9 @@ export interface Paciente {
   sexo: string | null;
   observacoes_gerais: string | null;
   ativo: boolean;
+  arquivado_em: string | null;
+  arquivado_por_usuario_id: string | null;
+  motivo_arquivamento: string | null;
   criado_em: string;
 }
 
@@ -74,6 +77,10 @@ export interface Responsavel {
   email: string | null;
   endereco: string | null;
   criado_em: string;
+}
+
+export interface ResponsavelLista extends Responsavel {
+  pacientes: Array<{ id: string; nome: string; ativo: boolean }>;
 }
 
 // ---- Payloads de criação (7c.2) ----
@@ -266,7 +273,8 @@ export const api = {
   calendario: (mes: string) => request<Record<string, number>>(`/dashboard/calendario${qs({ mes })}`),
 
   // ---- Dominio (7b) ----
-  pacientes: () => request<Paciente[]>("/pacientes"),
+  pacientes: (ativo?: boolean) =>
+    request<Paciente[]>(`/pacientes${ativo === undefined ? "" : `?ativo=${ativo}`}`),
   paciente: (id: string) => request<PacienteDetalhado>(`/pacientes/${id}`),
   agendamentos: (params: { de?: string; ate?: string; paciente_id?: string } = {}) =>
     request<Agendamento[]>(`/agendamentos${qs(params)}`),
@@ -277,7 +285,7 @@ export const api = {
     request<Evolucao[]>(`/evolucoes${qs({ paciente_id: pacienteId })}`),
 
   // ---- Cadastros (7c.2) ----
-  responsaveis: () => request<Responsavel[]>("/responsaveis"),
+  responsaveis: () => request<ResponsavelLista[]>("/responsaveis"),
   responsavel: (id: string) => request<Responsavel>(`/responsaveis/${id}`),
   criarResponsavel: (d: ResponsavelCreate) =>
     request<Responsavel>("/responsaveis", { method: "POST", body: JSON.stringify(d) }),
@@ -305,8 +313,15 @@ export const api = {
     request<PacienteDetalhado>("/pacientes", { method: "POST", body: JSON.stringify(d) }),
   // Arquivar/reativar = PATCH ativo (auditado no backend). Apagar só é
   // possível SEM prontuário (CFP 5 anos) — 409 caso contrário.
-  atualizarPaciente: (id: string, d: { ativo?: boolean; observacoes_gerais?: string }) =>
+  atualizarPaciente: (id: string, d: { observacoes_gerais?: string }) =>
     request<Paciente>(`/pacientes/${id}`, { method: "PATCH", body: JSON.stringify(d) }),
+  arquivarPaciente: (id: string, motivo?: string) =>
+    request<Paciente>(`/pacientes/${id}/arquivar`, {
+      method: "POST",
+      body: JSON.stringify({ motivo: motivo || null }),
+    }),
+  reativarPaciente: (id: string) =>
+    request<Paciente>(`/pacientes/${id}/reativar`, { method: "POST" }),
   apagarPaciente: (id: string) => request<void>(`/pacientes/${id}`, { method: "DELETE" }),
 
   gerarRascunho: (pacienteId: string, notaDoDia: string) =>

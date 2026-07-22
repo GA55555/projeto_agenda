@@ -62,18 +62,23 @@ class PacienteCreate(BaseModel):
 
 
 class PacienteUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     nome: str | None = Field(default=None, min_length=1, max_length=200)
     sexo: str | None = Field(default=None, max_length=20)
     observacoes_gerais: str | None = Field(default=None, max_length=1000)
-    ativo: bool | None = None
 
     @model_validator(mode="after")
     def _nao_anular_nao_nulos(self) -> "PacienteUpdate":
-        # `nome` e `ativo` sao NOT NULL: null explicito e 422, nao 500 no flush.
-        for campo in ("nome", "ativo"):
+        # `nome` e NOT NULL: null explicito e 422, nao 500 no flush.
+        for campo in ("nome",):
             if campo in self.model_fields_set and getattr(self, campo) is None:
                 raise ValueError(f"{campo} nao pode ser nulo")
         return self
+
+
+class ArquivarPacienteIn(BaseModel):
+    motivo: str | None = Field(default=None, max_length=500)
 
 
 class PacienteOut(BaseModel):
@@ -85,6 +90,9 @@ class PacienteOut(BaseModel):
     sexo: str | None
     observacoes_gerais: str | None
     ativo: bool
+    arquivado_em: datetime | None
+    arquivado_por_usuario_id: uuid.UUID | None
+    motivo_arquivamento: str | None
     criado_em: datetime
 
 

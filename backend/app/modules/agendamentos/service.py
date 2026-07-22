@@ -16,8 +16,6 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-logger = logging.getLogger(__name__)
-
 from app.modules.agendamentos.exceptions import (
     HorarioIndisponivel,
     IntervaloInvalido,
@@ -28,6 +26,8 @@ from app.modules.agendamentos.exceptions import (
 from app.modules.agendamentos.models import STATUS_AGENDADO, STATUS_CANCELADO, Agendamento
 from app.modules.agendamentos.schemas import AgendamentoCreate, AgendamentoUpdate
 from app.modules.pacientes.models import Paciente
+
+logger = logging.getLogger(__name__)
 
 # exclusion_violation — sobreposicao barrada pela constraint EXCLUDE.
 _EXCLUSION_VIOLATION = "23P01"
@@ -85,9 +85,19 @@ def _flush_traduzindo(db: Session) -> None:
         raise
 
 
-def _paciente_existe(db: Session, paciente_id: uuid.UUID) -> bool:
+def _paciente_ativo_para_agendar(db: Session, paciente_id: uuid.UUID) -> bool:
+    """Valida e trava o paciente durante a criacao da agenda.
+
+    O mesmo lock e usado pelo arquivamento: ou o agendamento entra primeiro e
+    sera visto pela verificacao, ou o arquivamento entra primeiro e o paciente
+    deixa de estar ativo antes deste SELECT prosseguir.
+    """
     # RLS: so encontra se o paciente for do tenant ativo.
-    stmt = select(Paciente.id).where(Paciente.id == paciente_id)
+    stmt = (
+        select(Paciente.id)
+        .where(Paciente.id == paciente_id, Paciente.ativo.is_(True))
+        .with_for_update()
+    )
     return db.execute(stmt).scalar_one_or_none() is not None
 
 
@@ -101,7 +111,7 @@ def criar(
     SAVEPOINT; se colidir (EXCLUDE 23P01) pula aquela cadencia (Fase 7f). A
     frequencia fica gravada em `serie_frequencia` (a REGRA sobrevive p/ a Fase 8).
     """
-    if not _paciente_existe(db, dados.paciente_id):
+    if not _paciente_ativo_para_agendar(db, dados.paciente_id):
         raise PacienteInexistente(str(dados.paciente_id))
     ag = Agendamento(
         tenant_id=tenant_id,
@@ -242,6 +252,10 @@ def atualizar(
     ag = db.get(Agendamento, agendamento_id)
     if ag is None:
         return None
+    # Serializa com o arquivamento pela mesma linha do paciente. Se este PATCH
+    # entrar primeiro, o arquivamento aguardara e vera o estado atualizado; se
+    # o arquivamento entrar primeiro, a consulta retorna `False` apos o commit.
+    paciente_ativo = _paciente_ativo_para_agendar(db, ag.paciente_id)
     campos = dados.model_dump(exclude_unset=True)
     if "status" in campos:
         validar_transicao_status(ag.status, campos["status"])
@@ -251,6 +265,11 @@ def atualizar(
     # flush, para dar 422 em vez de estourar o CHECK do BD como 500.
     if ag.fim <= ag.inicio:
         raise IntervaloInvalido()
+    if ag.status == STATUS_AGENDADO and ag.inicio >= datetime.now(timezone.utc):
+        if not paciente_ativo:
+            raise TransicaoInvalida(
+                "paciente arquivado nao pode manter agendamento futuro; reative-o primeiro"
+            )
     _flush_traduzindo(db)  # reagendamento tambem passa pelo EXCLUDE
     return ag
 

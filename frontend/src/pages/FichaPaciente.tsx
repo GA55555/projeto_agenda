@@ -23,12 +23,22 @@ export function FichaPaciente() {
   const { ocupado, acaoErro, executar } = useAcao();
 
   function arquivarOuReativar(paciente: PacienteDetalhado) {
-    const msg = paciente.ativo
-      ? "Arquivar este paciente? Nada é apagado: o prontuário e o cadastro ficam guardados, e o paciente sai das listas ativas."
-      : "Reativar este paciente?";
-    if (!window.confirm(msg)) return;
+    if (paciente.ativo) {
+      const motivo = window.prompt(
+        "Motivo do arquivamento (opcional). O arquivamento será bloqueado se houver agendamentos futuros:",
+        "",
+      );
+      if (motivo === null) return;
+      if (!window.confirm("Arquivar este paciente? Nada será apagado.")) return;
+      void executar(async () => {
+        await api.arquivarPaciente(paciente.id, motivo);
+        reload();
+      });
+      return;
+    }
+    if (!window.confirm("Reativar este paciente?")) return;
     void executar(async () => {
-      await api.atualizarPaciente(paciente.id, { ativo: !paciente.ativo });
+      await api.reativarPaciente(paciente.id);
       reload();
     });
   }
@@ -100,6 +110,18 @@ export function FichaPaciente() {
             <dt>Situação</dt>
             <dd>{paciente.ativo ? "Ativo" : "Arquivado"}</dd>
           </div>
+          {!paciente.ativo && paciente.arquivado_em && (
+            <div>
+              <dt>Arquivado em</dt>
+              <dd>{fmtDataHora(paciente.arquivado_em)}</dd>
+            </div>
+          )}
+          {!paciente.ativo && paciente.motivo_arquivamento && (
+            <div>
+              <dt>Motivo do arquivamento</dt>
+              <dd>{paciente.motivo_arquivamento}</dd>
+            </div>
+          )}
           <div>
             <dt>Cadastrado em</dt>
             <dd>{fmtDataHora(paciente.criado_em)}</dd>
@@ -173,6 +195,12 @@ export function FichaPaciente() {
           definitivo e só é permitido para cadastro <strong>sem prontuário</strong> — com evoluções,
           a guarda de 5 anos (CFP 001/2009) exige manter o registro.
         </p>
+        {paciente.ativo && (
+          <p className="muted">
+            Para evitar consultas órfãs, o arquivamento só é concluído depois que todos os
+            agendamentos futuros forem cancelados ou resolvidos.
+          </p>
+        )}
         {acaoErro && <p className="erro">{acaoErro}</p>}
         <div className="acoes">
           <button

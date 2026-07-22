@@ -13,11 +13,15 @@ import uuid
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.modules.agendamentos.models import Agendamento
+from app.modules.agendamentos.models import STATUS_AGENDADO, Agendamento
 from app.modules.auth.dependencies import CurrentUser
 from app.modules.consentimentos.models import Consentimento
 from app.modules.evolucoes.models import Evolucao
-from app.modules.pacientes.exceptions import PacienteComProntuario, ResponsavelInexistente
+from app.modules.pacientes.exceptions import (
+    PacienteComAgendamentosFuturos,
+    PacienteComProntuario,
+    ResponsavelInexistente,
+)
 from app.modules.pacientes.models import Paciente, VinculoRespPaciente
 from app.modules.pacientes.schemas import PacienteCreate, PacienteUpdate
 from app.modules.responsaveis.models import ResponsavelLegal
@@ -75,9 +79,12 @@ def criar_paciente(db: Session, user: CurrentUser, dados: PacienteCreate) -> Pac
     return obter(db, paciente.id)
 
 
-def listar(db: Session) -> list[Paciente]:
+def listar(db: Session, *, ativo: bool | None = None) -> list[Paciente]:
     # Sem eager load: a listagem usa PacienteOut (nao inclui vinculos).
-    return list(db.execute(select(Paciente).order_by(Paciente.nome)).scalars())
+    stmt = select(Paciente)
+    if ativo is not None:
+        stmt = stmt.where(Paciente.ativo.is_(ativo))
+    return list(db.execute(stmt.order_by(Paciente.nome)).scalars())
 
 
 def obter(db: Session, paciente_id: uuid.UUID) -> Paciente | None:
@@ -98,24 +105,84 @@ def atualizar(
     if paciente is None:
         return None
     campos = dados.model_dump(exclude_unset=True)
-    # Arquivar/reativar (Fase 7e) e mutacao sensivel -> auditoria (§2.2).
-    mudou_ativo = "ativo" in campos and campos["ativo"] != paciente.ativo
     for campo, valor in campos.items():
         setattr(paciente, campo, valor)
     db.flush()
-    if mudou_ativo:
-        from app.modules.audit import service as audit_service
-        from app.modules.audit.models import TIPO_PACIENTE_ARQUIVADO, TIPO_PACIENTE_REATIVADO
+    return paciente
 
-        audit_service.registrar_evento(
-            db,
-            tenant_id=user.tenant_id,
-            tipo_evento=TIPO_PACIENTE_REATIVADO if paciente.ativo else TIPO_PACIENTE_ARQUIVADO,
-            entidade="paciente",
-            entidade_id=paciente.id,
-            ator_usuario_id=user.id,
-            payload={"nome": paciente.nome},
+
+def arquivar(
+    db: Session,
+    user: CurrentUser,
+    paciente_id: uuid.UUID,
+    motivo: str | None,
+) -> Paciente | None:
+    """Arquiva sem apagar; consultas futuras precisam ser resolvidas antes."""
+    paciente = db.execute(
+        select(Paciente).where(Paciente.id == paciente_id).with_for_update()
+    ).scalar_one_or_none()
+    if paciente is None:
+        return None
+    if not paciente.ativo:
+        return paciente
+
+    futuras = db.execute(
+        select(func.count())
+        .select_from(Agendamento)
+        .where(
+            Agendamento.paciente_id == paciente_id,
+            Agendamento.status == STATUS_AGENDADO,
+            Agendamento.inicio >= func.now(),
         )
+    ).scalar_one()
+    if futuras:
+        raise PacienteComAgendamentosFuturos(futuras)
+
+    paciente.ativo = False
+    paciente.arquivado_em = func.now()
+    paciente.arquivado_por_usuario_id = user.id
+    paciente.motivo_arquivamento = motivo.strip() if motivo and motivo.strip() else None
+    db.flush()
+
+    from app.modules.audit import service as audit_service
+    from app.modules.audit.models import TIPO_PACIENTE_ARQUIVADO
+
+    audit_service.registrar_evento(
+        db,
+        tenant_id=user.tenant_id,
+        tipo_evento=TIPO_PACIENTE_ARQUIVADO,
+        entidade="paciente",
+        entidade_id=paciente.id,
+        ator_usuario_id=user.id,
+        payload={"motivo_informado": bool(paciente.motivo_arquivamento)},
+    )
+    return paciente
+
+
+def reativar(db: Session, user: CurrentUser, paciente_id: uuid.UUID) -> Paciente | None:
+    paciente = db.get(Paciente, paciente_id)
+    if paciente is None:
+        return None
+    if paciente.ativo:
+        return paciente
+
+    paciente.ativo = True
+    paciente.arquivado_em = None
+    paciente.arquivado_por_usuario_id = None
+    paciente.motivo_arquivamento = None
+    db.flush()
+
+    from app.modules.audit import service as audit_service
+    from app.modules.audit.models import TIPO_PACIENTE_REATIVADO
+
+    audit_service.registrar_evento(
+        db,
+        tenant_id=user.tenant_id,
+        tipo_evento=TIPO_PACIENTE_REATIVADO,
+        entidade="paciente",
+        entidade_id=paciente.id,
+        ator_usuario_id=user.id,
+    )
     return paciente
 
 

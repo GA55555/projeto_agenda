@@ -72,3 +72,15 @@ class ResponsavelOut(BaseModel):
     email: str | None  # response model: `str` (nao revalidar na saida; ver auth PerfilOut)
     endereco: str | None
     criado_em: datetime
+
+
+class PacienteVinculadoResumo(BaseModel):
+    id: uuid.UUID
+    nome: str
+    ativo: bool
+
+
+class ResponsavelListaOut(ResponsavelOut):
+    """Resumo para busca: permite localizar o responsavel pelo nome da crianca."""
+
+    pacientes: list[PacienteVinculadoResumo]

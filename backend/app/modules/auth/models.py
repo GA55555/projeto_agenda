@@ -13,7 +13,7 @@ Fase do roadmap: Fase 2
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, text
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -22,6 +22,11 @@ from app.db.base import Base
 
 class Usuario(Base):
     __tablename__ = "usuarios"
+    __table_args__ = (
+        # Alvo de FKs compostas vindas de tabelas clinicas: garante que o ator
+        # referenciado pertence ao mesmo tenant do registro (§2.1).
+        UniqueConstraint("tenant_id", "id", name="uq_usuarios_tenant_id_id"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
