@@ -276,7 +276,9 @@ export const api = {
   pacientes: (ativo?: boolean) =>
     request<Paciente[]>(`/pacientes${ativo === undefined ? "" : `?ativo=${ativo}`}`),
   paciente: (id: string) => request<PacienteDetalhado>(`/pacientes/${id}`),
-  agendamentos: (params: { de?: string; ate?: string; paciente_id?: string } = {}) =>
+  agendamentos: (
+    params: { de?: string; ate?: string; paciente_id?: string; status?: string } = {},
+  ) =>
     request<Agendamento[]>(`/agendamentos${qs(params)}`),
   agendamento: (id: string) => request<Agendamento>(`/agendamentos/${id}`),
   consentimentos: (pacienteId: string) =>

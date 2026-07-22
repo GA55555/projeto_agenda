@@ -1,6 +1,6 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
-import type { Consentimento, Evolucao, PacienteDetalhado } from "../api/client";
+import type { Agendamento, Consentimento, Evolucao, PacienteDetalhado } from "../api/client";
 import { useAsync } from "../utils/useAsync";
 import { fmtData, fmtDataHora, rotuloSexo } from "../utils/format";
 import { useAcao } from "../utils/useAcao";
@@ -8,19 +8,33 @@ import { useAcao } from "../utils/useAcao";
 export function FichaPaciente() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
-  // O paciente e essencial; consentimentos/evolucoes sao secundarios -> uma
+  // O paciente e essencial; consentimentos/evolucoes/agenda sao secundarios -> uma
   // falha transitoria neles nao deve apagar a ficha (allSettled, #4 do review).
   const { data, loading, error, reload } = useAsync(async () => {
     const paciente = await api.paciente(id);
-    const [c, e] = await Promise.allSettled([api.consentimentos(id), api.evolucoes(id)]);
+    const [c, e, a] = await Promise.allSettled([
+      api.consentimentos(id),
+      api.evolucoes(id),
+      api.agendamentos({
+        paciente_id: id,
+        de: new Date().toISOString(),
+        status: "agendado",
+      }),
+    ]);
     return {
       paciente,
       consentimentos: c.status === "fulfilled" ? c.value : null,
       evolucoes: e.status === "fulfilled" ? e.value : null,
+      agendamentosFuturos: a.status === "fulfilled" ? a.value : null,
     };
   }, [id]);
 
   const { ocupado, acaoErro, executar } = useAcao();
+  const {
+    ocupado: ocupadoAgenda,
+    acaoErro: agendaErro,
+    executar: executarAgenda,
+  } = useAcao();
 
   function arquivarOuReativar(paciente: PacienteDetalhado) {
     if (paciente.ativo) {
@@ -58,13 +72,24 @@ export function FichaPaciente() {
     });
   }
 
+  function cancelarAgendamentoFuturo(agendamento: Agendamento) {
+    const motivo = window.prompt("Motivo do cancelamento (opcional):", "");
+    if (motivo === null) return;
+    if (!window.confirm(`Cancelar o agendamento de ${fmtDataHora(agendamento.inicio)}?`)) return;
+    void executarAgenda(async () => {
+      await api.cancelarAgendamento(agendamento.id, motivo);
+      reload();
+    });
+  }
+
   if (loading) return <p className="muted">Carregando ficha…</p>;
   if (error || !data) return <p className="erro">{error ?? "Erro ao carregar."}</p>;
 
-  const { paciente, consentimentos, evolucoes } = data as {
+  const { paciente, consentimentos, evolucoes, agendamentosFuturos } = data as {
     paciente: PacienteDetalhado;
     consentimentos: Consentimento[] | null;
     evolucoes: Evolucao[] | null;
+    agendamentosFuturos: Agendamento[] | null;
   };
   // Sem a lista de consentimentos nao afirmamos "ativo" (fail-safe: bloqueia).
   const tcleAtivo = consentimentos !== null && consentimentos.some((c) => c.revogado_em === null);
@@ -149,6 +174,51 @@ export function FichaPaciente() {
             </li>
           ))}
         </ul>
+      </div>
+
+      <div className="cabecalho-secao">
+        <div>
+          <h3>Agendamentos futuros</h3>
+          <p className="muted">Consultas ainda agendadas que precisam ser resolvidas antes de arquivar.</p>
+        </div>
+      </div>
+      <div className="card tabela-container">
+        {agendaErro && <p className="erro">{agendaErro}</p>}
+        {agendamentosFuturos === null ? (
+          <p className="muted">Não foi possível carregar os agendamentos futuros agora.</p>
+        ) : agendamentosFuturos.length === 0 ? (
+          <p className="vazio">Nenhum agendamento futuro pendente.</p>
+        ) : (
+          <table className="tabela">
+            <thead>
+              <tr>
+                <th>Início</th>
+                <th>Fim</th>
+                <th>Tipo</th>
+                <th aria-label="Ações"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {agendamentosFuturos.map((a) => (
+                <tr key={a.id}>
+                  <td><Link to={`/agenda/${a.id}`}>{fmtDataHora(a.inicio)}</Link></td>
+                  <td>{fmtDataHora(a.fim)}</td>
+                  <td>{a.tipo || "—"}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="mini secundario"
+                      disabled={ocupadoAgenda}
+                      onClick={() => cancelarAgendamentoFuturo(a)}
+                    >
+                      Cancelar
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {!tcleAtivo && consentimentos !== null && (
