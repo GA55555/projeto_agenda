@@ -1,13 +1,33 @@
+import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { Agendamento, Consentimento, Evolucao, PacienteDetalhado } from "../api/client";
+import { Stat } from "../components/Stat";
 import { useAsync } from "../utils/useAsync";
 import { fmtData, fmtDataHora, rotuloSexo } from "../utils/format";
 import { useAcao } from "../utils/useAcao";
+import { rotuloStatus } from "../utils/status";
+
+const LIMITE_HISTORICO = 10;
+
+function inicioDoDiaIso(dia: string): string | undefined {
+  return dia ? new Date(`${dia}T00:00:00`).toISOString() : undefined;
+}
+
+function fimInclusivoDoDiaIso(dia: string): string | undefined {
+  if (!dia) return undefined;
+  const fim = new Date(`${dia}T00:00:00`);
+  fim.setDate(fim.getDate() + 1);
+  return fim.toISOString();
+}
 
 export function FichaPaciente() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
+  const [statusHistorico, setStatusHistorico] = useState("");
+  const [deHistorico, setDeHistorico] = useState("");
+  const [ateHistorico, setAteHistorico] = useState("");
+  const [offsetHistorico, setOffsetHistorico] = useState(0);
   // O paciente e essencial; consentimentos/evolucoes/agenda sao secundarios -> uma
   // falha transitoria neles nao deve apagar a ficha (allSettled, #4 do review).
   const { data, loading, error, reload } = useAsync(async () => {
@@ -29,6 +49,23 @@ export function FichaPaciente() {
     };
   }, [id]);
 
+  const {
+    data: sessoes,
+    loading: carregandoSessoes,
+    error: erroSessoes,
+    reload: reloadSessoes,
+  } = useAsync(
+    () =>
+      api.sessoesPaciente(id, {
+        de: inicioDoDiaIso(deHistorico),
+        ate: fimInclusivoDoDiaIso(ateHistorico),
+        status: statusHistorico || undefined,
+        limite: LIMITE_HISTORICO,
+        offset: offsetHistorico,
+      }),
+    [id, statusHistorico, deHistorico, ateHistorico, offsetHistorico],
+  );
+
   const { ocupado, acaoErro, executar } = useAcao();
   const {
     ocupado: ocupadoAgenda,
@@ -47,6 +84,7 @@ export function FichaPaciente() {
       void executar(async () => {
         await api.arquivarPaciente(paciente.id, motivo);
         reload();
+        reloadSessoes();
       });
       return;
     }
@@ -54,6 +92,7 @@ export function FichaPaciente() {
     void executar(async () => {
       await api.reativarPaciente(paciente.id);
       reload();
+      reloadSessoes();
     });
   }
 
@@ -79,6 +118,7 @@ export function FichaPaciente() {
     void executarAgenda(async () => {
       await api.cancelarAgendamento(agendamento.id, motivo);
       reload();
+      reloadSessoes();
     });
   }
 
@@ -95,6 +135,7 @@ export function FichaPaciente() {
       const { removidos } = await api.apagarRecorrenciaFutura(agendamento.id);
       window.alert(`${removidos} ocorrência(s) futura(s) removida(s).`);
       reload();
+      reloadSessoes();
     });
   }
 
@@ -194,6 +235,180 @@ export function FichaPaciente() {
 
       <div className="cabecalho-secao">
         <div>
+          <h3>Controle de sessões</h3>
+          <p className="muted">Resumo administrativo da continuidade dos atendimentos.</p>
+        </div>
+      </div>
+      {carregandoSessoes ? (
+        <p className="muted">Carregando controle de sessões…</p>
+      ) : erroSessoes || !sessoes ? (
+        <p className="erro">{erroSessoes ?? "Não foi possível carregar as sessões."}</p>
+      ) : (
+        <>
+          <div className="stats">
+            <Stat
+              valor={sessoes.total_realizadas}
+              rotulo="Sessões realizadas"
+              info="Total de agendamentos marcados como realizados neste cadastro."
+            />
+            <Stat
+              valor={sessoes.realizadas_mes_atual}
+              rotulo="Realizadas no mês"
+              info="Sessões realizadas no mês atual, no fuso da clínica."
+            />
+            <Stat
+              valor={sessoes.ultima_sessao ? fmtDataHora(sessoes.ultima_sessao.inicio) : "—"}
+              rotulo="Última sessão"
+              info={
+                sessoes.dias_desde_ultima === null
+                  ? "Nenhuma sessão realizada."
+                  : `${sessoes.dias_desde_ultima} dia(s) desde a última sessão.`
+              }
+            />
+            <Stat
+              valor={sessoes.proxima_sessao ? fmtDataHora(sessoes.proxima_sessao.inicio) : "—"}
+              rotulo="Próxima sessão"
+              info="Primeiro agendamento futuro ainda pendente."
+              alerta={paciente.ativo && !sessoes.proxima_sessao}
+            />
+            <Stat
+              valor={sessoes.faltas_total}
+              rotulo="Faltas"
+              info="Total de atendimentos marcados como falta."
+            />
+            <Stat
+              valor={
+                sessoes.taxa_comparecimento === null
+                  ? "—"
+                  : `${Math.round(sessoes.taxa_comparecimento * 100)}%`
+              }
+              rotulo="Comparecimento"
+              info="Realizadas ÷ (realizadas + faltas). Cancelamentos não entram no denominador."
+            />
+          </div>
+
+          <div className="card resumo-sessoes-complementar">
+            <span><strong>{sessoes.realizadas_ano_atual}</strong> realizadas no ano</span>
+            <span><strong>{sessoes.cancelamentos_total}</strong> cancelamentos</span>
+            <span>
+              Intervalo mediano recente: <strong>
+                {sessoes.intervalo_mediano_dias === null
+                  ? "—"
+                  : `${sessoes.intervalo_mediano_dias} dia(s)`}
+              </strong>
+            </span>
+          </div>
+
+          <div className="cabecalho-secao historico-sessoes-cabecalho">
+            <h4>Histórico de agendamentos</h4>
+            <span className="muted">{sessoes.historico_total} registro(s)</span>
+          </div>
+          <div className="filtros-lista filtros-historico-sessoes">
+            <label>
+              <span>De</span>
+              <input
+                type="date"
+                value={deHistorico}
+                onChange={(e) => {
+                  const valor = e.target.value;
+                  setDeHistorico(valor);
+                  if (valor && ateHistorico && valor > ateHistorico) setAteHistorico(valor);
+                  setOffsetHistorico(0);
+                }}
+              />
+            </label>
+            <label>
+              <span>Até</span>
+              <input
+                type="date"
+                value={ateHistorico}
+                onChange={(e) => {
+                  const valor = e.target.value;
+                  setAteHistorico(valor);
+                  if (valor && deHistorico && valor < deHistorico) setDeHistorico(valor);
+                  setOffsetHistorico(0);
+                }}
+              />
+            </label>
+            <label>
+              <span>Status</span>
+              <select
+                value={statusHistorico}
+                onChange={(e) => {
+                  setStatusHistorico(e.target.value);
+                  setOffsetHistorico(0);
+                }}
+              >
+                <option value="">Todos</option>
+                <option value="agendado">Agendado</option>
+                <option value="realizado">Realizado</option>
+                <option value="falta">Falta</option>
+                <option value="cancelado">Cancelado</option>
+              </select>
+            </label>
+          </div>
+          <div className="card tabela-container">
+            {sessoes.historico.length === 0 ? (
+              <p className="vazio">Nenhum agendamento encontrado neste filtro.</p>
+            ) : (
+              <table className="tabela">
+                <thead>
+                  <tr>
+                    <th>Data</th>
+                    <th>Status</th>
+                    <th>Tipo</th>
+                    <th>Registro</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sessoes.historico.map((sessao) => (
+                    <tr key={sessao.id}>
+                      <td><Link to={`/agenda/${sessao.id}`}>{fmtDataHora(sessao.inicio)}</Link></td>
+                      <td><span className={`tag tag-${sessao.status}`}>{rotuloStatus(sessao.status)}</span></td>
+                      <td>{sessao.tipo || "—"}</td>
+                      <td>
+                        {sessao.evolucao_id ? (
+                          <Link to={`#evolucao-${sessao.evolucao_id}`}>Ver evolução</Link>
+                        ) : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <div className="paginacao-sessoes">
+              <button
+                type="button"
+                className="mini secundario"
+                disabled={offsetHistorico === 0 || carregandoSessoes}
+                onClick={() => setOffsetHistorico(Math.max(0, offsetHistorico - LIMITE_HISTORICO))}
+              >
+                Anteriores
+              </button>
+              <span className="muted">
+                {sessoes.historico_total === 0 ? 0 : offsetHistorico + 1}–{Math.min(
+                  offsetHistorico + sessoes.historico.length,
+                  sessoes.historico_total,
+                )}
+              </span>
+              <button
+                type="button"
+                className="mini secundario"
+                disabled={
+                  offsetHistorico + sessoes.historico.length >= sessoes.historico_total ||
+                  carregandoSessoes
+                }
+                onClick={() => setOffsetHistorico(offsetHistorico + LIMITE_HISTORICO)}
+              >
+                Próximos
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      <div className="cabecalho-secao">
+        <div>
           <h3>Agendamentos futuros</h3>
           <p className="muted">Consultas ainda agendadas que precisam ser resolvidas antes de arquivar.</p>
         </div>
@@ -268,7 +483,7 @@ export function FichaPaciente() {
         ) : (
           <ul className="lista">
             {evolucoes.map((e) => (
-              <li key={e.id}>
+              <li key={e.id} id={`evolucao-${e.id}`}>
                 <span className="muted">
                   {e.data_atendimento
                     ? `Atendimento: ${fmtDataHora(e.data_atendimento)}`

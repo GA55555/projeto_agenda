@@ -10,9 +10,11 @@ Historico (7e): `dia` e `mes` sao selecionaveis desde a criacao da conta
 relativas a AGORA. Sem N+1: agregacoes unicas (COUNT/GROUP BY).
 
 Regras de ouro: §2.1
-Fase do roadmap: Fase 7c/7e
+Fase do roadmap: Fase 7c/7e/7f/7j
 """
+import uuid
 from datetime import date, datetime, timedelta
+from statistics import median
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select, text
@@ -20,7 +22,20 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.modules.consentimentos.service import clausula_consentimento_ativo
-from app.modules.dashboard.schemas import ResumoDia, ResumoMes
+from app.modules.agendamentos.models import (
+    STATUS_AGENDADO,
+    STATUS_CANCELADO,
+    STATUS_FALTA,
+    STATUS_REALIZADO,
+    Agendamento,
+)
+from app.modules.dashboard.schemas import (
+    PacienteSessoesResumo,
+    ResumoDia,
+    ResumoMes,
+    SessaoPacienteItem,
+)
+from app.modules.evolucoes.models import Evolucao
 from app.modules.pacientes.models import Paciente
 from app.modules.tenants.models import Tenant
 
@@ -190,4 +205,148 @@ def montar_resumo_mes(db: Session, mes: str | None = None) -> ResumoMes:
         pacientes_sem_tcle=pacientes_sem_tcle,
         pacientes_sem_agendamento_futuro=pacientes_sem_agendamento_futuro,
         atendimentos_proxima_semana=atendimentos_proxima_semana,
+    )
+
+
+def _item_sessao(ag: Agendamento, evolucao_id: uuid.UUID | None) -> SessaoPacienteItem:
+    return SessaoPacienteItem(
+        id=ag.id,
+        inicio=ag.inicio,
+        fim=ag.fim,
+        status=ag.status,
+        tipo=ag.tipo,
+        serie_id=ag.serie_id,
+        evolucao_id=evolucao_id,
+    )
+
+
+def _intervalo_mediano_dias(inicios_desc: list[datetime]) -> float | None:
+    """Mediana dos intervalos entre ate 11 sessoes realizadas recentes."""
+    if len(inicios_desc) < 2:
+        return None
+    cronologico = sorted(inicios_desc)
+    intervalos = [
+        (atual - anterior).total_seconds() / 86_400
+        for anterior, atual in zip(cronologico, cronologico[1:])
+    ]
+    return round(float(median(intervalos)), 1)
+
+
+def montar_resumo_sessoes_paciente(
+    db: Session,
+    paciente_id: uuid.UUID,
+    *,
+    de: datetime | None = None,
+    ate: datetime | None = None,
+    status: str | None = None,
+    limite: int = 10,
+    offset: int = 0,
+) -> PacienteSessoesResumo | None:
+    """Controle administrativo de sessoes de um paciente (Fase 7j).
+
+    Indicadores usam todo o historico; `de`/`ate`/`status` filtram somente a
+    tabela paginada. Todas as consultas permanecem sob RLS (§2.1).
+    """
+    paciente = db.execute(
+        select(Paciente.id, Paciente.ativo).where(Paciente.id == paciente_id)
+    ).one_or_none()
+    if paciente is None:
+        return None
+
+    tz = ZoneInfo(settings.app_timezone)
+    agora = datetime.now(tz)
+    inicio_ano = datetime(agora.year, 1, 1, tzinfo=tz)
+    inicio_mes = datetime(agora.year, agora.month, 1, tzinfo=tz)
+
+    total_realizadas, faltas, cancelamentos, realizadas_ano, realizadas_mes = db.execute(
+        select(
+            func.count().filter(Agendamento.status == STATUS_REALIZADO),
+            func.count().filter(Agendamento.status == STATUS_FALTA),
+            func.count().filter(Agendamento.status == STATUS_CANCELADO),
+            func.count().filter(
+                (Agendamento.status == STATUS_REALIZADO) & (Agendamento.inicio >= inicio_ano)
+            ),
+            func.count().filter(
+                (Agendamento.status == STATUS_REALIZADO) & (Agendamento.inicio >= inicio_mes)
+            ),
+        )
+        .select_from(Agendamento)
+        .where(Agendamento.paciente_id == paciente_id)
+    ).one()
+    total_realizadas = int(total_realizadas)
+    faltas = int(faltas)
+    cancelamentos = int(cancelamentos)
+    base_comparecimento = total_realizadas + faltas
+    taxa = round(total_realizadas / base_comparecimento, 4) if base_comparecimento else None
+
+    evolucao_id_sq = (
+        select(Evolucao.id)
+        .where(Evolucao.agendamento_id == Agendamento.id)
+        .order_by(Evolucao.criado_em.desc())
+        .limit(1)
+        .correlate(Agendamento)
+        .scalar_subquery()
+    )
+    realizadas_recentes = db.execute(
+        select(Agendamento, evolucao_id_sq.label("evolucao_id"))
+        .where(
+            Agendamento.paciente_id == paciente_id,
+            Agendamento.status == STATUS_REALIZADO,
+        )
+        .order_by(Agendamento.inicio.desc())
+        .limit(11)
+    ).all()
+    ultima = _item_sessao(*realizadas_recentes[0]) if realizadas_recentes else None
+
+    proxima_row = db.execute(
+        select(Agendamento, evolucao_id_sq.label("evolucao_id"))
+        .where(
+            Agendamento.paciente_id == paciente_id,
+            Agendamento.status == STATUS_AGENDADO,
+            Agendamento.inicio >= agora,
+        )
+        .order_by(Agendamento.inicio)
+        .limit(1)
+    ).first()
+    proxima = _item_sessao(*proxima_row) if proxima_row else None
+
+    historico_filtro = [Agendamento.paciente_id == paciente_id]
+    if de is not None:
+        historico_filtro.append(Agendamento.inicio >= de)
+    if ate is not None:
+        historico_filtro.append(Agendamento.inicio < ate)
+    if status is not None:
+        historico_filtro.append(Agendamento.status == status)
+
+    historico_total = int(
+        db.execute(
+            select(func.count()).select_from(Agendamento).where(*historico_filtro)
+        ).scalar_one()
+    )
+    historico_rows = db.execute(
+        select(Agendamento, evolucao_id_sq.label("evolucao_id"))
+        .where(*historico_filtro)
+        .order_by(Agendamento.inicio.desc())
+        .limit(limite)
+        .offset(offset)
+    ).all()
+
+    inicios_realizados = [ag.inicio for ag, _ in realizadas_recentes]
+    return PacienteSessoesResumo(
+        paciente_id=paciente_id,
+        paciente_ativo=bool(paciente.ativo),
+        total_realizadas=total_realizadas,
+        realizadas_mes_atual=int(realizadas_mes),
+        realizadas_ano_atual=int(realizadas_ano),
+        faltas_total=faltas,
+        cancelamentos_total=cancelamentos,
+        taxa_comparecimento=taxa,
+        ultima_sessao=ultima,
+        proxima_sessao=proxima,
+        dias_desde_ultima=max(0, (agora - ultima.inicio).days) if ultima else None,
+        intervalo_mediano_dias=_intervalo_mediano_dias(inicios_realizados),
+        historico=[_item_sessao(*row) for row in historico_rows],
+        historico_total=historico_total,
+        limite=limite,
+        offset=offset,
     )

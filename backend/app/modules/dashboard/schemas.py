@@ -5,8 +5,9 @@ Divididos em DIA e MES (Fase 7f): o dashboard tem dois seletores independentes
 as agregacoes do mes/pacientes a cada clique no calendario.
 
 Regras de ouro: §2.1
-Fase do roadmap: Fase 7c/7e/7f
+Fase do roadmap: Fase 7c/7e/7f/7j
 """
+import uuid
 from datetime import date, datetime
 
 from pydantic import BaseModel
@@ -44,3 +45,35 @@ class ResumoMes(BaseModel):
     pacientes_sem_tcle: int
     pacientes_sem_agendamento_futuro: int
     atendimentos_proxima_semana: int
+
+
+class SessaoPacienteItem(BaseModel):
+    id: uuid.UUID
+    inicio: datetime
+    fim: datetime
+    status: str
+    tipo: str | None
+    serie_id: uuid.UUID | None
+    evolucao_id: uuid.UUID | None
+
+
+class PacienteSessoesResumo(BaseModel):
+    paciente_id: uuid.UUID
+    paciente_ativo: bool
+
+    total_realizadas: int
+    realizadas_mes_atual: int
+    realizadas_ano_atual: int
+    faltas_total: int
+    cancelamentos_total: int
+    taxa_comparecimento: float | None
+
+    ultima_sessao: SessaoPacienteItem | None
+    proxima_sessao: SessaoPacienteItem | None
+    dias_desde_ultima: int | None
+    intervalo_mediano_dias: float | None
+
+    historico: list[SessaoPacienteItem]
+    historico_total: int
+    limite: int
+    offset: int

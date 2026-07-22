@@ -223,6 +223,35 @@ export interface ResumoMes {
   atendimentos_proxima_semana: number;
 }
 
+export interface SessaoPacienteItem {
+  id: string;
+  inicio: string;
+  fim: string;
+  status: string;
+  tipo: string | null;
+  serie_id: string | null;
+  evolucao_id: string | null;
+}
+
+export interface PacienteSessoesResumo {
+  paciente_id: string;
+  paciente_ativo: boolean;
+  total_realizadas: number;
+  realizadas_mes_atual: number;
+  realizadas_ano_atual: number;
+  faltas_total: number;
+  cancelamentos_total: number;
+  taxa_comparecimento: number | null;
+  ultima_sessao: SessaoPacienteItem | null;
+  proxima_sessao: SessaoPacienteItem | null;
+  dias_desde_ultima: number | null;
+  intervalo_mediano_dias: number | null;
+  historico: SessaoPacienteItem[];
+  historico_total: number;
+  limite: number;
+  offset: number;
+}
+
 // Edição do próprio perfil (PATCH /auth/me). Só o campo enviado muda.
 // Trocar o e-mail (identificador de login) exige a senha atual (re-auth).
 export interface PerfilUpdate {
@@ -271,6 +300,19 @@ export const api = {
   resumoDia: (dia: string) => request<ResumoDia>(`/dashboard/dia${qs({ dia })}`),
   resumoMes: (mes: string) => request<ResumoMes>(`/dashboard/mes${qs({ mes })}`),
   calendario: (mes: string) => request<Record<string, number>>(`/dashboard/calendario${qs({ mes })}`),
+  sessoesPaciente: (
+    pacienteId: string,
+    params: { de?: string; ate?: string; status?: string; limite?: number; offset?: number } = {},
+  ) =>
+    request<PacienteSessoesResumo>(
+      `/dashboard/pacientes/${pacienteId}/sessoes${qs({
+        de: params.de,
+        ate: params.ate,
+        status: params.status,
+        limite: params.limite?.toString(),
+        offset: params.offset?.toString(),
+      })}`,
+    ),
 
   // ---- Dominio (7b) ----
   pacientes: (ativo?: boolean) =>
