@@ -82,6 +82,22 @@ export function FichaPaciente() {
     });
   }
 
+  function apagarSerieFutura(agendamento: Agendamento) {
+    if (
+      !window.confirm(
+        "Apagar esta ocorrência e TODAS as ocorrências futuras ainda agendadas da série? " +
+          "Atendimentos passados, realizados, faltas e cancelamentos serão preservados.",
+      )
+    ) {
+      return;
+    }
+    void executarAgenda(async () => {
+      const { removidos } = await api.apagarRecorrenciaFutura(agendamento.id);
+      window.alert(`${removidos} ocorrência(s) futura(s) removida(s).`);
+      reload();
+    });
+  }
+
   if (loading) return <p className="muted">Carregando ficha…</p>;
   if (error || !data) return <p className="erro">{error ?? "Erro ao carregar."}</p>;
 
@@ -205,14 +221,25 @@ export function FichaPaciente() {
                   <td>{fmtDataHora(a.fim)}</td>
                   <td>{a.tipo || "—"}</td>
                   <td>
-                    <button
-                      type="button"
-                      className="mini secundario"
-                      disabled={ocupadoAgenda}
-                      onClick={() => cancelarAgendamentoFuturo(a)}
-                    >
-                      Cancelar
-                    </button>
+                    {a.serie_id ? (
+                      <button
+                        type="button"
+                        className="mini erro-btn"
+                        disabled={ocupadoAgenda}
+                        onClick={() => apagarSerieFutura(a)}
+                      >
+                        Apagar série futura
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="mini secundario"
+                        disabled={ocupadoAgenda}
+                        onClick={() => cancelarAgendamentoFuturo(a)}
+                      >
+                        Cancelar
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

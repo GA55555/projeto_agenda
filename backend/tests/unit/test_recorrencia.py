@@ -1,7 +1,13 @@
-"""Cadencia da recorrencia de agendamentos (Fase 7f), sem BD."""
-from datetime import datetime, timezone
+"""Cadencia e encerramento da recorrencia, sem PostgreSQL."""
+import uuid
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
-from app.modules.agendamentos.service import _add_meses, _ocorrencia
+import pytest
+
+from app.modules.agendamentos.exceptions import TransicaoInvalida
+from app.modules.agendamentos.service import _add_meses, _ocorrencia, apagar_recorrencia_futura
 
 T = datetime(2026, 1, 15, 14, 0, tzinfo=timezone.utc)
 
@@ -39,3 +45,56 @@ def test_add_meses_rollover_de_ano():
 def test_add_meses_clampa_31_para_fevereiro_bissexto():
     d = datetime(2028, 1, 31, 12, 0, tzinfo=timezone.utc)
     assert _add_meses(d, 1) == datetime(2028, 2, 29, 12, 0, tzinfo=timezone.utc)
+
+
+@patch("app.modules.audit.service.registrar_evento")
+def test_apagar_recorrencia_futura_inclui_ocorrencia_aberta(registrar_evento):
+    serie_id = uuid.uuid4()
+    agendamento_id = uuid.uuid4()
+    ag = SimpleNamespace(
+        id=agendamento_id,
+        serie_id=serie_id,
+        status="agendado",
+        inicio=datetime.now(timezone.utc) + timedelta(days=1),
+    )
+    selecao = MagicMock()
+    selecao.scalar_one_or_none.return_value = ag
+    exclusao = MagicMock()
+    exclusao.rowcount = 4
+    db = MagicMock()
+    db.execute.side_effect = [selecao, exclusao, MagicMock()]
+    user = SimpleNamespace(id=uuid.uuid4(), tenant_id=uuid.uuid4())
+
+    removidos = apagar_recorrencia_futura(db, user, agendamento_id)
+
+    assert removidos == 4
+    assert db.execute.call_count == 3
+    assert db.execute.call_args_list[0].args[0]._for_update_arg is not None
+    delete_sql = str(db.execute.call_args_list[1].args[0])
+    assert "agendamentos.id !=" not in delete_sql  # inclui a ocorrencia aberta
+    assert "agendamentos.status" in delete_sql
+    assert "agendamentos.inicio >=" in delete_sql  # preserva historico passado
+    registrar_evento.assert_called_once()
+    assert registrar_evento.call_args.kwargs["payload"] == {
+        "serie_id": str(serie_id),
+        "removidos": 4,
+    }
+
+
+def test_apagar_recorrencia_futura_recusa_ocorrencia_passada():
+    ag = SimpleNamespace(
+        serie_id=uuid.uuid4(),
+        status="agendado",
+        inicio=datetime.now(timezone.utc) - timedelta(minutes=1),
+    )
+    db = MagicMock()
+    db.execute.return_value.scalar_one_or_none.return_value = ag
+
+    with pytest.raises(TransicaoInvalida, match="ocorrencia futura"):
+        apagar_recorrencia_futura(
+            db,
+            SimpleNamespace(id=uuid.uuid4(), tenant_id=uuid.uuid4()),
+            uuid.uuid4(),
+        )
+
+    assert db.execute.call_count == 1

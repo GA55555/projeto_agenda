@@ -133,6 +133,27 @@ def desfazer_recorrencia(
     return {"removidos": removidos}
 
 
+@router.post("/{agendamento_id}/apagar-recorrencia-futura")
+def apagar_recorrencia_futura(
+    agendamento_id: uuid.UUID,
+    db: Session = Depends(get_tenant_session),
+    user: CurrentUser = Depends(get_current_user),
+) -> dict[str, int]:
+    """Apaga todas as ocorrencias futuras `agendado`, inclusive a selecionada."""
+    try:
+        removidos = service.apagar_recorrencia_futura(db, user, agendamento_id)
+    except NaoRecorrente:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Este agendamento nao faz parte de uma recorrencia.",
+        )
+    except TransicaoInvalida as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    if removidos is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agendamento nao encontrado")
+    return {"removidos": removidos}
+
+
 @router.post("/{agendamento_id}/cancelar", response_model=AgendamentoOut)
 def cancelar_agendamento(
     agendamento_id: uuid.UUID,

@@ -35,6 +35,8 @@ TIPO_PACIENTE_ARQUIVADO = "paciente_arquivado"
 TIPO_PACIENTE_REATIVADO = "paciente_reativado"
 # Fase 7f: desfazer recorrencia remove ocorrencias futuras -> auditavel.
 TIPO_RECORRENCIA_DESFEITA = "recorrencia_desfeita"
+# Fase 7i: encerramento explicito apaga toda a agenda futura da serie.
+TIPO_RECORRENCIA_FUTURA_APAGADA = "recorrencia_futura_apagada"
 TIPOS_EVENTO = (
     TIPO_CONSENTIMENTO_REVOGADO,
     TIPO_GUARDA_ALTERADA,
@@ -44,6 +46,7 @@ TIPOS_EVENTO = (
     TIPO_PACIENTE_ARQUIVADO,
     TIPO_PACIENTE_REATIVADO,
     TIPO_RECORRENCIA_DESFEITA,
+    TIPO_RECORRENCIA_FUTURA_APAGADA,
 )
 
 

@@ -297,6 +297,23 @@ export const api = {
     request<AgendamentoCriado>("/agendamentos", { method: "POST", body: JSON.stringify(d) }),
   desfazerRecorrencia: (id: string) =>
     request<{ removidos: number }>(`/agendamentos/${id}/desfazer-recorrencia`, { method: "POST" }),
+  apagarRecorrenciaFutura: (id: string) =>
+    request<{ removidos: number }>(`/agendamentos/${id}/apagar-recorrencia-futura`, {
+      method: "POST",
+    }),
+  atualizarAgendamento: (
+    id: string,
+    d: {
+      inicio?: string;
+      fim?: string;
+      tipo?: string | null;
+      observacao?: string | null;
+    },
+  ) =>
+    request<Agendamento>(`/agendamentos/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(d),
+    }),
   // Ações na agenda (7c): PATCH muda status; cancelar é rota própria (soft, motivo).
   mudarStatusAgendamento: (id: string, status: string) =>
     request<Agendamento>(`/agendamentos/${id}`, {

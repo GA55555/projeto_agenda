@@ -222,6 +222,55 @@ def desfazer_recorrencia(db: Session, user, agendamento_id: uuid.UUID) -> int | 
     return removidos
 
 
+def apagar_recorrencia_futura(db: Session, user, agendamento_id: uuid.UUID) -> int | None:
+    """Apaga a ocorrencia aberta e toda a agenda futura ainda pendente da serie.
+
+    A operacao e exclusiva para uma ocorrencia futura `agendado`. Registros
+    passados, realizados, faltas e cancelados permanecem como historico, mas a
+    serie e dissolvida no que sobrar. A exclusao e auditada na mesma transacao.
+    """
+    ag = db.execute(
+        select(Agendamento).where(Agendamento.id == agendamento_id).with_for_update()
+    ).scalar_one_or_none()
+    if ag is None:
+        return None
+    if ag.serie_id is None:
+        raise NaoRecorrente(str(agendamento_id))
+
+    agora = datetime.now(timezone.utc)
+    if ag.status != STATUS_AGENDADO or ag.inicio < agora:
+        raise TransicaoInvalida("selecione uma ocorrencia futura ainda agendada")
+
+    serie_id = ag.serie_id
+    removidos = db.execute(
+        delete(Agendamento).where(
+            Agendamento.serie_id == serie_id,
+            Agendamento.status == STATUS_AGENDADO,
+            Agendamento.inicio >= agora,
+        )
+    ).rowcount
+    db.execute(
+        update(Agendamento)
+        .where(Agendamento.serie_id == serie_id)
+        .values(serie_id=None, serie_frequencia=None)
+    )
+
+    from app.modules.audit import service as audit_service
+    from app.modules.audit.models import TIPO_RECORRENCIA_FUTURA_APAGADA
+
+    audit_service.registrar_evento(
+        db,
+        tenant_id=user.tenant_id,
+        tipo_evento=TIPO_RECORRENCIA_FUTURA_APAGADA,
+        entidade="agendamento",
+        entidade_id=agendamento_id,
+        ator_usuario_id=user.id,
+        payload={"serie_id": str(serie_id), "removidos": removidos},
+    )
+    db.flush()
+    return removidos
+
+
 def listar(
     db: Session,
     *,
