@@ -73,6 +73,13 @@ class Settings(BaseSettings):
     # timeout proprio, MAIOR, para nao dar 503 espurio em geracao normal.
     openai_chat_timeout_seconds: float = 60.0
 
+    # ---- Documentos clinicos privados (Fase 7k) ----
+    # Volume persistente acessivel apenas pelo backend; nunca sob a raiz do Nginx.
+    documentos_dir: str = "/app/data/documentos"
+    documentos_tamanho_max_bytes: int = 20 * 1024 * 1024
+    documentos_cota_tenant_bytes: int = 2 * 1024 * 1024 * 1024
+    documentos_sanitizacao_timeout_seconds: int = 35
+
     @property
     def admin_database_url(self) -> str:
         """Ligacao com privilegio para rodar migrations (agenda_admin)."""

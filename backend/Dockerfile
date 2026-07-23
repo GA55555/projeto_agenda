@@ -41,6 +41,10 @@ COPY app ./app
 COPY alembic.ini ./
 COPY migrations ./migrations
 
+# O volume nomeado herda este dono na primeira criacao; o runtime continua
+# nao-root e o frontend nunca monta este diretorio (Fase 7k, menor exposicao).
+RUN mkdir -p /app/data/documentos && chown -R app:app /app/data
+
 USER app
 EXPOSE 8000
 

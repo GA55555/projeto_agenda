@@ -31,7 +31,7 @@ saúde de menores — conformidade **LGPD / ECA / CFP**.
 │   │   └── modules/           # domínios autocontidos:
 │   │       ├── auth/  tenants/  responsaveis/  pacientes/
 │   │       ├── consentimentos/  agendamentos/  evolucoes/  audit/
-│   │       └── anonimizacao/  rag/  llm/
+│   │       └── anonimizacao/  rag/  llm/  documentos/
 │   ├── migrations/            # Alembic (Fase 1)
 │   └── tests/                 # unit/ + integration/
 ├── frontend/                  # SPA + Nginx (Fase 7)

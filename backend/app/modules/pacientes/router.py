@@ -121,7 +121,7 @@ def apagar_paciente(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
-                "Paciente possui prontuario (evolucoes): a exclusao e bloqueada "
+                "Paciente possui prontuario (evolucoes ou documentos): a exclusao e bloqueada "
                 "pela guarda obrigatoria de 5 anos (CFP 001/2009). Use o arquivamento."
             ),
         )

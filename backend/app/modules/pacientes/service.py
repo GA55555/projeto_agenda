@@ -189,22 +189,34 @@ def reativar(db: Session, user: CurrentUser, paciente_id: uuid.UUID) -> Paciente
 def apagar_paciente(db: Session, user: CurrentUser, paciente_id: uuid.UUID) -> bool:
     """Exclusao definitiva (Fase 7e) — SO para cadastro errado, sem prontuario.
 
-    Com evolucoes registradas -> `PacienteComProntuario` (409): a guarda de
+    Com evolucoes ou documentos -> `PacienteComProntuario` (409): a guarda de
     prontuario por >=5 anos (CFP 001/2009, §0.3) impede a exclusao; o caminho e
-    ARQUIVAR. Defesa em profundidade: o role da app nem tem GRANT DELETE em
-    `evolucoes` (migration 0007) — a regra vive no MOTOR (§2.1.1), este check
-    so a antecipa com mensagem clara.
+    ARQUIVAR. Defesa em profundidade: o role da app nao tem GRANT DELETE nas
+    tabelas de prontuario — a regra vive no MOTOR (§2.1.1), este check so a
+    antecipa com mensagem clara.
 
     Apaga, na MESMA transacao: agendamentos, consentimentos, vinculos e o
     paciente; grava evento indelevel na auditoria (§2.2). Tudo sob RLS.
     """
-    paciente = db.get(Paciente, paciente_id)
+    # Mesma trava usada pelo upload documental e pelos fluxos de agenda/arquivo:
+    # impede corrida que viraria erro de FK depois das contagens de prontuario.
+    paciente = db.execute(
+        select(Paciente).where(Paciente.id == paciente_id).with_for_update()
+    ).scalar_one_or_none()
     if paciente is None:
         return False
     tem_evolucoes = db.execute(
         select(func.count()).select_from(Evolucao).where(Evolucao.paciente_id == paciente_id)
     ).scalar_one()
-    if tem_evolucoes:
+    # Import lazy evita acoplamento do modulo base de pacientes ao recurso 7k.
+    from app.modules.documentos.models import DocumentoPaciente
+
+    tem_documentos = db.execute(
+        select(func.count())
+        .select_from(DocumentoPaciente)
+        .where(DocumentoPaciente.paciente_id == paciente_id)
+    ).scalar_one()
+    if tem_evolucoes or tem_documentos:
         raise PacienteComProntuario(str(paciente_id))
 
     from app.modules.audit import service as audit_service

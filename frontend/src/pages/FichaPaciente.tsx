@@ -1,7 +1,13 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
-import type { Agendamento, Consentimento, Evolucao, PacienteDetalhado } from "../api/client";
+import type {
+  Agendamento,
+  Consentimento,
+  DocumentoPaciente,
+  Evolucao,
+  PacienteDetalhado,
+} from "../api/client";
 import { Stat } from "../components/Stat";
 import { useAsync } from "../utils/useAsync";
 import { fmtData, fmtDataHora, rotuloSexo } from "../utils/format";
@@ -9,6 +15,12 @@ import { useAcao } from "../utils/useAcao";
 import { rotuloStatus } from "../utils/status";
 
 const LIMITE_HISTORICO = 10;
+const LIMITE_DOCUMENTOS = 20;
+
+function fmtTamanho(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 function inicioDoDiaIso(dia: string): string | undefined {
   return dia ? new Date(`${dia}T00:00:00`).toISOString() : undefined;
@@ -28,6 +40,15 @@ export function FichaPaciente() {
   const [deHistorico, setDeHistorico] = useState("");
   const [ateHistorico, setAteHistorico] = useState("");
   const [offsetHistorico, setOffsetHistorico] = useState(0);
+  const [offsetDocumentos, setOffsetDocumentos] = useState(0);
+  const [arquivoDocumento, setArquivoDocumento] = useState<File | null>(null);
+  const inputDocumento = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setOffsetDocumentos(0);
+    setArquivoDocumento(null);
+    if (inputDocumento.current) inputDocumento.current.value = "";
+  }, [id]);
   // O paciente e essencial; consentimentos/evolucoes/agenda sao secundarios -> uma
   // falha transitoria neles nao deve apagar a ficha (allSettled, #4 do review).
   const { data, loading, error, reload } = useAsync(async () => {
@@ -66,12 +87,42 @@ export function FichaPaciente() {
     [id, statusHistorico, deHistorico, ateHistorico, offsetHistorico],
   );
 
+  const {
+    data: documentos,
+    loading: carregandoDocumentos,
+    error: erroDocumentos,
+    reload: reloadDocumentos,
+  } = useAsync(
+    () => api.documentosPaciente(id, LIMITE_DOCUMENTOS, offsetDocumentos),
+    [id, offsetDocumentos],
+  );
+
   const { ocupado, acaoErro, executar } = useAcao();
   const {
     ocupado: ocupadoAgenda,
     acaoErro: agendaErro,
     executar: executarAgenda,
   } = useAcao();
+  const {
+    ocupado: ocupadoDocumento,
+    acaoErro: documentoAcaoErro,
+    executar: executarDocumento,
+  } = useAcao();
+
+  function enviarDocumento() {
+    if (!arquivoDocumento) return;
+    void executarDocumento(async () => {
+      await api.enviarDocumento(id, arquivoDocumento);
+      setArquivoDocumento(null);
+      if (inputDocumento.current) inputDocumento.current.value = "";
+      setOffsetDocumentos(0);
+      reloadDocumentos();
+    });
+  }
+
+  function baixarDocumento(documento: DocumentoPaciente) {
+    void executarDocumento(() => api.baixarDocumento(documento));
+  }
 
   function arquivarOuReativar(paciente: PacienteDetalhado) {
     if (paciente.ativo) {
@@ -496,6 +547,111 @@ export function FichaPaciente() {
               </li>
             ))}
           </ul>
+        )}
+      </div>
+
+      <div className="cabecalho-secao">
+        <div>
+          <h3>Documentos clínicos</h3>
+          <p className="muted">Testes e arquivos vinculados ao prontuário deste paciente.</p>
+        </div>
+      </div>
+      <div className="card">
+        <div className="upload-documento">
+          <label>
+            <span>Arquivo</span>
+            <input
+              ref={inputDocumento}
+              type="file"
+              accept=".pdf,.docx,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+              disabled={ocupadoDocumento}
+              onChange={(e) => setArquivoDocumento(e.target.files?.[0] ?? null)}
+            />
+          </label>
+          <button
+            type="button"
+            disabled={!arquivoDocumento || ocupadoDocumento}
+            onClick={enviarDocumento}
+          >
+            {ocupadoDocumento ? "Processando…" : "Enviar documento"}
+          </button>
+        </div>
+        <p className="muted ajuda-documento">
+          PDF, DOCX, JPEG ou PNG, até 20 MB. O arquivo é validado e reconstruído antes de ser
+          armazenado; arquivos ativos, protegidos ou inseguros são recusados.
+        </p>
+        {documentoAcaoErro && <p className="erro">{documentoAcaoErro}</p>}
+        {carregandoDocumentos ? (
+          <p className="muted">Carregando documentos…</p>
+        ) : erroDocumentos || !documentos ? (
+          <p className="erro">{erroDocumentos ?? "Não foi possível carregar os documentos."}</p>
+        ) : documentos.itens.length === 0 ? (
+          <p className="vazio">Nenhum documento armazenado.</p>
+        ) : (
+          <>
+            <div className="tabela-container">
+              <table className="tabela">
+                <thead>
+                  <tr>
+                    <th>Arquivo</th>
+                    <th>Formato</th>
+                    <th>Tamanho</th>
+                    <th>Enviado em</th>
+                    <th aria-label="Ações"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {documentos.itens.map((documento) => (
+                    <tr key={documento.id}>
+                      <td>{documento.nome_original}</td>
+                      <td>{documento.extensao.slice(1).toUpperCase()}</td>
+                      <td>{fmtTamanho(documento.tamanho_bytes)}</td>
+                      <td>{fmtDataHora(documento.criado_em)}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="mini secundario"
+                          disabled={ocupadoDocumento}
+                          onClick={() => baixarDocumento(documento)}
+                        >
+                          Baixar
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="paginacao-sessoes">
+              <button
+                type="button"
+                className="mini secundario"
+                disabled={offsetDocumentos === 0 || ocupadoDocumento}
+                onClick={() =>
+                  setOffsetDocumentos(Math.max(0, offsetDocumentos - LIMITE_DOCUMENTOS))
+                }
+              >
+                Anteriores
+              </button>
+              <span className="muted">
+                {offsetDocumentos + 1}–{Math.min(
+                  offsetDocumentos + documentos.itens.length,
+                  documentos.total,
+                )} de {documentos.total}
+              </span>
+              <button
+                type="button"
+                className="mini secundario"
+                disabled={
+                  offsetDocumentos + documentos.itens.length >= documentos.total ||
+                  ocupadoDocumento
+                }
+                onClick={() => setOffsetDocumentos(offsetDocumentos + LIMITE_DOCUMENTOS)}
+              >
+                Próximos
+              </button>
+            </div>
+          </>
         )}
       </div>
 

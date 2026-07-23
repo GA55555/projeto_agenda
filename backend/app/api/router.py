@@ -9,6 +9,7 @@ from app.modules.audit.router import router as audit_router
 from app.modules.auth.router import router as auth_router
 from app.modules.consentimentos.router import router as consentimentos_router
 from app.modules.dashboard.router import router as dashboard_router
+from app.modules.documentos.router import router as documentos_router
 from app.modules.evolucoes.router import router as evolucoes_router
 from app.modules.llm.router import router as llm_router
 from app.modules.pacientes.router import router as pacientes_router
@@ -31,3 +32,5 @@ api_router.include_router(evolucoes_router)
 api_router.include_router(llm_router)
 # Fase 7c — resumo/visao geral (dashboard)
 api_router.include_router(dashboard_router)
+# Fase 7k — documentos clinicos privados e sanitizados
+api_router.include_router(documentos_router)

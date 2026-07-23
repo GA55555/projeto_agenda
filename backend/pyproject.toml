@@ -24,6 +24,11 @@ dependencies = [
     "python-multipart>=0.0.9",   # form data (login)
     "pgvector>=0.3",             # tipo Vector p/ SQLAlchemy + operadores (§3.1)
     "openai>=1.30",              # embeddings/geracao; cliente importado lazy (§1.3)
+    # Fase 7k: sanitizacao local de documentos. Importadas SOMENTE pelo
+    # subprocesso isolado que processa upload nao confiavel (§1.3).
+    "Pillow>=12.3,<13",          # JPEG/PNG: allowlist, anti-bomb e regravacao sem metadados
+    "pikepdf>=10.10,<11",        # PDF: remocao curada de conteudo ativo/anexos
+    "python-docx>=1.2,<2",       # DOCX: reconstrucao sem macros/objetos ativos
 ]
 
 [project.optional-dependencies]

@@ -68,6 +68,52 @@ export interface Paciente {
   criado_em: string;
 }
 
+async function requestForm<T>(path: string, body: FormData): Promise<T> {
+  const resp = await fetch(BASE + path, {
+    method: "POST",
+    credentials: "include",
+    body,
+  });
+  if (!resp.ok) {
+    if (resp.status === 401) onUnauthorized?.();
+    let detail = resp.statusText;
+    try {
+      const resposta = await resp.json();
+      if (typeof resposta?.detail === "string") detail = resposta.detail;
+    } catch {
+      /* corpo nao-JSON */
+    }
+    throw new ApiError(resp.status, detail);
+  }
+  return (await resp.json()) as T;
+}
+
+async function download(path: string, nome: string): Promise<void> {
+  const resp = await fetch(BASE + path, { credentials: "include" });
+  if (!resp.ok) {
+    if (resp.status === 401) onUnauthorized?.();
+    let detail = resp.statusText;
+    try {
+      const resposta = await resp.json();
+      if (typeof resposta?.detail === "string") detail = resposta.detail;
+    } catch {
+      /* corpo nao-JSON */
+    }
+    throw new ApiError(resp.status, detail);
+  }
+  const url = URL.createObjectURL(await resp.blob());
+  try {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = nome;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } finally {
+    window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+  }
+}
+
 export interface Responsavel {
   id: string;
   nome: string;
@@ -252,6 +298,25 @@ export interface PacienteSessoesResumo {
   offset: number;
 }
 
+export interface DocumentoPaciente {
+  id: string;
+  paciente_id: string;
+  nome_original: string;
+  tipo_mime: string;
+  extensao: string;
+  sha256: string;
+  tamanho_bytes: number;
+  enviado_por_usuario_id: string;
+  criado_em: string;
+}
+
+export interface DocumentosPagina {
+  itens: DocumentoPaciente[];
+  total: number;
+  limite: number;
+  offset: number;
+}
+
 // Edição do próprio perfil (PATCH /auth/me). Só o campo enviado muda.
 // Trocar o e-mail (identificador de login) exige a senha atual (re-auth).
 export interface PerfilUpdate {
@@ -313,6 +378,20 @@ export const api = {
         offset: params.offset?.toString(),
       })}`,
     ),
+  documentosPaciente: (pacienteId: string, limite = 20, offset = 0) =>
+    request<DocumentosPagina>(
+      `/pacientes/${pacienteId}/documentos${qs({
+        limite: limite.toString(),
+        offset: offset.toString(),
+      })}`,
+    ),
+  enviarDocumento: (pacienteId: string, arquivo: File) => {
+    const dados = new FormData();
+    dados.append("arquivo", arquivo);
+    return requestForm<DocumentoPaciente>(`/pacientes/${pacienteId}/documentos`, dados);
+  },
+  baixarDocumento: (documento: DocumentoPaciente) =>
+    download(`/documentos/${documento.id}/download`, documento.nome_original),
 
   // ---- Dominio (7b) ----
   pacientes: (ativo?: boolean) =>

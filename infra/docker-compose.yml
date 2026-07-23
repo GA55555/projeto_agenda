@@ -50,6 +50,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      # Prontuario documental privado: somente o backend tem acesso; nunca Nginx.
+      - documentos_data:/app/data/documentos
+    tmpfs:
+      # Upload original/intermediarios sao efemeros e somem no restart.
+      - /tmp:size=128m,mode=1777
     ports:
       # Porta do HOST configuravel (evita conflitos com outros servicos, ex. Portainer:8000).
       # Publicada apenas no localhost do servidor (§4.1). Porta interna continua 8000.
@@ -93,3 +99,4 @@ networks:
 
 volumes:
   pgdata:
+  documentos_data:

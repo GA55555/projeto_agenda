@@ -18,7 +18,8 @@ def _admin_dsn() -> str:
         f"port={os.getenv('POSTGRES_PORT', '5432')} "
         f"dbname={os.getenv('POSTGRES_DB', 'agenda')} "
         f"user={os.getenv('POSTGRES_USER', 'agenda_admin')} "
-        f"password={os.getenv('POSTGRES_PASSWORD', '')}"
+        f"password={os.getenv('POSTGRES_PASSWORD', '')} "
+        "connect_timeout=3"
     )
 
 

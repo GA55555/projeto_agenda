@@ -37,6 +37,9 @@ TIPO_PACIENTE_REATIVADO = "paciente_reativado"
 TIPO_RECORRENCIA_DESFEITA = "recorrencia_desfeita"
 # Fase 7i: encerramento explicito apaga toda a agenda futura da serie.
 TIPO_RECORRENCIA_FUTURA_APAGADA = "recorrencia_futura_apagada"
+# Fase 7k: inclusao e leitura de documento clinico sao acessos sensiveis.
+TIPO_DOCUMENTO_ENVIADO = "documento_enviado"
+TIPO_DOCUMENTO_BAIXADO = "documento_baixado"
 TIPOS_EVENTO = (
     TIPO_CONSENTIMENTO_REVOGADO,
     TIPO_GUARDA_ALTERADA,
@@ -47,6 +50,8 @@ TIPOS_EVENTO = (
     TIPO_PACIENTE_REATIVADO,
     TIPO_RECORRENCIA_DESFEITA,
     TIPO_RECORRENCIA_FUTURA_APAGADA,
+    TIPO_DOCUMENTO_ENVIADO,
+    TIPO_DOCUMENTO_BAIXADO,
 )
 
 
