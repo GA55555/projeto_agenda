@@ -1,4 +1,4 @@
-"""CLI administrativa (bootstrap).
+"""CLI administrativa de bootstrap e controle de acesso.
 
 Uso (no servidor):
     docker compose exec backend python -m app.cli criar-tenant-usuario \\
@@ -49,6 +49,25 @@ def criar_tenant_usuario(nome: str, email: str, senha: str, slug: str | None, pa
     print(f"OK: tenant '{slug}' ({tenant_id}) e usuario '{email}' criados.")
 
 
+def definir_usuario_ativo(email: str, *, ativo: bool) -> bool:
+    """Suspende/reativa login pelo control-plane usando parâmetros, nunca SQL interpolado."""
+    engine = create_engine(settings.admin_database_url)
+    with engine.begin() as conn:
+        usuario_id = conn.execute(
+            text(
+                "UPDATE usuarios SET ativo = :ativo, atualizado_em = now() "
+                "WHERE lower(email) = lower(:email) RETURNING id"
+            ),
+            {"ativo": ativo, "email": email},
+        ).scalar_one_or_none()
+    if usuario_id is None:
+        print("ERRO: usuario nao encontrado.", file=sys.stderr)
+        return False
+    estado = "reativado" if ativo else "suspenso"
+    print(f"OK: usuario {estado} ({usuario_id}).")
+    return True
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="app.cli")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -60,9 +79,21 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--slug", default=None)
     p.add_argument("--papel", default="psicologa")
 
+    suspender = sub.add_parser("suspender-usuario", help="Suspende login e JWTs emitidos")
+    suspender.add_argument("--email", required=True)
+
+    reativar = sub.add_parser("reativar-usuario", help="Reativa login de usuario")
+    reativar.add_argument("--email", required=True)
+
     args = parser.parse_args(argv)
     if args.cmd == "criar-tenant-usuario":
         criar_tenant_usuario(args.nome, args.email, args.senha, args.slug, args.papel)
+    elif args.cmd == "suspender-usuario":
+        if not definir_usuario_ativo(args.email, ativo=False):
+            return 1
+    elif args.cmd == "reativar-usuario":
+        if not definir_usuario_ativo(args.email, ativo=True):
+            return 1
     return 0
 
 

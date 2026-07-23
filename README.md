@@ -7,6 +7,8 @@ saúde de menores — conformidade **LGPD / ECA / CFP**.
 > 📜 **Governança:** as regras inegociáveis vivem em
 > [`docs/arquitetura.md`](./docs/arquitetura.md) (documento constitucional) e o
 > roadmap executável em [`docs/planejamento_arquitetura.md`](./docs/planejamento_arquitetura.md).
+> Procedimentos de operação, backup, restauração, incidentes e manutenção ficam em
+> [`docs/arquitetura_manutenção.md`](./docs/arquitetura_manutenção.md).
 > Em conflito entre conveniência e regra, **a regra prevalece**.
 
 ## Stack

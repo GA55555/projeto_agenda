@@ -40,6 +40,8 @@ services:
   # Backend FastAPI — orcamento 1.0 GB (§1.1), 2 workers + uvloop (§1.3)
   # --------------------------------------------------------------------------
   backend:
+    # Nome estavel permite exportar/importar a imagem aprovada no disaster recovery.
+    image: agenda-backend:${AGENDA_IMAGE_TAG:-current}
     build:
       context: ../backend
       dockerfile: Dockerfile
@@ -74,6 +76,8 @@ services:
   # (mesma origem: zero CORS; o backend continua nao-exposto, §2.1.1/§4.1).
   # --------------------------------------------------------------------------
   frontend:
+    # Nome estavel permite recuperar sem rebuild de tags/dependencias mutaveis.
+    image: agenda-frontend:${AGENDA_IMAGE_TAG:-current}
     build:
       context: ../frontend
       dockerfile: Dockerfile

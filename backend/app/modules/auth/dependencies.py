@@ -1,7 +1,8 @@
 """Dependencias de autenticacao.
 
-`get_current_user` decodifica o JWT (sem ida a BD) e devolve o contexto do
-utilizador autenticado, incluindo o `tenant_id` que alimenta o RLS (§2.1).
+`get_current_user` decodifica o JWT e confirma no control-plane que a conta
+continua ativa antes de devolver o contexto que alimenta o RLS (§2.1). Essa
+consulta curta torna a suspensão efetiva inclusive para JWTs já emitidos.
 
 O token vem do **cookie httpOnly** da SPA (Fase 7, resistente a XSS) OU do
 cabecalho `Authorization: Bearer` (ferramentas/testes/clientes programaticos).
@@ -15,9 +16,11 @@ from dataclasses import dataclass
 
 import jwt
 from fastapi import HTTPException, Request, status
+from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.security import decode_access_token
+from app.db.session import SessionLocal
 
 
 @dataclass(frozen=True)
@@ -38,7 +41,8 @@ def _extrair_token(request: Request) -> str | None:
     return None
 
 
-def get_current_user(request: Request) -> CurrentUser:
+def _decodificar_current_user(request: Request) -> CurrentUser:
+    """Valida o JWT e devolve suas claims tipadas, sem consultar o banco."""
     credenciais_invalidas = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Nao autenticado",
@@ -56,3 +60,32 @@ def get_current_user(request: Request) -> CurrentUser:
         )
     except (jwt.PyJWTError, KeyError, ValueError):
         raise credenciais_invalidas
+
+
+def _conta_continua_ativa(user: CurrentUser) -> bool:
+    """Confirma identidade/tenant/papel atuais; falha fechada para conta suspensa."""
+    # Import local evita acoplamento de import entre dependencias e o modelo de auth.
+    from app.modules.auth.models import Usuario
+
+    with SessionLocal() as db:
+        usuario_id = db.execute(
+            select(Usuario.id).where(
+                Usuario.id == user.id,
+                Usuario.tenant_id == user.tenant_id,
+                Usuario.papel == user.papel,
+                Usuario.ativo.is_(True),
+            )
+        ).scalar_one_or_none()
+    return usuario_id is not None
+
+
+def get_current_user(request: Request) -> CurrentUser:
+    """Autentica o token e revoga imediatamente sessões de contas desativadas."""
+    user = _decodificar_current_user(request)
+    if not _conta_continua_ativa(user):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Nao autenticado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return user

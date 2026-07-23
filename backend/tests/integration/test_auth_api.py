@@ -49,7 +49,7 @@ def seed_dois_tenants():
         (T_A, EMAIL_A, hash_password("senhaA"), T_B, EMAIL_B, hash_password("senhaB")),
     )
     try:
-        yield
+        yield cur
     finally:
         cur.execute("DELETE FROM usuarios WHERE email IN (%s, %s)", (EMAIL_A, EMAIL_B))
         cur.execute("DELETE FROM tenants WHERE slug IN ('seed-a', 'seed-b')")
@@ -90,3 +90,11 @@ def test_login_e_isolamento_via_api(seed_dois_tenants):
 
     # Sem token -> 401.
     assert client.get("/api/v1/tenants/atual").status_code == 401
+
+    # Suspender a conta revoga também o JWT já emitido, não apenas novos logins.
+    seed_dois_tenants.execute("UPDATE usuarios SET ativo = false WHERE email = %s", (EMAIL_A,))
+    client.cookies.clear()  # cookie de B teria prioridade sobre o Bearer de A
+    revogado = client.get(
+        "/api/v1/tenants/atual", headers={"Authorization": f"Bearer {tok_a}"}
+    )
+    assert revogado.status_code == 401
