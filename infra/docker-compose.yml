@@ -91,7 +91,9 @@ services:
     networks: [internal]
     healthcheck:
       # Forma portavel do BusyBox wget (a combinada `-qO-` nao parseia no BusyBox).
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost/ || exit 1"]
+      # `localhost` pode resolver para ::1 no BusyBox enquanto o Nginx escuta apenas
+      # IPv4; usar loopback explicito evita falso `unhealthy`.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3

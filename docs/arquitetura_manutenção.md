@@ -201,7 +201,7 @@ sudo smartctl -H -A <DISPOSITIVO_HDD>
 ```
 
 ```bash
-restic --repository-file <ARQUIVO_REPOSITORY> --password-file <ARQUIVO_PASSWORD> check
+restic --repository-file <ARQUIVO_REPOSITORY> check
 ```
 
 ### 4.3. A cada mês
@@ -326,13 +326,22 @@ O alvo é manter três cópias, em dois meios, com uma cópia offline ou fora do
 furto, sobretensão ou ransomware pode atingir ambos. O mínimo recomendado é:
 
 1. produção no SSD;
-2. repositório Restic cifrado no HDD, conectado/montado só durante backup/verificação;
-3. segunda cópia cifrada em disco removível guardado em outro local, ou serviço remoto
+2. repositório Restic cifrado no HDD interno compartilhado;
+3. segunda cópia cifrada e offline em disco removível guardado em outro local, ou serviço remoto
    contratado e avaliado sob LGPD.
+
+O HDD compartilhado permanece montado para outros serviços. Portanto, a cópia Restic
+local protege contra falha do SSD e exposição física do conteúdo, mas um atacante com
+`root` ainda pode apagar o repositório cifrado. Somente a terceira cópia offline/off-site
+fecha esse risco; montagem manual do staging não transforma o HDD interno em meio offline.
 
 O segredo do repositório Restic deve ter cópia offline no cofre. Sem ele, backup cifrado
 é irrecuperável. Ele não deve ficar apenas no mesmo servidor nem dentro do próprio
 repositório.
+
+Decisão operacional vigente: senha digitada interativamente em cada operação Restic,
+sem `RESTIC_PASSWORD_FILE` persistente no servidor. Os exemplos abaixo solicitam a senha
+no terminal.
 
 ### 6.3. Conteúdo obrigatório de cada conjunto
 
@@ -341,6 +350,8 @@ repositório.
 - arquivo do volume `documentos_data`;
 - manifestos SHA-256 do dump, globals e arquivo documental;
 - commit Git, migration atual, versão PostgreSQL e data/hora UTC;
+- `git archive` e `git bundle` do commit implantado, para recuperar o código mesmo sem
+  acesso ao repositório remoto; a árvore Git no servidor precisa estar limpa;
 - `docker-compose.yml`, `postgresql.conf` e `.env`, estes dentro do repositório cifrado;
 - bundle das imagens Docker aprovadas a cada versão implantada, enquanto backend e
   imagens-base não estiverem integralmente fixados por lockfiles e digests;
@@ -356,9 +367,13 @@ e guardá-las cifradas como artefato de recuperação. Não incluir caches, `nod
 
 ### 6.4. Backup manual coordenado — procedimento de contingência
 
-> **Estado atual:** este procedimento é o baseline manual. A automação Restic + WAL +
-> alertas ainda pertence à Fase 8. O diretório de estágio precisa estar em filesystem
-> cifrado; caso o HDD não use criptografia de bloco, não deixar dumps/tar em texto claro.
+> **Estado atual:** este procedimento é o baseline manual. O repositório contém o
+> executável e o wrapper manual em `infra/backup/`, mas eles **não estão configurados ou
+> comprovados** até o responsável preparar
+> staging cifrado, cofre externo da senha e o primeiro restore isolado. WAL, retenção e
+> alertas continuam pendentes. O diretório de estágio precisa estar em
+> filesystem cifrado; caso o HDD não use criptografia de bloco, não deixar dumps/tar em
+> texto claro.
 
 1. Avisar a janela e confirmar que ninguém está registrando atendimento.
 2. Verificar espaço e saúde dos contêineres.
@@ -447,11 +462,11 @@ sha256sum --check "$BACKUP_RUN/SHA256SUMS"
 ```
 
 ```bash
-restic --repository-file <ARQUIVO_REPOSITORY> --password-file <ARQUIVO_PASSWORD> backup "$BACKUP_RUN" ../.env docker-compose.yml postgres/postgresql.conf --tag agenda-coordenado --group-by host,tags
+restic --repository-file <ARQUIVO_REPOSITORY> backup "$BACKUP_RUN" ../.env docker-compose.yml postgres/postgresql.conf --tag agenda-coordenado
 ```
 
 ```bash
-restic --repository-file <ARQUIVO_REPOSITORY> --password-file <ARQUIVO_PASSWORD> snapshots --latest 1
+restic --repository-file <ARQUIVO_REPOSITORY> snapshots --latest 1
 ```
 
 Se o dump ou o `tar` falhar, o conjunto é inválido. Reiniciar o serviço, preservar o log
@@ -485,7 +500,7 @@ sha256sum "$IMAGE_BUNDLE_DIR/imagens-docker.tar" > "$IMAGE_BUNDLE_DIR/SHA256SUMS
 ```
 
 ```bash
-restic --repository-file <ARQUIVO_REPOSITORY> --password-file <ARQUIVO_PASSWORD> backup "$IMAGE_BUNDLE_DIR" --tag agenda-imagens --group-by host,tags
+restic --repository-file <ARQUIVO_REPOSITORY> backup "$IMAGE_BUNDLE_DIR" --tag agenda-imagens
 ```
 
 No host limpo de recuperação, validar o checksum antes de carregar:
@@ -496,20 +511,21 @@ docker image load -i "$IMAGE_BUNDLE_DIR/imagens-docker.tar"
 
 ### 6.5. Retenção e limpeza do repositório
 
-O diretório `$BACKUP_RUN` muda a cada execução. Sem `--group-by host,tags`, o Restic
-separaria cada caminho datado em um grupo e a retenção não removeria snapshots antigos.
-Usar o mesmo agrupamento no `backup` e no `forget`.
+O diretório `$BACKUP_RUN` muda a cada execução. Por isso a retenção deve usar
+`--group-by host,tags` no `forget`, ignorando o caminho datado ao formar os grupos. O
+Restic 0.14 instalado não aceita essa opção no comando `backup`; a tag estável é aplicada
+na criação do snapshot e o agrupamento ocorre somente ao calcular a retenção.
 
 Primeiro simular; depois revisar a lista antes de remover snapshots. `prune` exige acesso
 de exclusão e deve rodar com credencial administrativa separada quando houver modo
 append-only.
 
 ```bash
-restic --repository-file <ARQUIVO_REPOSITORY> --password-file <ARQUIVO_ADMIN_PASSWORD> forget --tag agenda-coordenado --group-by host,tags --keep-daily 14 --keep-weekly 8 --keep-monthly 3 --dry-run
+restic --repository-file <ARQUIVO_REPOSITORY> forget --tag agenda-coordenado --group-by host,tags --keep-daily 14 --keep-weekly 8 --keep-monthly 3 --dry-run
 ```
 
 ```bash
-restic --repository-file <ARQUIVO_REPOSITORY> --password-file <ARQUIVO_ADMIN_PASSWORD> forget --tag agenda-coordenado --group-by host,tags --keep-daily 14 --keep-weekly 8 --keep-monthly 3 --prune
+restic --repository-file <ARQUIVO_REPOSITORY> forget --tag agenda-coordenado --group-by host,tags --keep-daily 14 --keep-weekly 8 --keep-monthly 3 --prune
 ```
 
 Backup não é arquivo histórico. O prontuário exigido por norma permanece no sistema ou
@@ -619,7 +635,7 @@ export SNAPSHOT_ID=<ID_DO_SNAPSHOT_COORDENADO>
 ```
 
 ```bash
-restic --repository-file <ARQUIVO_REPOSITORY> --password-file <ARQUIVO_PASSWORD> ls "$SNAPSHOT_ID"
+restic --repository-file <ARQUIVO_REPOSITORY> ls "$SNAPSHOT_ID"
 ```
 
 ```bash
@@ -627,7 +643,7 @@ export RESTORE_TARGET=<DIRETORIO_PROTEGIDO_E_VAZIO>
 ```
 
 ```bash
-restic --repository-file <ARQUIVO_REPOSITORY> --password-file <ARQUIVO_PASSWORD> restore "$SNAPSHOT_ID" --target "$RESTORE_TARGET"
+restic --repository-file <ARQUIVO_REPOSITORY> restore "$SNAPSHOT_ID" --target "$RESTORE_TARGET"
 ```
 
 O Restic preserva a árvore dos caminhos de origem dentro do `--target`. Localizar nos
