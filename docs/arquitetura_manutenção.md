@@ -367,11 +367,12 @@ e guardá-las cifradas como artefato de recuperação. Não incluir caches, `nod
 
 ### 6.4. Backup manual coordenado — procedimento de contingência
 
-> **Estado atual:** este procedimento é o baseline manual. O repositório contém o
-> executável e o wrapper manual em `infra/backup/`, mas eles **não estão configurados ou
-> comprovados** até o responsável preparar
-> staging cifrado, cofre externo da senha e o primeiro restore isolado. WAL, retenção e
-> alertas continuam pendentes. O diretório de estágio precisa estar em
+> **Estado atual:** este procedimento é o baseline manual. O staging gocryptfs, o
+> repositório Restic e o wrapper de `infra/backup/` estão configurados no servidor sem
+> senhas persistidas. O primeiro conjunto manual passou pelas verificações estruturais,
+> mas o wrapper só será considerado comprovado depois de uma execução integrada completa
+> e do primeiro restore isolado. WAL, retenção e alertas continuam pendentes. O diretório
+> de estágio precisa estar em
 > filesystem cifrado; caso o HDD não use criptografia de bloco, não deixar dumps/tar em
 > texto claro.
 

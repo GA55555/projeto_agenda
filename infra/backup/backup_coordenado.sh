@@ -38,7 +38,7 @@ source "$CONFIG_FILE"
 readonly INFRA_DIR="${AGENDA_INFRA_DIR:-$(cd -- "$SCRIPT_DIR/.." && pwd -P)}"
 readonly PROJECT_ROOT="$(cd -- "$INFRA_DIR/.." && pwd -P)"
 readonly ENV_FILE="$PROJECT_ROOT/.env"
-readonly COMPOSE=(docker compose --env-file "$ENV_FILE")
+readonly COMPOSE=(docker compose --env-file "$ENV_FILE" -f "$INFRA_DIR/docker-compose.yml")
 
 : "${BACKUP_STAGE_ROOT:?BACKUP_STAGE_ROOT e obrigatorio}"
 : "${BACKUP_STAGE_ENCRYPTION_ATTESTATION:?ateste de criptografia e obrigatorio}"
@@ -155,6 +155,8 @@ wait_for_healthy frontend || die "frontend nao esta saudavel antes do backup"
 
 backend_container="$("${COMPOSE[@]}" ps -q backend)"
 [[ -n "$backend_container" ]] || die "container backend nao encontrado"
+postgres_container="$("${COMPOSE[@]}" ps -q postgres)"
+[[ -n "$postgres_container" ]] || die "container PostgreSQL nao encontrado"
 docs_volume="$(docker inspect "$backend_container" --format '{{range .Mounts}}{{if eq .Destination "/app/data/documentos"}}{{.Name}}{{end}}{{end}}')"
 [[ -n "$docs_volume" ]] || die "volume documental nao encontrado no backend"
 
@@ -167,6 +169,9 @@ readonly GIT_COMMIT="$(git -C "$PROJECT_ROOT" rev-parse HEAD)"
 git -C "$PROJECT_ROOT" archive --format=tar --prefix=projeto_agenda/ "$GIT_COMMIT" > "$BACKUP_RUN/projeto_agenda-source.tar"
 git -C "$PROJECT_ROOT" bundle create "$BACKUP_RUN/projeto_agenda.bundle" HEAD
 git -C "$PROJECT_ROOT" bundle verify "$BACKUP_RUN/projeto_agenda.bundle" >/dev/null
+printf 'Registrando a revisao atual das migracoes...\n'
+timeout --foreground --kill-after=10s 2m \
+  docker exec "$backend_container" alembic current > "$BACKUP_RUN/alembic-current.txt"
 write_report "fonte=git-archive-e-bundle"
 
 # A pausa curta fecha a fronteira de escrita: Postgres continua ativo para o dump,
@@ -174,21 +179,24 @@ write_report "fonte=git-archive-e-bundle"
 services_were_stopped=1
 "${COMPOSE[@]}" stop frontend backend
 
-timeout 20m "${COMPOSE[@]}" exec -T postgres sh -lc \
+printf 'Gerando o dump do banco de dados...\n'
+timeout --foreground --kill-after=10s 20m docker exec "$postgres_container" sh -lc \
   'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "$BACKUP_RUN/agenda.dump"
-timeout 5m "${COMPOSE[@]}" exec -T postgres sh -lc \
+printf 'Gerando o backup dos papeis globais do PostgreSQL...\n'
+timeout --foreground --kill-after=10s 5m docker exec "$postgres_container" sh -lc \
   'pg_dumpall -U "$POSTGRES_USER" --globals-only' > "$BACKUP_RUN/globals.sql"
 
 # O volume e lido por um container sem rede e somente-leitura. O arquivo gerado
 # existe apenas no estagio cifrado e sera enviado ao Restic tambem cifrado.
-timeout 15m docker run --rm --network none --read-only --entrypoint tar \
+printf 'Arquivando o volume de documentos...\n'
+timeout --foreground --kill-after=10s 15m \
+  docker run --rm --network none --read-only --entrypoint tar \
   -v "$docs_volume:/source:ro" -v "$BACKUP_RUN:/backup:rw" \
   "$BACKUP_TAR_IMAGE" -C /source -cf /backup/documentos.tar .
 
 printf '%s\n' "$GIT_COMMIT" > "$BACKUP_RUN/git-commit.txt"
 date -u +%Y-%m-%dT%H:%M:%SZ > "$BACKUP_RUN/criado-em-utc.txt"
-"${COMPOSE[@]}" exec -T postgres postgres --version > "$BACKUP_RUN/postgres-version.txt"
-"${COMPOSE[@]}" run --rm --no-deps backend alembic current > "$BACKUP_RUN/alembic-current.txt"
+docker exec "$postgres_container" postgres --version > "$BACKUP_RUN/postgres-version.txt"
 install -d -m 0700 "$BACKUP_RUN/config"
 install -m 0600 "$ENV_FILE" "$BACKUP_RUN/config/.env"
 install -m 0600 "$INFRA_DIR/docker-compose.yml" "$BACKUP_RUN/config/docker-compose.yml"
@@ -202,7 +210,8 @@ install -m 0600 "$INFRA_DIR/postgres/postgresql.conf" "$BACKUP_RUN/config/postgr
 # A indisponibilidade termina antes das verificacoes e do envio ao Restic.
 restart_services
 
-"${COMPOSE[@]}" exec -T postgres pg_restore --list < "$BACKUP_RUN/agenda.dump" >/dev/null
+printf 'Validando os artefatos gerados...\n'
+docker exec -i "$postgres_container" pg_restore --list < "$BACKUP_RUN/agenda.dump" >/dev/null
 tar -tf "$BACKUP_RUN/documentos.tar" >/dev/null
 tar -tf "$BACKUP_RUN/projeto_agenda-source.tar" >/dev/null
 git -C "$PROJECT_ROOT" bundle verify "$BACKUP_RUN/projeto_agenda.bundle" >/dev/null
@@ -211,6 +220,7 @@ git -C "$PROJECT_ROOT" bundle verify "$BACKUP_RUN/projeto_agenda.bundle" >/dev/n
   die "o commit mudou durante o backup; conjunto recusado"
 write_report "artefatos=validados"
 
+printf 'Enviando o conjunto validado ao repositorio Restic...\n'
 snapshot_output="$(timeout "${BACKUP_RESTIC_TIMEOUT_SECONDS}s" restic --repository-file "$RESTIC_REPOSITORY_FILE" \
   backup "$BACKUP_RUN" --tag agenda-coordenado)"
 snapshot_id="$(printf '%s\n' "$snapshot_output" | sed -n 's/.*snapshot \([[:xdigit:]]\{8,\}\).*/\1/p' | tail -n 1)"
