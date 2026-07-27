@@ -91,8 +91,8 @@ done
 timeout "${BACKUP_IMAGE_TIMEOUT_SECONDS}s" docker image save "${image_refs[@]}" > "$BACKUP_RUN/imagens-docker.tar"
 printf '%s\n' "$GIT_COMMIT" > "$BACKUP_RUN/git-commit.txt"
 date -u +%Y-%m-%dT%H:%M:%SZ > "$BACKUP_RUN/criado-em-utc.txt"
-sha256sum "$BACKUP_RUN/imagens-docker.tar" > "$BACKUP_RUN/SHA256SUMS"
-sha256sum --check "$BACKUP_RUN/SHA256SUMS" >/dev/null
+(cd "$BACKUP_RUN" && sha256sum imagens-docker.tar > SHA256SUMS)
+(cd "$BACKUP_RUN" && sha256sum --check SHA256SUMS >/dev/null)
 [[ "$(git -C "$PROJECT_ROOT" rev-parse HEAD)" == "$GIT_COMMIT" ]] || \
   die "o commit mudou durante o bundle de imagens; conjunto recusado"
 
