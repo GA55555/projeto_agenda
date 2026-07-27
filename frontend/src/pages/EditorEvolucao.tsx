@@ -28,6 +28,7 @@ export function EditorEvolucao() {
   const [chunks, setChunks] = useState<number | null>(null);
   const [gerando, setGerando] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const [assinaturaConfirmada, setAssinaturaConfirmada] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
   // Ao navegar entre pacientes o componente NÃO remonta (só o :id muda) — zera
@@ -39,6 +40,7 @@ export function EditorEvolucao() {
     setDestaques([]);
     setChunks(null);
     setErro(null);
+    setAssinaturaConfirmada(false);
   }, [id]);
 
   function traduzErro(e: unknown): string {
@@ -64,6 +66,7 @@ export function EditorEvolucao() {
       setTexto(r.evolucao);
       setDestaques(r.destaques);
       setChunks(r.chunks_contexto);
+      setAssinaturaConfirmada(false);
     } catch (e) {
       setErro(traduzErro(e));
     } finally {
@@ -104,7 +107,14 @@ export function EditorEvolucao() {
               como “Realizado” na agenda primeiro — a evolução documenta uma sessão que ocorreu.
             </p>
           ) : (
-            <select value={agendamentoId} onChange={(e) => setAgendamentoId(e.target.value)} required>
+            <select
+              value={agendamentoId}
+              onChange={(e) => {
+                setAgendamentoId(e.target.value);
+                setAssinaturaConfirmada(false);
+              }}
+              required
+            >
               <option value="">Selecione o atendimento…</option>
               {atendimentos.map((a) => (
                 <option key={a.id} value={a.id}>
@@ -135,7 +145,14 @@ export function EditorEvolucao() {
         <div className="card">
           <label className="campo">
             Evolução (revise antes de gravar)
-            <textarea rows={10} value={texto} onChange={(e) => setTexto(e.target.value)} />
+            <textarea
+              rows={10}
+              value={texto}
+              onChange={(e) => {
+                setTexto(e.target.value);
+                setAssinaturaConfirmada(false);
+              }}
+            />
           </label>
 
           {destaques.length > 0 && (
@@ -155,11 +172,19 @@ export function EditorEvolucao() {
           {!agendamentoId && (
             <p className="aviso">Selecione acima o atendimento ao qual esta evolução pertence.</p>
           )}
+          <label className="campo assinatura-evolucao">
+            <input
+              type="checkbox"
+              checked={assinaturaConfirmada}
+              onChange={(e) => setAssinaturaConfirmada(e.target.checked)}
+            />
+            Confirmo que revisei o conteúdo e assino eletronicamente esta evolução clínica.
+          </label>
           <button
             onClick={() => void aprovarEGravar()}
-            disabled={salvando || texto.trim().length === 0 || !agendamentoId}
+            disabled={salvando || texto.trim().length === 0 || !agendamentoId || !assinaturaConfirmada}
           >
-            {salvando ? "Gravando…" : "Aprovar e gravar"}
+            {salvando ? "Assinando…" : "Assinar e gravar"}
           </button>
         </div>
       )}

@@ -27,6 +27,9 @@ RUN pip install --upgrade pip && pip install ".[nlp]" \
 # ---- Estagio 2: runtime (apenas o venv + codigo, sem toolchain) ----
 FROM python:3.12-slim AS runtime
 
+ARG VCS_REF=unknown
+LABEL org.opencontainers.image.revision=$VCS_REF
+
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PATH="/opt/venv/bin:$PATH"

@@ -10,6 +10,7 @@ Fase do roadmap: Fase 5
 """
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -20,6 +21,8 @@ class EvolucaoCreate(BaseModel):
     # (a data do atendimento vem do agendamento). Legadas ficam sem vinculo.
     agendamento_id: uuid.UUID
     texto: str = Field(min_length=1)
+    # A API exige intenção explícita; autenticação por si só não assina uma nota.
+    confirmar_assinatura: Literal[True]
 
 
 class EvolucaoOut(BaseModel):
@@ -28,10 +31,12 @@ class EvolucaoOut(BaseModel):
     id: uuid.UUID
     paciente_id: uuid.UUID
     autor_usuario_id: uuid.UUID
+    assinada_por_usuario_id: uuid.UUID
     agendamento_id: uuid.UUID | None
     # Inicio do agendamento vinculado (None nas evolucoes legadas sem vinculo).
     data_atendimento: datetime | None
     texto: str
     criado_em: datetime
+    assinada_em: datetime
     total_chunks: int
     embeddings_pendentes: int

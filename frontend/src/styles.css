@@ -107,6 +107,13 @@ input:focus, textarea:focus, select:focus {
 textarea { resize: vertical; }
 label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.92rem; color: var(--muted); }
 .campo { margin: 0.9rem 0; }
+.assinatura-evolucao {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.6rem;
+  color: var(--fg);
+}
+.assinatura-evolucao input { width: auto; margin-top: 0.15rem; }
 
 /* ---- Login (centralizado) ---- */
 .centro { min-height: 100vh; display: grid; place-items: center; padding: 1rem; }

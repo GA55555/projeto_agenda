@@ -74,24 +74,50 @@ trap 'exit 143' TERM
 trap 'exit 130' INT
 mkdir --mode=0700 -- "$BACKUP_RUN"
 
-git -C "$PROJECT_ROOT" diff --quiet || die "arvore Git possui alteracoes locais nao commitadas"
-git -C "$PROJECT_ROOT" diff --cached --quiet || die "indice Git possui alteracoes nao commitadas"
+[[ -z "$(git -C "$PROJECT_ROOT" status --porcelain --untracked-files=normal)" ]] || \
+  die "arvore Git possui alteracoes locais ou arquivos nao rastreados"
 readonly GIT_COMMIT="$(git -C "$PROJECT_ROOT" rev-parse HEAD)"
 
 declare -a image_refs=()
+declare -a services=()
+declare -a containers=()
+declare -a image_ids=()
 for service in postgres backend frontend; do
   container="$("${COMPOSE[@]}" ps -q "$service")"
   [[ -n "$container" ]] || die "container $service nao encontrado"
   image_ref="$(docker inspect "$container" --format '{{.Config.Image}}')"
   [[ -n "$image_ref" ]] || die "imagem de $service nao encontrada"
+  container_image_id="$(docker inspect "$container" --format '{{.Image}}')"
+  tagged_image_id="$(docker image inspect "$image_ref" --format '{{.Id}}')"
+  [[ -n "$container_image_id" && "$tagged_image_id" == "$container_image_id" ]] || \
+    die "tag $image_ref nao corresponde a imagem executada por $service"
+  revision="$(docker image inspect "$container_image_id" \
+    --format '{{with index .Config.Labels "org.opencontainers.image.revision"}}{{.}}{{end}}')"
+  if [[ "$service" == backend || "$service" == frontend ]]; then
+    [[ "$revision" == "$GIT_COMMIT" ]] || \
+      die "imagem de $service nao foi construida do commit $GIT_COMMIT (revisao: ${revision:-ausente})"
+  fi
+  services+=("$service")
+  containers+=("$container")
   image_refs+=("$image_ref")
-  printf '%s %s\n' "$service" "$image_ref" >> "$BACKUP_RUN/imagens-em-execucao.txt"
+  image_ids+=("$container_image_id")
+  printf '%s\t%s\t%s\t%s\n' "$service" "$image_ref" "$container_image_id" "${revision:--}" \
+    >> "$BACKUP_RUN/imagens-em-execucao.txt"
 done
 
 timeout "${BACKUP_IMAGE_TIMEOUT_SECONDS}s" docker image save "${image_refs[@]}" > "$BACKUP_RUN/imagens-docker.tar"
+# Fecha a janela de corrida: nem a tag nem o container podem ter mudado enquanto
+# o tar era criado. O bundle deve representar exatamente o runtime observado.
+for i in "${!services[@]}"; do
+  [[ "$(docker inspect "${containers[$i]}" --format '{{.Image}}')" == "${image_ids[$i]}" ]] || \
+    die "container ${services[$i]} mudou durante o bundle"
+  [[ "$(docker image inspect "${image_refs[$i]}" --format '{{.Id}}')" == "${image_ids[$i]}" ]] || \
+    die "tag ${image_refs[$i]} mudou durante o bundle"
+done
 printf '%s\n' "$GIT_COMMIT" > "$BACKUP_RUN/git-commit.txt"
 date -u +%Y-%m-%dT%H:%M:%SZ > "$BACKUP_RUN/criado-em-utc.txt"
-(cd "$BACKUP_RUN" && sha256sum imagens-docker.tar > SHA256SUMS)
+(cd "$BACKUP_RUN" && sha256sum imagens-docker.tar git-commit.txt criado-em-utc.txt \
+  imagens-em-execucao.txt > SHA256SUMS)
 (cd "$BACKUP_RUN" && sha256sum --check SHA256SUMS >/dev/null)
 [[ "$(git -C "$PROJECT_ROOT" rev-parse HEAD)" == "$GIT_COMMIT" ]] || \
   die "o commit mudou durante o bundle de imagens; conjunto recusado"

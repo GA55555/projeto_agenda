@@ -369,9 +369,10 @@ e guardá-las cifradas como artefato de recuperação. Não incluir caches, `nod
 
 > **Estado atual:** este procedimento é o baseline manual. O staging gocryptfs, o
 > repositório Restic e o wrapper de `infra/backup/` estão configurados no servidor sem
-> senhas persistidas. O primeiro conjunto manual passou pelas verificações estruturais,
-> mas o wrapper só será considerado comprovado depois de uma execução integrada completa
-> e do primeiro restore isolado. WAL, retenção e alertas continuam pendentes. O diretório
+> senhas persistidas. A execução integrada, `restic check`, hashes, carregamento de imagens
+> e `pg_restore` em recursos Docker exclusivos do mesmo host foram comprovados. O restore
+> em host/VM separado e a medição de RTO continuam pendentes; WAL, retenção e alertas também.
+> O diretório
 > de estágio precisa estar em
 > filesystem cifrado; caso o HDD não use criptografia de bloco, não deixar dumps/tar em
 > texto claro.
@@ -556,6 +557,10 @@ O n8n já existe no servidor, mas ainda não integra o `projeto_agenda`. Antes d
 primeiro workflow, registrar no inventário restrito: método de instalação, versão, banco,
 volumes, modo de armazenamento binário, `N8N_ENCRYPTION_KEY` e responsável pelas
 credenciais OAuth. A chave não entra no Git e precisa de cópia offline no cofre.
+
+Inventário e desenho são permitidos antes desse gate; webhook, credenciais OAuth e
+workflows permanecem desativados até o backup coordenado do n8n e a assinatura eletrônica
+da evolução estarem implantados e validados.
 
 O backup coordenado da Fase 8 deve:
 
@@ -824,7 +829,7 @@ git pull --ff-only origin main
 ```
 
 ```bash
-docker compose --env-file ../.env build backend frontend
+sudo env AGENDA_BUILD_REVISION="$(git rev-parse HEAD)" docker compose --env-file ../.env build backend frontend
 ```
 
 ```bash

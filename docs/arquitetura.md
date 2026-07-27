@@ -228,7 +228,16 @@ Regras inegociáveis:
 
 A lógica pesada de formatação/exportação é **descarregada do FastAPI para o n8n**.
 
-- **Acionamento seguro:** após assinatura eletrónica da profissional, o backend envia JSON via **Webhook** ao n8n local. O endpoint **exige autenticação** por cabeçalho/token criptográfico partilhado só entre FastAPI e n8n. Comunicação local **não** dispensa segurança.
+- **Assinatura eletrónica auditável:** a profissional autenticada precisa confirmar
+  explicitamente a assinatura antes da gravação. A evolução registra assinante e data,
+  emite evento na auditoria append-only dentro da mesma transação e torna-se imutável no
+  motor do BD (sem `UPDATE`/`DELETE` e com trigger). Essa combinação — identidade
+  autenticada, intenção inequívoca, integridade e trilha auditável — é o único evento que
+  pode liberar exportação.
+- **Acionamento seguro:** somente após esse evento de assinatura, o backend envia JSON via
+  **Webhook** ao n8n local. O endpoint exige autenticação criptográfica, timestamp com
+  janela curta, identificador único e rejeição de replay. Comunicação local **não**
+  dispensa segurança.
 - **OAuth2 delegado ao n8n:** integração com Google Drive/Gmail gerida **exclusivamente** via OAuth2 no n8n (projeto no Google Cloud Console, *consent screen*, apenas Google Drive API + Google Docs API). A aplicação e a BD **nunca** tocam nas palavras-passe Google; dependem de *refresh tokens* revogáveis cifrados pelo n8n.
 - **Conformidade e backups:** o n8n converte a resposta limpa (não anonimizada) em PDF padronizado / Google Sheets e encaminha ao diretório encriptado da psicóloga. Rotinas diárias no **HDD 500 GB** orquestram `pg_dump` + arquivamento de **WAL** para redundância total local.
 

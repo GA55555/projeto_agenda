@@ -45,6 +45,8 @@ services:
     build:
       context: ../backend
       dockerfile: Dockerfile
+      args:
+        VCS_REF: ${AGENDA_BUILD_REVISION:-unknown}
     container_name: agenda_backend
     restart: unless-stopped
     mem_limit: 1000m                   # §1.1
@@ -81,6 +83,8 @@ services:
     build:
       context: ../frontend
       dockerfile: Dockerfile
+      args:
+        VCS_REF: ${AGENDA_BUILD_REVISION:-unknown}
     container_name: agenda_frontend
     restart: unless-stopped
     mem_limit: 100m                  # §1.1

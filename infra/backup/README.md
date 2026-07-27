@@ -64,6 +64,16 @@ deduplica conteúdo, mas o `docker image save` ainda consome disco e I/O relevan
 AMD A6. Na recuperação, validar o checksum e usar `docker image load` antes de subir o
 Compose.
 
+O build das imagens próprias precisa registrar o commit em label OCI:
+
+```bash
+sudo env AGENDA_BUILD_REVISION="$(git rev-parse HEAD)" docker compose --env-file ../.env build backend frontend
+```
+
+O bundle recusa árvore Git suja, tag diferente da imagem executada ou revisão OCI
+divergente do commit. O manifesto registra serviço, referência, ID imutável e revisão;
+esses metadados também entram no `SHA256SUMS`.
+
 Para preservar as imagens pelo mesmo ciclo manual de montagem/desmontagem, usar:
 
 ```bash

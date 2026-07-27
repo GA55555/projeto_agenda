@@ -39,6 +39,7 @@ class Evolucao(Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     paciente_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     autor_usuario_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    assinada_por_usuario_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     # Atendimento que originou a evolucao (Fase 7e). Nullable: evolucoes legadas
     # nao tem vinculo. FK composto (tenant_id, agendamento_id) na migration 0007
     # com ON DELETE RESTRICT — agendamento com prontuario nao se apaga (§2.1).
@@ -51,6 +52,7 @@ class Evolucao(Base):
     atualizado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
+    assinada_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     chunks: Mapped[list["EvolucaoChunk"]] = relationship(
         back_populates="evolucao",

@@ -40,6 +40,8 @@ TIPO_RECORRENCIA_FUTURA_APAGADA = "recorrencia_futura_apagada"
 # Fase 7k: inclusao e leitura de documento clinico sao acessos sensiveis.
 TIPO_DOCUMENTO_ENVIADO = "documento_enviado"
 TIPO_DOCUMENTO_BAIXADO = "documento_baixado"
+# Fase 8b: aprovação explícita que assina e torna imutável a evolução.
+TIPO_EVOLUCAO_ASSINADA = "evolucao_assinada"
 TIPOS_EVENTO = (
     TIPO_CONSENTIMENTO_REVOGADO,
     TIPO_GUARDA_ALTERADA,
@@ -52,6 +54,7 @@ TIPOS_EVENTO = (
     TIPO_RECORRENCIA_FUTURA_APAGADA,
     TIPO_DOCUMENTO_ENVIADO,
     TIPO_DOCUMENTO_BAIXADO,
+    TIPO_EVOLUCAO_ASSINADA,
 )
 
 

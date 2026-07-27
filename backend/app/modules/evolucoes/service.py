@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from datetime import datetime, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -31,6 +32,8 @@ from app.modules.anonimizacao import (
 )
 from app.modules.anonimizacao.exceptions import PIIVazadaError
 from app.modules.auth.dependencies import CurrentUser
+from app.modules.audit.models import TIPO_EVOLUCAO_ASSINADA
+from app.modules.audit.service import registrar_evento
 from app.modules.consentimentos.exceptions import SemConsentimentoAtivo
 from app.modules.consentimentos.service import tem_consentimento_ativo
 from app.modules.evolucoes.chunking import dividir_em_chunks
@@ -91,12 +94,17 @@ def criar_evolucao(db: Session, user: CurrentUser, dados: EvolucaoCreate) -> Evo
             "a evolucao so pode ser vinculada a um atendimento realizado"
         )
 
+    assinatura_em = datetime.now(timezone.utc)
     evolucao = Evolucao(
         tenant_id=user.tenant_id,
         paciente_id=dados.paciente_id,
         autor_usuario_id=user.id,
+        assinada_por_usuario_id=user.id,
         agendamento_id=dados.agendamento_id,
         texto=dados.texto,
+        criado_em=assinatura_em,
+        atualizado_em=assinatura_em,
+        assinada_em=assinatura_em,
     )
     db.add(evolucao)
     db.flush()  # materializa evolucao.id para os FKs dos chunks
@@ -119,6 +127,15 @@ def criar_evolucao(db: Session, user: CurrentUser, dados: EvolucaoCreate) -> Evo
     # Contagem em memoria: os chunks acabaram de ser criados nesta transacao
     # (sem query extra nem materializar vetor).
     pendentes = sum(1 for c in chunks if c.embedding is None)
+    registrar_evento(
+        db,
+        tenant_id=user.tenant_id,
+        tipo_evento=TIPO_EVOLUCAO_ASSINADA,
+        entidade="evolucao",
+        entidade_id=evolucao.id,
+        ator_usuario_id=user.id,
+        payload={"agendamento_id": str(dados.agendamento_id), "assinatura_versao": "v1"},
+    )
     return _to_out(evolucao, len(chunks), pendentes, data_atendimento=ag.inicio)
 
 
@@ -208,10 +225,12 @@ def _to_out(
         id=evolucao.id,
         paciente_id=evolucao.paciente_id,
         autor_usuario_id=evolucao.autor_usuario_id,
+        assinada_por_usuario_id=evolucao.assinada_por_usuario_id,
         agendamento_id=evolucao.agendamento_id,
         data_atendimento=data_atendimento,
         texto=evolucao.texto,
         criado_em=evolucao.criado_em,
+        assinada_em=evolucao.assinada_em,
         total_chunks=total_chunks,
         embeddings_pendentes=embeddings_pendentes,
     )

@@ -228,10 +228,12 @@ export interface Evolucao {
   id: string;
   paciente_id: string;
   autor_usuario_id: string;
+  assinada_por_usuario_id: string;
   agendamento_id: string | null; // null nas legadas (antes da 7e)
   data_atendimento: string | null; // inicio do agendamento vinculado
   texto: string;
   criado_em: string;
+  assinada_em: string;
   total_chunks: number;
   embeddings_pendentes: number;
 }
@@ -472,6 +474,11 @@ export const api = {
   criarEvolucao: (pacienteId: string, agendamentoId: string, texto: string) =>
     request<Evolucao>("/evolucoes", {
       method: "POST",
-      body: JSON.stringify({ paciente_id: pacienteId, agendamento_id: agendamentoId, texto }),
+      body: JSON.stringify({
+        paciente_id: pacienteId,
+        agendamento_id: agendamentoId,
+        texto,
+        confirmar_assinatura: true,
+      }),
     }),
 };

@@ -163,8 +163,8 @@ docs_volume="$(docker inspect "$backend_container" --format '{{range .Mounts}}{{
 # Um backup de recovery precisa reconstruir o codigo sem depender do GitHub. Alteracoes
 # locais no servidor tornariam o commit, o binario e a configuracao ambiguos; por isso
 # falhamos antes da pausa se a arvore versionada nao estiver limpa.
-git -C "$PROJECT_ROOT" diff --quiet || die "arvore Git possui alteracoes locais nao commitadas"
-git -C "$PROJECT_ROOT" diff --cached --quiet || die "indice Git possui alteracoes nao commitadas"
+[[ -z "$(git -C "$PROJECT_ROOT" status --porcelain --untracked-files=normal)" ]] || \
+  die "arvore Git possui alteracoes locais ou arquivos nao rastreados"
 readonly GIT_COMMIT="$(git -C "$PROJECT_ROOT" rev-parse HEAD)"
 git -C "$PROJECT_ROOT" archive --format=tar --prefix=projeto_agenda/ "$GIT_COMMIT" > "$BACKUP_RUN/projeto_agenda-source.tar"
 git -C "$PROJECT_ROOT" bundle create "$BACKUP_RUN/projeto_agenda.bundle" HEAD

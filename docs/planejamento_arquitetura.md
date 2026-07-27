@@ -14,24 +14,24 @@
 
 | Campo | Valor |
 | --- | --- |
-| Fase corrente | **Fase 8a (backup coordenado e restauração) em execução.** O primeiro conjunto cifrado de banco + documentos + código + configurações foi criado e passou por checksums, inspeção estrutural e `restic check`; restore isolado ainda pendente. |
-| Última atualização | 2026-07-26 |
-| Bloqueios ativos | Nenhum |
-| Próximo passo imediato | Montar manualmente o staging gocryptfs, inspecionar e remover somente o conjunto incompleto `20260725T221307Z`; repetir o backup integrado corrigido e salvar o bundle das imagens aprovadas. Depois executar restore isolado e medir o RTO. |
+| Fase corrente | **Fase 8b (inventário do n8n).** A fundação segura — proveniência imutável das imagens e assinatura eletrônica auditável — está validada localmente e aguarda deploy. |
+| Última atualização | 2026-07-27 |
+| Bloqueios ativos | **Ativação do webhook/workflow bloqueada** até deploy da migration `0011` e inclusão comprovada do banco, binários e `N8N_ENCRYPTION_KEY` do n8n no backup. Inventário e desenho permanecem liberados. |
+| Próximo passo imediato | Revisar/aprovar este diff e então inventariar somente leitura a instalação n8n: contêiner/imagem, versão, banco, volumes, armazenamento binário e presença da chave, sem expor segredos. |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
 ### 🔖 Ponto de Retomada (ler primeiro na próxima sessão)
 
-**Onde paramos (2026-07-26):** a **Fase 7 foi concluída**. Na **Fase 8a**, o HDD compartilhado `/mnt/dados` permaneceu intacto; staging gocryptfs e repositório Restic local foram configurados sem senhas persistidas. O primeiro conjunto coordenado incluiu banco, documentos, código clonável, metadados e configurações; hashes, estruturas e `restic check` passaram. A primeira prova do wrapper travou no `docker compose exec` antes de iniciar `pg_dump`; a proteção reiniciou os serviços, preservou o conjunto incompleto e desmontou o staging. A correção `1c62bc9` foi implantada e o novo `docker exec` executou um dump descartável com sucesso, sem pausar a aplicação. **Retomar por:** montar manualmente o gocryptfs, inspecionar/remover somente `20260725T221307Z` e executar novamente o wrapper completo. Restore isolado e segunda cópia offline/off-site continuam pendentes.
+**Onde paramos (2026-07-27):** a **Fase 8a** concluiu o fluxo manual de backup: snapshot coordenado `bb14c397` e bundle de imagens `2e87219b`; `restic check`, hashes, carregamento das imagens e `pg_restore` em PostgreSQL temporário sem rede passaram. O ensaio usou o mesmo host, porém contêiner, volume e staging cifrado exclusivos, todos removidos ao fim — não substitui o restore em host/VM separado nem mede RTO. A fundação segura da **8b** foi construída e validada localmente: imagens próprias vinculadas ao commit por label OCI; bundle vinculado ao ID imutável executado; assinatura explícita, auditada e imutável via migration `0011`. **Retomar por:** revisar/aprovar o diff e inventariar somente leitura o n8n; segunda cópia offline/off-site, retenção, RTO e restore em host separado permanecem pendentes de hardening.
 
-- **Estado de deploy do servidor:** código **`1c62bc9`**, migration **`0010 (head)`**, PostgreSQL/backend/frontend saudáveis; healthcheck IPv4 aplicado, wrapper manual configurado e caminho direto de `pg_dump` aprovado.
+- **Estado de deploy do servidor:** código **`1129498`**, migration **`0010 (head)`**, PostgreSQL/backend/frontend saudáveis; a fundação 8b e migration `0011` ainda são mudanças locais não implantadas.
 - **Sub-fases da Fase 7 (todas commitadas):** 7a/7b/7c (deployadas) · **7d** (`d6f3a95`): ações na agenda (realizado/falta/cancelar), `GET /dashboard/resumo`, **perfil** (`PATCH /auth/me`+senha; **migration `0006` GRANT UPDATE em `usuarios`** — sem ela o "alterar nome" dá 500, foi a causa do bug relatado) · **7e** (`e5b2d7c`): agenda por cliques + apagar; **arquivar/apagar paciente** (apagar bloqueado com prontuário, CFP §0.3); **evolução ↔ atendimento REALIZADO** (**migration `0007`**); dashboard histórico (dia/mês, cancelados, tooltips); responsável 18+ · **7f** (`65d8a7b`): **calendário** no dashboard (`GET /dashboard/{dia,mes,calendario}`, dashboard dividido dia/mês) + **recorrência** de agendamento (série materializada `serie_id`/`serie_frequencia`, **migration `0008`**; desfazer via `/agenda/:id`) · **7g** (`5603392`): polimento de UX (fonte maior, espaçamento, badge do calendário, **cartões de paciente** com observações editáveis inline). Detalhe de cada uma na seção da Fase 7 abaixo.
 - **⚠️ Regra de fluxo nova (7e):** para gravar uma evolução, o atendimento precisa estar **`Realizado`** na agenda (o editor só lista realizados). Reflete o modelo "evolução documenta sessão que ocorreu".
 - **Regra de arquivamento (7i):** paciente com atendimento futuro em estado `agendado` não pode ser arquivado; criação de agenda e arquivamento travam a mesma linha do paciente, evitando corrida. Paciente arquivado também não aceita novo agendamento. A ação preserva prontuário, registra ator/data e é auditável (§2.1/§2.2).
 - **Escopo aprovado das próximas subfases:** **7j** = mini-dashboard clínico-administrativo na ficha (quantidade e situação das sessões, última, próxima, faltas/cancelamentos, cadência e histórico); **7k** = documentos PDF/DOCX/JPEG/PNG, armazenamento privado, validação e sanitização dentro do backend, sem criar outro serviço ou máquina. Arquivar exige resolver agenda futura; não há máquina auxiliar para varredura antivírus.
 
-**Próximo passo imediato: FASE 8a — RECOVERY.** Montar manualmente o staging cifrado, inspecionar e remover somente o conjunto incompleto `20260725T221307Z`; executar a prova integrada do wrapper corrigido e salvar o bundle das imagens implantadas. Em seguida restaurar o conjunto em ambiente isolado, conferir RLS/hashes/coerência banco↔documentos e medir o RTO. A rotação da credencial anteriormente versionada continua obrigatória.
+**Próximo passo imediato: FASE 8b — INVENTÁRIO n8n.** Descobrir, sem alterar o serviço nem expor segredos, o método de instalação, imagem/versão, banco, volumes, armazenamento binário e a presença da chave de cifragem. Só então definir o backup coordenado do n8n e o desenho do webhook autenticado pós-assinatura (§4.2). A rotação da credencial anteriormente versionada continua obrigatória.
 
 **Fluxo de trabalho (imutável):** plano+perguntas → construir/validar local (WSL, sem Docker: `py_compile` + venv de teste `pytest tests/unit` + render offline do SQL; **frontend**: `npx tsc --noEmit` + `npm run build` — node 22 disponível no WSL) → **revisar com o usuário** (trazer diff/resumo) → `/code-review` alto esforço (usuário quase sempre pede) → **commit direto em `main`** (Co-Authored-By) → **push só quando o usuário pede** → **usuário** faz deploy no servidor e valida → marcar ✅. Comandos ao usuário **uma linha por vez** (terminal quebra pastes compostos). Ver [[feedback-fluxo-trabalho-agenda]].
 
@@ -53,7 +53,10 @@
 - **Portas:** backend publicado em `127.0.0.1:8010` (`BACKEND_HOST_PORT` — a 8000 é do Portainer). **Frontend (SPA) em `127.0.0.1:8090`** (`FRONTEND_HOST_PORT` — a 8080 é do Homarr → `/board`). Postgres **sem** porta exposta. Sem GUI de admin (só `psql` via `exec`, §2.1.1). O browser fala **só com o Nginx** (`8090`), que faz proxy de `/api`→backend.
 - **`.env` da Fase 7:** `FRONTEND_HOST_PORT=8090` e **`COOKIE_SECURE=false`** (deploy HTTP; sob TLS no §9 vira `true`, senão o cookie `Secure` não gruda e o login falha silenciosamente).
 - **`.env` (fora do git, `chmod 600`):** segredos gerados **no servidor** (`POSTGRES_PASSWORD`, `APP_DB_PASSWORD`, `JWT_SECRET_KEY`, `DATABASE_URL` com a senha do `agenda_app`). Ao adicionar variáveis novas ao `.env.example`, lembrar que o `.env` do servidor **não** é atualizado pelo `git pull` — editar à mão.
-- **Deploy padrão de código:** `git pull` → `docker compose --env-file ../.env up -d --build [backend]` → `docker compose --env-file ../.env exec backend alembic upgrade head`.
+- **Deploy padrão de código:** `git pull` → build com revisão OCI
+  (`sudo env AGENDA_BUILD_REVISION="$(git rev-parse HEAD)" docker compose --env-file ../.env build backend frontend`)
+  → migration → `up -d`. O bundle recusa imagem cuja revisão, ID ou tag não corresponda
+  ao contêiner efetivamente executado.
 - **Fase 7 (SPA):** deploy `up -d --build backend frontend` (sem migration na 7b/7c). **⚠️ 7d (fechamento) TEM migration:** `alembic upgrade head` → **`0006`** (GRANT UPDATE em `usuarios` p/ o perfil; sem ela, PATCH /auth/me e troca de senha dão 500 por privilégio). Acesso via túnel Tailscale (acima). Validar: login por cookie (`COOKIE_SECURE=false` em HTTP), dashboard, wizard de paciente, agendar (409 se sobrepor), CPF duplicado → 409. **Gotcha:** *response models (`Out`) usam `str` para e-mail, não `EmailStr`* — o `email-validator` rejeita TLDs reservados (`.local`) na serialização e derruba o endpoint (aconteceu no `/auth/me`).
 - **Fase 7k (documentos):** o Compose cria o volume privado `documentos_data`, montado **somente** no backend, e um `tmpfs` limitado para originais/intermediários. Deploy exige reconstruir **backend + frontend** e aplicar a migration **`0010`**. Os limites têm defaults seguros; se personalizados no `.env`, usar `DOCUMENTOS_*`. **Backup obrigatório:** copiar o volume de forma cifrada junto do dump/WAL e testar restauração coordenada entre metadados e binários.
 - **Fase 5 (RAG):** deploy padrão + **`alembic upgrade head`** (migration `0005`: `evolucoes` + `evolucao_chunks`). Adicionar **`OPENAI_API_KEY`** ao `.env` do servidor à mão (o `git pull` não toca o `.env`). Sem a chave, evoluções são criadas normalmente e os embeddings ficam **pendentes** (null) até a chave existir. `pgvector`/`openai` já entram no build (deps base).
@@ -79,7 +82,7 @@
 | 5 | IA Vetorial & RAG | Embeddings, filtragem híbrida, chunking | ✅ Concluído |
 | 6 | Integração LLM (OpenAI) | Geração de evoluções via túnel de pseudonimização | ✅ Concluído |
 | 7 | Frontend (SPA) | Interface das psicólogas, aprovação de evoluções | ✅ Concluído |
-| 8 | Automação n8n & Backups | Webhooks, OAuth2, PDFs, pg_dump/WAL | 🟡 Em progresso (8a) |
+| 8 | Automação n8n & Backups | Webhooks, OAuth2, PDFs, pg_dump/WAL | 🟡 Em progresso (8b: inventário n8n) |
 | 9 | Hardening & Go-Live | Segurança final, limites, observabilidade, deploy | ⬜ Não iniciado |
 
 Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloqueado
@@ -302,7 +305,10 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 ### Tarefas — 7b (telas) ✅ deployada e validada
 - [x] **Agenda do dia** (`GET /agendamentos` filtrado por [de,ate) do dia + mapa de nomes); **ficha do paciente** (dados+responsáveis+**status TCLE**+evoluções). Shell de navegação (Agenda·Pacientes·Sair).
 - [x] **Editor de evolução**: nota do dia → `POST /llm/evolucoes/rascunho` → revisar/editar (desanonimizado) → aprovar → `POST /evolucoes`. Trata 422 (mostra `detail` real), 503 (IA), 401 (login).
-- [→] Assinatura eletrônica formal → **§9** (decisão: "aprovar e gravar" = aprovação auditável via `autor_usuario_id`+timestamp; assinatura criptográfica depois).
+- [x] Assinatura eletrônica auditável construída na fundação da **8b**: confirmação
+  explícita no payload/UI, assinante+data, auditoria atômica e evolução imutável no BD
+  (migration `0011`). Não é assinatura com certificado ICP-Brasil; é assinatura eletrônica
+  autenticada e auditável adequada ao acionamento interno definido no §4.2.
 - [~] Distinção de acesso pais × conteúdo (§2.2) → app **só psicólogas** nesta fase; portal dos pais é fase própria.
 
 ### Definition of Done
@@ -418,7 +424,8 @@ Legenda: ⬜ Não iniciado · 🟡 Em progresso · ✅ Concluído · ⛔ Bloquea
 
 Backup/restauração vem antes de n8n: os documentos clínicos já existem e precisam de
 proteção operacional agora; automação externa aumenta a superfície e só entra depois que
-o recovery estiver provado.
+o recovery estiver provado. O inventário e o desenho podem ocorrer em paralelo, mas
+nenhum webhook/workflow é ativado antes de o backup do próprio n8n estar comprovado.
 
 ### 8a — Backup coordenado e restauração
 
@@ -426,22 +433,31 @@ o recovery estiver provado.
 - [x] Confirmar Restic instalado. *(Restic 0.14.0 instalado pelo repositório Debian em 2026-07-23.)*
 - [x] Criar staging gocryptfs por diretório no HDD compartilhado, sem alterar partições ou os demais serviços, e inicializar repositório Restic cifrado. *(Senhas manuais fora do servidor; primeiro snapshot verificado em 2026-07-25.)*
 - [ ] Guardar a senha do repositório fora do servidor em cofre controlado; registrar responsável e procedimento de substituição.
-- [ ] Implantar e provar o wrapper manual idempotente: `pg_dump -Fc`, globals, `documentos_data`, checksums, commit, migration, configurações e relatório sem PII. *(Construído localmente; primeiro conjunto equivalente executado manualmente e verificado.)*
-- [ ] Salvar bundle das imagens aprovadas por versão enquanto dependências/digests não estiverem integralmente fixados.
+- [x] Implantar e provar o wrapper manual idempotente: `pg_dump -Fc`, globals, `documentos_data`, checksums, commit, migration, configurações e relatório sem PII. *(Snapshot `bb14c397`; pausa/restart e desmontagem comprovados em 2026-07-27.)*
+- [x] Salvar bundle das imagens aprovadas por versão enquanto dependências/digests não estiverem integralmente fixados. *(Bundle `2e87219b` carregado com sucesso; `1129498` torna o manifesto SHA-256 portátil para os próximos bundles.)*
 - [ ] Definir janela e responsável para execução **manual diária** com lock, timeout, retorno não zero e registro; RPO inicial de 24 h. Não habilitar timer enquanto a decisão manual vigorar.
 - [ ] Aplicar retenção `14 diários + 8 semanais + 3 mensais` agrupada por `host,tags`; `prune` somente com credencial administrativa.
-- [ ] Executar `restic check` e restaurar banco + documentos em host/VM isolado; conferir hashes e binários ausentes/órfãos.
+- [ ] Executar `restic check` e restaurar banco + documentos em host/VM isolado; conferir hashes e binários ausentes/órfãos. *(`restic check`, hashes, imagens e `pg_restore` foram provados no mesmo host, em recursos exclusivos e sem rede; falta a prova em host/VM separado.)*
 - [ ] Documentar duração real e confirmar ou revisar o RTO inicial de 4 h.
 - [ ] Planejar segunda cópia cifrada fora do servidor/local; HDD no mesmo host não completa 3-2-1.
 - [ ] Avaliar WAL/PITR separadamente; não anunciar PITR antes de base backup + cadeia WAL + restore testados.
 
-### 8b — Automação n8n e exportação
+### 8b — Automação n8n e exportação (em inventário)
 
+- [x] Construir gate de assinatura eletrônica: intenção explícita, identidade autenticada,
+  assinante/data, auditoria na mesma transação e imutabilidade no BD. *(Migration `0011`;
+  validação local aprovada; aguarda deploy.)*
 - [ ] Inventariar banco, volumes, versão e `N8N_ENCRYPTION_KEY` do n8n e incluí-los no backup antes da integração.
 - [ ] Webhook FastAPI → n8n disparado **após assinatura eletrônica**, com autenticação e proteção contra replay (§4.2).
 - [ ] Fluxo n8n: JSON mínimo → PDF padronizado; Google Sheets somente se houver finalidade aprovada.
 - [ ] OAuth2 do Google **inteiramente no n8n**, com escopos mínimos. App/BD nunca tocam senhas Google (§4.2).
 - [ ] Entrega ao diretório cifrado da psicóloga, com idempotência, auditoria e tratamento de falha sem duplicação.
+
+**Contrato de segurança antes da implementação:** evento UUID único; timestamp UTC com
+janela máxima de 5 minutos; HMAC-SHA256 sobre timestamp + evento + hash do corpo;
+comparação em tempo constante; persistência do `evento_id` para rejeitar replay; retries
+com a mesma chave idempotente; payload clínico mínimo e nunca registrado em logs. O n8n
+permanece desativado até seu banco, binários e chave de cifragem entrarem no backup.
 
 ### Definition of Done
 - Backup diário do banco **e documentos** é cifrado, verificado, alertado e restaurável como conjunto coordenado.
@@ -486,6 +502,8 @@ o recovery estiver provado.
 - 2026-07-25 — [Fase 8a] 🟡 **Wrapper manual pronto para implantação.** `configurar_manual.sh` grava apenas caminhos root-only; `executar_manual.sh` monta o gocryptfs, valida tipo/origem, solicita as duas senhas em terminal, executa o conjunto ou bundle de imagens e desmonta em `trap`. Sem timer e sem senha persistida. Corrigidos durante o ensaio: staging vazio na troca de shell, healthcheck IPv6 falso-negativo e incompatibilidade do Restic 0.14 com `backup --group-by`. Sintaxe Bash e `git diff --check` aprovados; execução integrada do wrapper depende do pull no servidor.
 - 2026-07-25 — [Fase 8a] 🟡 **Falha segura observada na prova integrada do wrapper.** Após o pull e a configuração root-only, `docker compose exec` bloqueou antes de criar a sessão `pg_dump`. O grupo suspenso foi encerrado de forma dirigida; o `trap` reiniciou backend/frontend saudáveis, preservou o staging incompleto e o wrapper desmontou o gocryptfs. A correção usa IDs validados com `docker exec`, `timeout --foreground --kill-after`, Compose com arquivo absoluto e mensagens de progresso; aguarda nova implantação e prova completa.
 - 2026-07-26 — [Fase 8a] 🟡 **Correção `1c62bc9` implantada e preflight aprovado.** Os três containers permanecem saudáveis, o staging está desmontado e um `pg_dump -Fc` descartado em `/dev/null` terminou imediatamente por `docker exec` direto. **Retomar por:** montar manualmente `/mnt/dados/agenda-backup-stage`, inspecionar/remover somente o conjunto incompleto `20260725T221307Z` e então repetir `sudo bash backup/executar_manual.sh`.
+- 2026-07-27 — [Fase 8a → 8b] ✅ **Backup e restore mínimo comprovados; inventário n8n iniciado.** O wrapper gerou o snapshot coordenado `bb14c397` e o bundle `2e87219b`; `restic check`, SHA-256, carregamento de imagens e `pg_restore` para PostgreSQL temporário sem rede passaram. Staging, contêiner e volume de ensaio foram removidos. O ensaio no mesmo host não substitui restore em host/VM separado nem mede RTO; ambos continuam pendentes. Corrigido `1129498`: checksum do bundle passa a usar caminho relativo. A 8b inicia com inventário somente leitura de n8n, sem expor `N8N_ENCRYPTION_KEY`.
+- 2026-07-27 — [Fase 8b] 🟡 **Fundação segura corrigida após code review e validada localmente.** Backend/frontend recebem a revisão Git em label OCI; o bundle recusa árvore suja, tag/ID divergentes ou revisão errada e inclui o manifesto no checksum. A evolução exige confirmação explícita, registra assinante/data e auditoria atômica e fica imutável no PostgreSQL pela migration `0011`. Webhook/workflow continua bloqueado até deploy dessa migration e backup comprovado do n8n. **135 testes unitários passaram, 1 skip; Ruff alterados, compileall, SQL upgrade/downgrade, Bash, TypeScript, Vite e diff-check aprovados.**
 - 2026-07-23 — [Manutenção/Segurança] ✅ **Manual operacional criado, revisado e validado localmente; execução real do recovery pendente no servidor.** `docs/arquitetura_manutenção.md` cobre rotina, capacidade, backup coordenado banco+documentos, Restic, restore isolado, deploy, prontuário e incidentes. Correções do review: retenção Restic agrupa por host+tag apesar do caminho datado; recovery localiza a árvore restaurada e aguarda readiness; n8n/chave entram no backup da Fase 8; imagens próprias recebem nomes estáveis e bundle aprovado enquanto faltam locks/digests; suspensão de usuário passa a revogar JWT emitido por consulta de conta ativa em toda requisição e ganha CLI administrativa. **133 unit tests, 1 skip; Ruff dos arquivos alterados, compileall, pip-check, OpenAPI e estrutura YAML/limites/imagens OK.** Integração com PostgreSQL e `docker compose config` dependem do ambiente do servidor.
 - 2026-07-22 — [Fase 7k] ✅ **Construída, revisada, validada e autorizada para envio; deploy pendente.** Upload/lista/download de PDF/DOCX/JPEG/PNG na ficha; volume privado exclusivo do backend; originais/intermediários em `tmpfs`; assinatura real; 20 MiB/arquivo e 2 GiB/tenant; reconstrução em subprocesso serializado com timeout/RAM; anti-ZIP/decompression bomb; PDF sem JavaScript/anexos/acesso externo; download autenticado, auditado e verificado por SHA-256. Migration `0010` com RLS+FORCE, FKs compostas, CHECKs e sem DELETE. **Code review final corrigiu:** ZIP aberto antes do isolamento; mídia DOCX órfã/perda silenciosa de estruturas; corrida upload×exclusão; cleanup atômico após rollback; marcador Unicode enganoso e revogação prematura do download no browser. **130 unit tests, 1 skip; 15 testes específicos reais; Ruff/compileall/pip-check/OpenAPI/SQL/Compose/tsc/build OK.** Integração de RLS adicionada, mas depende do PostgreSQL do servidor. Backup da Fase 8 ampliado para banco+`documentos_data`.
 - 2026-07-22 — [Fases 7i/7j] ✅ **7i aprovada no servidor até `86ebd6e`; UX considerada suficiente por enquanto.** 🟡 **7j construída, revisada e validada localmente, sem commit/push:** endpoint de controle de sessões sob RLS; total/mês/ano, última/próxima, faltas/cancelamentos, comparecimento, mediana recente; histórico filtrável e paginado na ficha. Review fechou exibição transitória entre pacientes e adicionou regressão de paciente invisível por RLS. **115 unit tests, 1 skip; Ruff/OpenAPI/tsc/build OK; sem migration.**

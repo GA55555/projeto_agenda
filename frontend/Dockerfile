@@ -19,6 +19,9 @@ RUN npm run build
 # ---- Estagio 2: runtime (Nginx estatico) ----
 FROM nginx:1.27-alpine AS runtime
 
+ARG VCS_REF=unknown
+LABEL org.opencontainers.image.revision=$VCS_REF
+
 # Config propria (SPA fallback + proxy /api). Remove a default.
 RUN rm /etc/nginx/conf.d/default.conf
 COPY nginx/nginx.conf /etc/nginx/conf.d/app.conf
