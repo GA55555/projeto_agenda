@@ -29,7 +29,7 @@ source "$CONFIG_FILE"
 readonly INFRA_DIR="${AGENDA_INFRA_DIR:-$(cd -- "$SCRIPT_DIR/.." && pwd -P)}"
 readonly PROJECT_ROOT="$(cd -- "$INFRA_DIR/.." && pwd -P)"
 readonly ENV_FILE="$PROJECT_ROOT/.env"
-readonly COMPOSE=(docker compose --env-file "$ENV_FILE")
+readonly COMPOSE=(docker compose --env-file "$ENV_FILE" -f "$INFRA_DIR/docker-compose.yml")
 
 : "${BACKUP_STAGE_ROOT:?BACKUP_STAGE_ROOT e obrigatorio}"
 : "${BACKUP_STAGE_ENCRYPTION_ATTESTATION:?ateste de criptografia e obrigatorio}"
@@ -42,6 +42,7 @@ readonly COMPOSE=(docker compose --env-file "$ENV_FILE")
 [[ -d "$BACKUP_STAGE_ROOT" ]] && mountpoint -q -- "$BACKUP_STAGE_ROOT" || die "staging cifrado nao montado"
 require_private_file "$RESTIC_REPOSITORY_FILE"
 [[ -r "$ENV_FILE" ]] || die ".env inacessivel"
+[[ -f "$INFRA_DIR/docker-compose.yml" ]] || die "docker-compose.yml inexistente"
 command -v docker >/dev/null || die "docker nao encontrado"
 command -v restic >/dev/null || die "restic nao encontrado"
 command -v sha256sum >/dev/null || die "sha256sum nao encontrado"
