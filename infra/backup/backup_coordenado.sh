@@ -46,6 +46,9 @@ readonly COMPOSE=(docker compose --env-file "$ENV_FILE" -f "$INFRA_DIR/docker-co
 : "${BACKUP_TAR_IMAGE:=agenda-frontend:current}"
 : "${BACKUP_RESTIC_TIMEOUT_SECONDS:=1200}"
 : "${BACKUP_HEALTH_TIMEOUT_SECONDS:=120}"
+: "${N8N_CONTAINER:=agenda-n8n-n8n-1}"
+: "${N8N_POSTGRES_CONTAINER:=agenda-n8n-postgres-1}"
+: "${N8N_ENCRYPTION_KEY_FILE:?N8N_ENCRYPTION_KEY_FILE e obrigatorio}"
 
 [[ "$BACKUP_STAGE_ROOT" = /* && "$BACKUP_STAGE_ROOT" != "/" ]] || \
   die "BACKUP_STAGE_ROOT deve ser um caminho absoluto e nao pode ser /"
@@ -56,6 +59,7 @@ mountpoint -q -- "$BACKUP_STAGE_ROOT" || \
   die "o estagio deve ser um ponto de montagem dedicado e cifrado"
 
 require_private_file "$RESTIC_REPOSITORY_FILE"
+require_private_file "$N8N_ENCRYPTION_KEY_FILE"
 [[ -r "$ENV_FILE" ]] || die ".env inacessivel: $ENV_FILE"
 [[ -f "$INFRA_DIR/docker-compose.yml" ]] || die "docker-compose.yml inexistente"
 command -v docker >/dev/null || die "docker nao encontrado"
@@ -67,6 +71,7 @@ command -v tar >/dev/null || die "tar nao encontrado"
 command -v git >/dev/null || die "git nao encontrado"
 command -v mountpoint >/dev/null || die "mountpoint nao encontrado"
 command -v sed >/dev/null || die "sed nao encontrado"
+command -v cut >/dev/null || die "cut nao encontrado"
 command -v sleep >/dev/null || die "sleep nao encontrado"
 [[ "$BACKUP_RESTIC_TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ ]] || die "timeout Restic invalido"
 [[ "$BACKUP_HEALTH_TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ ]] || die "timeout de healthcheck invalido"
@@ -92,6 +97,7 @@ readonly RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
 readonly BACKUP_RUN="$BACKUP_STAGE_ROOT/$RUN_ID"
 readonly REPORT_FILE="$BACKUP_RUN/relatorio.txt"
 services_were_stopped=0
+n8n_was_stopped=0
 
 write_report() {
   printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >> "$REPORT_FILE"
@@ -111,18 +117,42 @@ wait_for_healthy() {
   return 1
 }
 
+wait_for_container_healthy() {
+  local container="$1" health waited=0
+  while (( waited < BACKUP_HEALTH_TIMEOUT_SECONDS )); do
+    health="$(docker inspect "$container" --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}')"
+    [[ "$health" == "healthy" || "$health" == "running" ]] && return 0
+    [[ "$health" == "exited" || "$health" == "dead" ]] && return 1
+    sleep 2
+    ((waited += 2))
+  done
+  return 1
+}
+
 restart_services() {
+  local failed=0
   if (( services_were_stopped )); then
     if ! "${COMPOSE[@]}" start backend frontend; then
       printf 'ERRO CRITICO: nao foi possivel reiniciar backend/frontend; intervenha imediatamente.\n' >&2
-      return 1
+      failed=1
     fi
     if ! wait_for_healthy backend || ! wait_for_healthy frontend; then
       printf 'ERRO CRITICO: backend/frontend nao ficaram saudaveis apos o backup.\n' >&2
-      return 1
+      failed=1
+    else
+      services_were_stopped=0
     fi
-    services_were_stopped=0
   fi
+  if (( n8n_was_stopped )); then
+    if ! docker start "$N8N_CONTAINER" >/dev/null || \
+       ! wait_for_container_healthy "$N8N_CONTAINER"; then
+      printf 'ERRO CRITICO: n8n nao ficou saudavel apos o backup.\n' >&2
+      failed=1
+    else
+      n8n_was_stopped=0
+    fi
+  fi
+  (( failed == 0 ))
 }
 
 on_exit() {
@@ -152,6 +182,9 @@ write_report "fase=8a sem-wal-pitr"
 wait_for_healthy postgres || die "PostgreSQL nao esta saudavel antes do backup"
 wait_for_healthy backend || die "backend nao esta saudavel antes do backup"
 wait_for_healthy frontend || die "frontend nao esta saudavel antes do backup"
+wait_for_container_healthy "$N8N_CONTAINER" || die "n8n nao esta saudavel antes do backup"
+wait_for_container_healthy "$N8N_POSTGRES_CONTAINER" || \
+  die "PostgreSQL do n8n nao esta saudavel antes do backup"
 
 backend_container="$("${COMPOSE[@]}" ps -q backend)"
 [[ -n "$backend_container" ]] || die "container backend nao encontrado"
@@ -159,6 +192,19 @@ postgres_container="$("${COMPOSE[@]}" ps -q postgres)"
 [[ -n "$postgres_container" ]] || die "container PostgreSQL nao encontrado"
 docs_volume="$(docker inspect "$backend_container" --format '{{range .Mounts}}{{if eq .Destination "/app/data/documentos"}}{{.Name}}{{end}}{{end}}')"
 [[ -n "$docs_volume" ]] || die "volume documental nao encontrado no backend"
+n8n_volume="$(docker inspect "$N8N_CONTAINER" --format '{{range .Mounts}}{{if eq .Destination "/home/node/.n8n"}}{{.Name}}{{end}}{{end}}')"
+[[ -n "$n8n_volume" ]] || die "volume persistente do n8n nao encontrado"
+
+# A chave recuperada precisa ser exatamente a usada pelo processo. Comparamos apenas
+# hashes em memoria e nunca registramos chave nem hash no relatorio.
+n8n_active_key_hash="$(docker exec "$N8N_CONTAINER" sh -c \
+  'test -n "$N8N_ENCRYPTION_KEY" && printf %s "$N8N_ENCRYPTION_KEY" | sha256sum | cut -d " " -f 1')"
+n8n_recovery_key="$(< "$N8N_ENCRYPTION_KEY_FILE")"
+[[ -n "$n8n_recovery_key" ]] || die "copia externa da N8N_ENCRYPTION_KEY esta vazia"
+n8n_recovery_key_hash="$(printf %s "$n8n_recovery_key" | sha256sum | cut -d ' ' -f 1)"
+unset n8n_recovery_key
+[[ -n "$n8n_active_key_hash" && "$n8n_active_key_hash" == "$n8n_recovery_key_hash" ]] || \
+  die "copia externa da N8N_ENCRYPTION_KEY nao corresponde a chave ativa"
 
 # Um backup de recovery precisa reconstruir o codigo sem depender do GitHub. Alteracoes
 # locais no servidor tornariam o commit, o binario e a configuracao ambiguos; por isso
@@ -178,6 +224,8 @@ write_report "fonte=git-archive-e-bundle"
 # mas nenhum request da aplicacao pode alterar banco ou documentos durante o conjunto.
 services_were_stopped=1
 "${COMPOSE[@]}" stop frontend backend
+n8n_was_stopped=1
+docker stop --time 30 "$N8N_CONTAINER" >/dev/null
 
 printf 'Gerando o dump do banco de dados...\n'
 timeout --foreground --kill-after=10s 20m docker exec "$postgres_container" sh -lc \
@@ -185,6 +233,13 @@ timeout --foreground --kill-after=10s 20m docker exec "$postgres_container" sh -
 printf 'Gerando o backup dos papeis globais do PostgreSQL...\n'
 timeout --foreground --kill-after=10s 5m docker exec "$postgres_container" sh -lc \
   'pg_dumpall -U "$POSTGRES_USER" --globals-only' > "$BACKUP_RUN/globals.sql"
+
+printf 'Gerando o dump do banco dedicado ao n8n...\n'
+timeout --foreground --kill-after=10s 20m docker exec "$N8N_POSTGRES_CONTAINER" sh -lc \
+  'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "$BACKUP_RUN/n8n.dump"
+printf 'Gerando o backup dos papeis globais do PostgreSQL do n8n...\n'
+timeout --foreground --kill-after=10s 5m docker exec "$N8N_POSTGRES_CONTAINER" sh -lc \
+  'pg_dumpall -U "$POSTGRES_USER" --globals-only' > "$BACKUP_RUN/n8n-globals.sql"
 
 # O volume e lido por um container sem rede e somente-leitura. O arquivo gerado
 # existe apenas no estagio cifrado e sera enviado ao Restic tambem cifrado.
@@ -194,17 +249,34 @@ timeout --foreground --kill-after=10s 15m \
   -v "$docs_volume:/source:ro" -v "$BACKUP_RUN:/backup:rw" \
   "$BACKUP_TAR_IMAGE" -C /source -cf /backup/documentos.tar .
 
+printf 'Arquivando o volume persistente do n8n...\n'
+timeout --foreground --kill-after=10s 15m \
+  docker run --rm --network none --read-only --entrypoint tar \
+  -v "$n8n_volume:/source:ro" -v "$BACKUP_RUN:/backup:rw" \
+  "$BACKUP_TAR_IMAGE" -C /source -cf /backup/n8n-data.tar .
+
+# A chave entra apenas no conjunto cifrado e com nome neutro. Nunca vai para logs.
+install -m 0600 "$N8N_ENCRYPTION_KEY_FILE" "$BACKUP_RUN/n8n-encryption-key"
+
 printf '%s\n' "$GIT_COMMIT" > "$BACKUP_RUN/git-commit.txt"
 date -u +%Y-%m-%dT%H:%M:%SZ > "$BACKUP_RUN/criado-em-utc.txt"
 docker exec "$postgres_container" postgres --version > "$BACKUP_RUN/postgres-version.txt"
+docker exec "$N8N_POSTGRES_CONTAINER" postgres --version > "$BACKUP_RUN/n8n-postgres-version.txt"
+docker inspect "$N8N_CONTAINER" --format '{{.Config.Image}} {{.Image}}' > "$BACKUP_RUN/n8n-image.txt"
+# O inspect efetivo inclui configuracao sensivel de conexao. Ele nunca e impresso e
+# permanece restrito ao staging + Restic cifrados, permitindo reconstruir o Compose.
+docker inspect "$N8N_CONTAINER" "$N8N_POSTGRES_CONTAINER" > \
+  "$BACKUP_RUN/n8n-containers-inspect.json"
 install -d -m 0700 "$BACKUP_RUN/config"
 install -m 0600 "$ENV_FILE" "$BACKUP_RUN/config/.env"
 install -m 0600 "$INFRA_DIR/docker-compose.yml" "$BACKUP_RUN/config/docker-compose.yml"
 install -m 0600 "$INFRA_DIR/postgres/postgresql.conf" "$BACKUP_RUN/config/postgresql.conf"
 
 (cd "$BACKUP_RUN" && sha256sum \
-  agenda.dump globals.sql documentos.tar projeto_agenda-source.tar projeto_agenda.bundle \
-  git-commit.txt criado-em-utc.txt postgres-version.txt alembic-current.txt \
+  agenda.dump globals.sql documentos.tar n8n.dump n8n-globals.sql n8n-data.tar \
+  n8n-encryption-key n8n-postgres-version.txt n8n-image.txt n8n-containers-inspect.json \
+  projeto_agenda-source.tar projeto_agenda.bundle git-commit.txt criado-em-utc.txt \
+  postgres-version.txt alembic-current.txt \
   config/.env config/docker-compose.yml config/postgresql.conf > SHA256SUMS)
 
 # A indisponibilidade termina antes das verificacoes e do envio ao Restic.
@@ -212,7 +284,9 @@ restart_services
 
 printf 'Validando os artefatos gerados...\n'
 docker exec -i "$postgres_container" pg_restore --list < "$BACKUP_RUN/agenda.dump" >/dev/null
+docker exec -i "$N8N_POSTGRES_CONTAINER" pg_restore --list < "$BACKUP_RUN/n8n.dump" >/dev/null
 tar -tf "$BACKUP_RUN/documentos.tar" >/dev/null
+tar -tf "$BACKUP_RUN/n8n-data.tar" >/dev/null
 tar -tf "$BACKUP_RUN/projeto_agenda-source.tar" >/dev/null
 git -C "$PROJECT_ROOT" bundle verify "$BACKUP_RUN/projeto_agenda.bundle" >/dev/null
 (cd "$BACKUP_RUN" && sha256sum --check SHA256SUMS >/dev/null)

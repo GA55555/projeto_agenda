@@ -16,6 +16,9 @@ readonly REPOSITORY_FILE="$CONFIG_DIR/restic-repository"
 readonly STAGE_ROOT="${BACKUP_STAGE_ROOT:-/mnt/dados/agenda-backup-stage}"
 readonly CIPHER_DIR="${BACKUP_CIPHER_DIR:-/mnt/dados/.agenda-stage-cipher}"
 readonly RESTIC_REPOSITORY="${BACKUP_RESTIC_REPOSITORY:-/mnt/dados/agenda-restic}"
+readonly N8N_KEY_FILE="${N8N_ENCRYPTION_KEY_FILE:-/etc/agenda-backup/n8n-encryption-key}"
+readonly N8N_CONTAINER="${N8N_CONTAINER:-agenda-n8n-n8n-1}"
+readonly N8N_POSTGRES_CONTAINER="${N8N_POSTGRES_CONTAINER:-agenda-n8n-postgres-1}"
 
 [[ -d "$CIPHER_DIR" && -f "$CIPHER_DIR/gocryptfs.conf" ]] || \
   die "cofre gocryptfs nao inicializado em $CIPHER_DIR"
@@ -24,6 +27,24 @@ readonly RESTIC_REPOSITORY="${BACKUP_RESTIC_REPOSITORY:-/mnt/dados/agenda-restic
   die "repositorio Restic nao inicializado em $RESTIC_REPOSITORY"
 [[ -f "$INFRA_DIR/docker-compose.yml" && -f "$INFRA_DIR/../.env" ]] || \
   die "clone do projeto ou .env nao encontrado"
+[[ -f "$N8N_KEY_FILE" ]] || \
+  die "copia externa da N8N_ENCRYPTION_KEY ausente: $N8N_KEY_FILE"
+key_mode="$(stat -c '%a' -- "$N8N_KEY_FILE")"
+key_owner="$(stat -c '%U' -- "$N8N_KEY_FILE")"
+[[ "$key_owner" == root ]] || die "copia da chave n8n deve pertencer a root"
+(( (8#$key_mode & 8#77) == 0 )) || die "copia da chave n8n deve ter permissao 0600"
+command -v docker >/dev/null || die "docker nao encontrado"
+command -v sha256sum >/dev/null || die "sha256sum nao encontrado"
+command -v cut >/dev/null || die "cut nao encontrado"
+n8n_active_key_hash="$(docker exec "$N8N_CONTAINER" sh -c \
+  'test -n "$N8N_ENCRYPTION_KEY" && printf %s "$N8N_ENCRYPTION_KEY" | sha256sum | cut -d " " -f 1')"
+n8n_recovery_key="$(< "$N8N_KEY_FILE")"
+[[ -n "$n8n_recovery_key" ]] || die "copia externa da N8N_ENCRYPTION_KEY esta vazia"
+n8n_recovery_key_hash="$(printf %s "$n8n_recovery_key" | sha256sum | cut -d ' ' -f 1)"
+unset n8n_recovery_key
+[[ -n "$n8n_active_key_hash" && "$n8n_active_key_hash" == "$n8n_recovery_key_hash" ]] || \
+  die "copia externa da N8N_ENCRYPTION_KEY nao corresponde a chave ativa"
+docker inspect "$N8N_POSTGRES_CONTAINER" >/dev/null || die "PostgreSQL do n8n nao encontrado"
 
 install -d -m 0700 -o root -g root "$CONFIG_DIR"
 printf '%s\n' "$RESTIC_REPOSITORY" > "$REPOSITORY_FILE"
@@ -40,7 +61,11 @@ chmod 0600 "$REPOSITORY_FILE"
   printf 'BACKUP_HEALTH_TIMEOUT_SECONDS=120\n'
   printf 'BACKUP_IMAGE_TIMEOUT_SECONDS=1800\n'
   printf 'BACKUP_LOCK_FILE=/run/lock/agenda-backup.lock\n'
+  printf 'N8N_CONTAINER=%s\n' "$N8N_CONTAINER"
+  printf 'N8N_POSTGRES_CONTAINER=%s\n' "$N8N_POSTGRES_CONTAINER"
+  printf 'N8N_ENCRYPTION_KEY_FILE=%s\n' "$N8N_KEY_FILE"
 } > "$CONFIG_FILE"
 chmod 0600 "$CONFIG_FILE"
 
-printf 'Configuracao manual criada em %s (sem senhas).\n' "$CONFIG_FILE"
+printf 'Configuracao manual criada em %s; chave n8n correspondente (sem exibir valores).\n' \
+  "$CONFIG_FILE"

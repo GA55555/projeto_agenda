@@ -36,6 +36,8 @@ readonly COMPOSE=(docker compose --env-file "$ENV_FILE" -f "$INFRA_DIR/docker-co
 : "${RESTIC_REPOSITORY_FILE:?RESTIC_REPOSITORY_FILE e obrigatorio}"
 : "${BACKUP_RESTIC_TIMEOUT_SECONDS:=1200}"
 : "${BACKUP_IMAGE_TIMEOUT_SECONDS:=1800}"
+: "${N8N_CONTAINER:=agenda-n8n-n8n-1}"
+: "${N8N_POSTGRES_CONTAINER:=agenda-n8n-postgres-1}"
 
 [[ "$BACKUP_STAGE_ROOT" = /* && "$BACKUP_STAGE_ROOT" != "/" ]] || die "staging invalido"
 [[ "$BACKUP_STAGE_ENCRYPTION_ATTESTATION" == "confirmed" ]] || die "staging cifrado nao confirmado"
@@ -97,6 +99,28 @@ for service in postgres backend frontend; do
     [[ "$revision" == "$GIT_COMMIT" ]] || \
       die "imagem de $service nao foi construida do commit $GIT_COMMIT (revisao: ${revision:-ausente})"
   fi
+  services+=("$service")
+  containers+=("$container")
+  image_refs+=("$image_ref")
+  image_ids+=("$container_image_id")
+  printf '%s\t%s\t%s\t%s\n' "$service" "$image_ref" "$container_image_id" "${revision:--}" \
+    >> "$BACKUP_RUN/imagens-em-execucao.txt"
+done
+
+# O n8n vive em outro projeto Compose/Portainer, mas integra o mesmo conjunto de
+# recovery. Preservamos as imagens efetivamente executadas sem exigir labels Git.
+for external_spec in "n8n:$N8N_CONTAINER" "n8n-postgres:$N8N_POSTGRES_CONTAINER"; do
+  service="${external_spec%%:*}"
+  container="${external_spec#*:}"
+  docker inspect "$container" >/dev/null || die "container $service nao encontrado"
+  image_ref="$(docker inspect "$container" --format '{{.Config.Image}}')"
+  [[ -n "$image_ref" ]] || die "imagem de $service nao encontrada"
+  container_image_id="$(docker inspect "$container" --format '{{.Image}}')"
+  tagged_image_id="$(docker image inspect "$image_ref" --format '{{.Id}}')"
+  [[ -n "$container_image_id" && "$tagged_image_id" == "$container_image_id" ]] || \
+    die "tag $image_ref nao corresponde a imagem executada por $service"
+  revision="$(docker image inspect "$container_image_id" \
+    --format '{{with index .Config.Labels "org.opencontainers.image.revision"}}{{.}}{{end}}')"
   services+=("$service")
   containers+=("$container")
   image_refs+=("$image_ref")

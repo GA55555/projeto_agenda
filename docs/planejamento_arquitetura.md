@@ -14,10 +14,10 @@
 
 | Campo | Valor |
 | --- | --- |
-| Fase corrente | **Fase 8b (inventário do n8n).** A fundação segura — proveniência imutável das imagens e assinatura eletrônica auditável — está validada localmente e aguarda deploy. |
-| Última atualização | 2026-07-27 |
+| Fase corrente | **Fase 8b (backup coordenado do n8n).** Inventário somente leitura concluído; integração permanece desativada. |
+| Última atualização | 2026-07-28 |
 | Bloqueios ativos | **Ativação do webhook/workflow bloqueada** até deploy da migration `0011` e inclusão comprovada do banco, binários e `N8N_ENCRYPTION_KEY` do n8n no backup. Inventário e desenho permanecem liberados. |
-| Próximo passo imediato | Revisar/aprovar este diff e então inventariar somente leitura a instalação n8n: contêiner/imagem, versão, banco, volumes, armazenamento binário e presença da chave, sem expor segredos. |
+| Próximo passo imediato | Revisar e provar em janela controlada a inclusão do PostgreSQL, volume persistente e chave do n8n no backup coordenado; depois restaurar isoladamente. |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
@@ -447,7 +447,8 @@ nenhum webhook/workflow é ativado antes de o backup do próprio n8n estar compr
 - [x] Construir gate de assinatura eletrônica: intenção explícita, identidade autenticada,
   assinante/data, auditoria na mesma transação e imutabilidade no BD. *(Migration `0011`;
   validação local aprovada; aguarda deploy.)*
-- [ ] Inventariar banco, volumes, versão e `N8N_ENCRYPTION_KEY` do n8n e incluí-los no backup antes da integração.
+- [x] Inventariar banco, volumes, versão e presença da `N8N_ENCRYPTION_KEY` do n8n, sem expor valores. *(n8n 2.30.5 + PostgreSQL 16 dedicado, dois volumes persistentes, chave explícita; 2026-07-28.)*
+- [~] Incluir banco, volume persistente e cópia root-only da chave no backup coordenado; implementação local pronta, prova e restore isolado pendentes.
 - [ ] Webhook FastAPI → n8n disparado **após assinatura eletrônica**, com autenticação e proteção contra replay (§4.2).
 - [ ] Fluxo n8n: JSON mínimo → PDF padronizado; Google Sheets somente se houver finalidade aprovada.
 - [ ] OAuth2 do Google **inteiramente no n8n**, com escopos mínimos. App/BD nunca tocam senhas Google (§4.2).
@@ -494,6 +495,7 @@ permanece desativado até seu banco, binários e chave de cifragem entrarem no b
 > Mantenha conciso — este é o resumo que será lido no início das próximas sessões.
 > As linhas são cronológicas: estados 🟡 antigos documentam o momento da entrega e são substituídos pelas linhas ✅ mais recentes; o estado corrente vive no topo deste arquivo.
 
+- 2026-07-28 — [Fase 8b] 🟡 **Inventário n8n concluído e inclusão no recovery construída localmente.** n8n 2.30.5 em localhost, PostgreSQL 16 dedicado, volumes separados e chave explícita confirmados sem expor valores. Cópia root-only da chave foi criada e comparada com a ativa. O backup coordenado agora pausa/religa o n8n, inclui dump/globals, volume, configuração efetiva, chave e imagens exatas do n8n+PostgreSQL, com checksums e falha segura. Bash/diff-check aprovados; execução integrada, snapshot e restore isolado pendentes.
 - 2026-07-23 — [Fase 7k → 8a] ✅ **Fase 7k aprovada no servidor; Fase 8a iniciada pelo planejamento do recovery.** Deploy em `e876997`, migration `0010 (head)`, serviços saudáveis; PDF/DOCX/JPEG/PNG, recusa, persistência e downloads aprovados; `documentos_paciente` com RLS+FORCE e `agenda_app` sem `DELETE`. Roadmap da Fase 8 foi ordenado em **8a backup/restauração** antes de **8b n8n/exportação**, com inventário do HDD/Restic como primeira ação somente leitura.
 - 2026-07-23 — [Fase 8a] 🟡 **Ponto de parada preparado.** Inventário concluiu que o HDD compartilhado tem ~466 GiB, ~434 GiB livres e ext4 sem criptografia de bloco; Restic `0.14.0` foi instalado. Nenhum dado clínico, senha, repositório Restic, staging ou tarefa agendada foi criado. **Retomar por:** criar uma área de estágio cifrada e definir o cofre externo da senha; somente depois inicializar o repositório e executar o primeiro backup coordenado.
 - 2026-07-25 — [Fase 8a] 🟡 **Restrição de infraestrutura confirmada:** o HDD é compartilhado com todo o servidor. Logo, é proibido reparticioná-lo, reformatá-lo ou aplicar criptografia de bloco ao disco inteiro para esta fase. O caminho aprovado para análise é staging cifrado por diretório (preferência: gocryptfs), com repositório cifrado pelo Restic; ainda sem montagem, segredo, repositório ou agendamento.

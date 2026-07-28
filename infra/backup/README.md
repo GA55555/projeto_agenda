@@ -26,20 +26,31 @@ esse ponto é cifrado.
    mesmo em caso de falha. Revisar o snapshot e `restic check`; depois restaurar em
    host/VM isolado.
 
+Antes de executar `configurar_manual.sh`, guardar uma cópia exata da
+`N8N_ENCRYPTION_KEY` em `/etc/agenda-backup/n8n-encryption-key`, pertencente a `root` e
+com modo `0600`. A chave não deve ser copiada para o Git nem exibida no terminal. O
+script compara a cópia com a chave ativa por hash e falha antes da pausa se divergirem.
+
 Não há unidade nem timer systemd neste modo. A execução exige terminal interativo e duas
 senhas informadas durante a janela. O wrapper desmonta o staging ao final, inclusive em
 falha; se a desmontagem falhar, encerra com erro crítico visível.
 
 ## Garantias e limites
 
-- Pausa somente frontend e backend; PostgreSQL permanece ativo para `pg_dump -Fc`.
-  Assim banco e `documentos_data` ficam no mesmo ponto lógico de escrita.
+- Pausa frontend, backend e n8n; os dois PostgreSQL permanecem ativos para `pg_dump -Fc`.
+  Assim os bancos, `documentos_data` e o volume persistente do n8n ficam em fronteiras
+  coordenadas de escrita. O `trap` religa e verifica também o n8n em qualquer falha.
 - Gera dump, globals, tar documental, checksums, commit, migration e versão do
   PostgreSQL. Gera também `git archive` e `git bundle` do commit implantado, permitindo
   recuperar a fonte mesmo sem acesso ao GitHub. Recusa árvore Git com alterações locais.
   Valida dump/tar/bundle/checksums antes do upload ao Restic.
 - Faz upload também de `.env`, `docker-compose.yml` e `postgresql.conf`, sempre para o
   repositório Restic cifrado. Não registra corpo clínico em log.
+- Inclui dump/globals do PostgreSQL dedicado ao n8n, volume `/home/node/.n8n`, referência
+  e ID da imagem, configuração efetiva dos contêineres e a chave de recuperação. O
+  `inspect` contém configuração sensível e, por isso, nunca é impresso: existe somente
+  no staging cifrado durante a janela e no repositório Restic cifrado. A mesma proteção
+  vale para a chave root-only.
 - Usa lock, timeout e reinício por `trap`, inclusive se alguma etapa falhar.
 - Só conclui depois que backend e frontend voltarem ao estado `healthy`; timeout ou
   falha preserva o estágio cifrado para investigação, sem limpeza automática.
@@ -58,11 +69,11 @@ credencial reutilizável nem um staging clínico acessível fora da janela.
 ## Imagens Docker aprovadas
 
 Depois de um deploy validado, executar `executar_manual.sh imagens` uma vez. Ele exporta
-as imagens que estão de fato nos containers PostgreSQL, backend e frontend, criando um
-snapshot `agenda-imagens` ligado ao commit atual. Não entra no backup rotineiro: o Restic
-deduplica conteúdo, mas o `docker image save` ainda consome disco e I/O relevantes no
-AMD A6. Na recuperação, validar o checksum e usar `docker image load` antes de subir o
-Compose.
+as imagens que estão de fato nos containers PostgreSQL, backend, frontend, n8n e
+PostgreSQL do n8n, criando um snapshot `agenda-imagens` ligado ao commit atual. Não entra
+no backup rotineiro: o Restic deduplica conteúdo, mas o `docker image save` ainda consome
+disco e I/O relevantes no AMD A6. Na recuperação, validar o checksum e usar
+`docker image load` antes de subir os projetos Compose.
 
 O build das imagens próprias precisa registrar o commit em label OCI:
 
