@@ -1094,8 +1094,10 @@ Este manual não transforma controles planejados em controles existentes. Perman
 - [ ] criar reconciliador somente-leitura banco↔volume para ausentes, órfãos, tamanho e hash;
 - [ ] realizar primeiro restore coordenado e registrar RTO real;
 - [ ] criar segunda cópia offline/off-site cifrada;
-- [ ] inventariar e testar backup do banco, volume binário, workflows, credenciais e
-  `N8N_ENCRYPTION_KEY` da instalação n8n antes de ativar a Fase 8;
+- [x] inventariar e testar backup/restore do banco, volume binário e
+  `N8N_ENCRYPTION_KEY` da instalação n8n antes de ativar a integração; no primeiro
+  ensaio a origem ainda possuía 0 workflows e 0 credenciais, registrar nova prova após
+  criar o workflow sintético;
 - [ ] fixar dependências Python e imagens-base por lock/digest; até lá, preservar bundles
   das imagens Docker aprovadas a cada versão implantada;
 - [ ] definir e aprovar política de retenção/eliminações e procedimento de *legal hold*;
