@@ -481,4 +481,8 @@ export const api = {
         confirmar_assinatura: true,
       }),
     }),
+  despacharN8nPendentes: () =>
+    request<{ enviados: number; pendentes: number }>("/integracoes/n8n/pendentes/despachar", {
+      method: "POST",
+    }),
 };

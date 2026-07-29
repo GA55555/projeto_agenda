@@ -12,6 +12,7 @@ from app.modules.dashboard.router import router as dashboard_router
 from app.modules.documentos.router import router as documentos_router
 from app.modules.evolucoes.router import router as evolucoes_router
 from app.modules.llm.router import router as llm_router
+from app.modules.n8n.router import router as n8n_router
 from app.modules.pacientes.router import router as pacientes_router
 from app.modules.responsaveis.router import router as responsaveis_router
 from app.modules.tenants.router import router as tenants_router
@@ -34,3 +35,4 @@ api_router.include_router(llm_router)
 api_router.include_router(dashboard_router)
 # Fase 7k — documentos clinicos privados e sanitizados
 api_router.include_router(documentos_router)
+api_router.include_router(n8n_router)

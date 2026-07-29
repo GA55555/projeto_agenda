@@ -14,10 +14,10 @@
 
 | Campo | Valor |
 | --- | --- |
-| Fase corrente | **Fase 8b (desenho do webhook autenticado).** Recovery do n8n comprovado; integração permanece desativada enquanto o contrato é implementado e revisado. |
+| Fase corrente | **Fase 8b (webhook autenticado).** Outbox/HMAC construídos e validados localmente; receptor n8n permanece inexistente/inativo. |
 | Última atualização | 2026-07-28 |
 | Bloqueios ativos | Nenhum para o desenho/implementação local. **Ativação operacional** continua condicionada a revisão do HMAC, replay, idempotência, logs mínimos e smoke sintético sem PII. |
-| Próximo passo imediato | Implementar o contrato FastAPI → n8n: evento UUID, timestamp UTC, HMAC-SHA256, janela de 5 minutos, replay persistente e retries idempotentes; criar workflow inicialmente inativo. |
+| Próximo passo imediato | Revisar o diff do outbox/HMAC e então construir o workflow receptor inicialmente inativo, com verificação da janela de 5 minutos, HMAC em tempo constante e persistência do `evento_id` antes de qualquer PDF/integração. |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
@@ -449,7 +449,7 @@ nenhum webhook/workflow é ativado antes de o backup do próprio n8n estar compr
   implantada e confirmada como `head`.)*
 - [x] Inventariar banco, volumes, versão e presença da `N8N_ENCRYPTION_KEY` do n8n, sem expor valores. *(n8n 2.30.5 + PostgreSQL 16 dedicado, dois volumes persistentes, chave explícita; 2026-07-28.)*
 - [x] Incluir banco, volume persistente e cópia root-only da chave no backup coordenado e provar restore isolado. *(Snapshot `aa64be52`, bundle `4bd3dd57`; 114 tabelas e 4/4 arquivos recuperados em recursos exclusivos, depois removidos.)*
-- [ ] Webhook FastAPI → n8n disparado **após assinatura eletrônica**, com autenticação e proteção contra replay (§4.2).
+- [~] Webhook FastAPI → n8n disparado **após assinatura eletrônica**, com autenticação e proteção contra replay (§4.2). *(Emissor/outbox/HMAC local prontos; receptor e replay persistente no n8n pendentes.)*
 - [ ] Fluxo n8n: JSON mínimo → PDF padronizado; Google Sheets somente se houver finalidade aprovada.
 - [ ] OAuth2 do Google **inteiramente no n8n**, com escopos mínimos. App/BD nunca tocam senhas Google (§4.2).
 - [ ] Entrega ao diretório cifrado da psicóloga, com idempotência, auditoria e tratamento de falha sem duplicação.
@@ -497,6 +497,7 @@ permanece desativado até seu banco, binários e chave de cifragem entrarem no b
 
 - 2026-07-28 — [Fase 8b] 🟡 **n8n incluído e provado no backup coordenado.** n8n 2.30.5 em localhost, PostgreSQL 16 dedicado, volumes separados e chave explícita confirmados sem expor valores. Cópia root-only corresponde à chave ativa. O snapshot `aa64be52` contém e validou dump/globals, volume, configuração efetiva, chave e checksums. O primeiro bundle recusou corretamente imagens `f97d237` contra fonte `4965916`; após rebuild/deploy coerente, `4bd3dd57` preservou as cinco imagens exatas. Serviços saudáveis e staging desmontado. Restore isolado do n8n ainda bloqueia o webhook.
 - 2026-07-28 — [Fase 8b] ✅ **Restore isolado do n8n comprovado e limpo.** Snapshot/bundle restaurados em rede interna, PostgreSQL e volumes exclusivos: 114 tabelas, 0 workflows/credenciais (origem recém-instalada), 4/4 arquivos e chave correspondente. Tentativas de telemetria foram bloqueadas pela rede sem saída; nenhum workflow existia. Contêineres, volumes, rede e staging temporários removidos; produção saudável. Recovery deixa de bloquear o desenho do webhook.
+- 2026-07-28 — [Fase 8b/webhook] 🟡 **Emissor construído e validado localmente, sem deploy.** Migration `0012` cria outbox por tenant com RLS+FORCE, FK composta e UUID estável por evolução. Assinatura enfileira atomicamente; envio posterior usa JSON canônico, timestamp, HMAC-SHA256 e retry idempotente, sem corpo clínico em logs. SPA tenta despachar após o commit sem desfazer prontuário em falha. SQL offline, imports/rotas, Ruff, TypeScript/Vite e 137 testes passaram; 1 teste NER conhecido foi excluído (modelo `sm` não reconhece “Lucas”, limitação já registrada). Receptor/replay no n8n ainda não existe.
 - 2026-07-23 — [Fase 7k → 8a] ✅ **Fase 7k aprovada no servidor; Fase 8a iniciada pelo planejamento do recovery.** Deploy em `e876997`, migration `0010 (head)`, serviços saudáveis; PDF/DOCX/JPEG/PNG, recusa, persistência e downloads aprovados; `documentos_paciente` com RLS+FORCE e `agenda_app` sem `DELETE`. Roadmap da Fase 8 foi ordenado em **8a backup/restauração** antes de **8b n8n/exportação**, com inventário do HDD/Restic como primeira ação somente leitura.
 - 2026-07-23 — [Fase 8a] 🟡 **Ponto de parada preparado.** Inventário concluiu que o HDD compartilhado tem ~466 GiB, ~434 GiB livres e ext4 sem criptografia de bloco; Restic `0.14.0` foi instalado. Nenhum dado clínico, senha, repositório Restic, staging ou tarefa agendada foi criado. **Retomar por:** criar uma área de estágio cifrada e definir o cofre externo da senha; somente depois inicializar o repositório e executar o primeiro backup coordenado.
 - 2026-07-25 — [Fase 8a] 🟡 **Restrição de infraestrutura confirmada:** o HDD é compartilhado com todo o servidor. Logo, é proibido reparticioná-lo, reformatá-lo ou aplicar criptografia de bloco ao disco inteiro para esta fase. O caminho aprovado para análise é staging cifrado por diretório (preferência: gocryptfs), com repositório cifrado pelo Restic; ainda sem montagem, segredo, repositório ou agendamento.

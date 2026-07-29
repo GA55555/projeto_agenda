@@ -80,6 +80,11 @@ class Settings(BaseSettings):
     documentos_cota_tenant_bytes: int = 2 * 1024 * 1024 * 1024
     documentos_sanitizacao_timeout_seconds: int = 35
 
+    # ---- n8n / webhook local autenticado (§4.2) ----
+    n8n_webhook_url: str = ""
+    n8n_webhook_secret: str = ""
+    n8n_webhook_timeout_seconds: float = 10.0
+
     @property
     def admin_database_url(self) -> str:
         """Ligacao com privilegio para rodar migrations (agenda_admin)."""

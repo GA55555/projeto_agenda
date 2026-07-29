@@ -79,6 +79,9 @@ export function EditorEvolucao() {
     setSalvando(true);
     try {
       await api.criarEvolucao(id, agendamentoId, texto);
+      // A assinatura já foi commitada em uma requisição própria. A exportação é
+      // best-effort/outbox: indisponibilidade do n8n nunca apaga o prontuário.
+      await api.despacharN8nPendentes().catch(() => undefined);
       navigate(`/pacientes/${id}`, { replace: true });
     } catch (e) {
       setErro(traduzErro(e));

@@ -20,25 +20,25 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.modules.agendamentos.models import STATUS_REALIZADO, Agendamento
 from app.modules.anonimizacao import (
     anonimizar_com_entidades,
     entidades_do_paciente,
     verificar_sem_pii,
 )
 from app.modules.anonimizacao.exceptions import PIIVazadaError
-from app.modules.auth.dependencies import CurrentUser
 from app.modules.audit.models import TIPO_EVOLUCAO_ASSINADA
 from app.modules.audit.service import registrar_evento
+from app.modules.auth.dependencies import CurrentUser
 from app.modules.consentimentos.exceptions import SemConsentimentoAtivo
 from app.modules.consentimentos.service import tem_consentimento_ativo
 from app.modules.evolucoes.chunking import dividir_em_chunks
 from app.modules.evolucoes.embeddings import canonicalizar_marcadores, gerar_embedding
-from app.modules.agendamentos.models import STATUS_REALIZADO, Agendamento
 from app.modules.evolucoes.exceptions import (
     AgendamentoInvalido,
     EmbeddingIndisponivel,
@@ -46,6 +46,7 @@ from app.modules.evolucoes.exceptions import (
 )
 from app.modules.evolucoes.models import Evolucao, EvolucaoChunk
 from app.modules.evolucoes.schemas import EvolucaoCreate, EvolucaoOut
+from app.modules.n8n.service import enfileirar
 from app.modules.pacientes.models import Paciente
 
 logger = logging.getLogger(__name__)
@@ -94,7 +95,7 @@ def criar_evolucao(db: Session, user: CurrentUser, dados: EvolucaoCreate) -> Evo
             "a evolucao so pode ser vinculada a um atendimento realizado"
         )
 
-    assinatura_em = datetime.now(timezone.utc)
+    assinatura_em = datetime.now(UTC)
     evolucao = Evolucao(
         tenant_id=user.tenant_id,
         paciente_id=dados.paciente_id,
@@ -136,6 +137,7 @@ def criar_evolucao(db: Session, user: CurrentUser, dados: EvolucaoCreate) -> Evo
         ator_usuario_id=user.id,
         payload={"agendamento_id": str(dados.agendamento_id), "assinatura_versao": "v1"},
     )
+    enfileirar(db, tenant_id=user.tenant_id, evolucao_id=evolucao.id)
     return _to_out(evolucao, len(chunks), pendentes, data_atendimento=ag.inicio)
 
 
