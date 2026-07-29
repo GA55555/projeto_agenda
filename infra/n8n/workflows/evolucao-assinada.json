@@ -1,0 +1,134 @@
+{
+  "id": "agendaEvolucaoAssinadaV1",
+  "name": "Agenda - Evolução assinada (receptor seguro)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agenda-evolucao-assinada",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "22d3b39e-f8d6-4a57-a5ac-7679ec8f0001",
+      "name": "Webhook Agenda",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [-720, 0],
+      "webhookId": "2bba614e-5db5-46a0-a8c3-f6e4e7ea8b01"
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst input = $input.first().json;\nconst headers = input.headers || {};\nconst body = input.body || {};\nconst eventId = String(headers['x-agenda-event-id'] || '');\nconst timestamp = String(headers['x-agenda-timestamp'] || '');\nconst supplied = String(headers['x-agenda-signature'] || '');\nconst secret = String($env.AGENDA_WEBHOOK_SECRET || '');\nconst uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;\nconst ts = Number(timestamp);\nconst age = Math.abs(Math.floor(Date.now() / 1000) - ts);\nconst canonical = JSON.stringify(Object.fromEntries(Object.keys(body).sort().map((key) => [key, body[key]])));\nconst bodyBytes = Buffer.from(canonical, 'utf8');\nconst expected = 'sha256=' + crypto.createHmac('sha256', secret).update(timestamp + '.' + eventId + '.').update(bodyBytes).digest('hex');\nconst a = Buffer.from(supplied, 'utf8');\nconst b = Buffer.from(expected, 'utf8');\nconst signatureOk = a.length === b.length && crypto.timingSafeEqual(a, b);\nconst valid = secret.length >= 32 && uuidRe.test(eventId) && body.evento_id === eventId && Number.isInteger(ts) && age <= 300 && signatureOk;\nreturn [{ json: { auth_ok: valid, evento_id: eventId, payload_sha256: crypto.createHash('sha256').update(bodyBytes).digest('hex') } }];"
+      },
+      "id": "22d3b39e-f8d6-4a57-a5ac-7679ec8f0002",
+      "name": "Validar HMAC e janela",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-480, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2},
+          "conditions": [{"id": "auth-ok", "leftValue": "={{ $json.auth_ok }}", "rightValue": true, "operator": {"type": "boolean", "operation": "true", "singleValue": true}}],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "22d3b39e-f8d6-4a57-a5ac-7679ec8f0003",
+      "name": "Autenticado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-240, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\":false,\"erro\":\"nao_autorizado\"}",
+        "options": {"responseCode": 401}
+      },
+      "id": "22d3b39e-f8d6-4a57-a5ac-7679ec8f0004",
+      "name": "Rejeitar",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [0, 160]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH tentativa AS (\n  INSERT INTO agenda_webhook_eventos (evento_id, payload_sha256)\n  VALUES ($1::uuid, $2)\n  ON CONFLICT (evento_id) DO NOTHING\n  RETURNING true AS novo, payload_sha256\n)\nSELECT novo, payload_sha256 FROM tentativa\nUNION ALL\nSELECT false AS novo, payload_sha256\nFROM agenda_webhook_eventos\nWHERE evento_id = $1::uuid AND NOT EXISTS (SELECT 1 FROM tentativa);",
+        "options": {
+          "queryReplacement": "={{ [$json.evento_id, $json.payload_sha256] }}"
+        }
+      },
+      "id": "22d3b39e-f8d6-4a57-a5ac-7679ec8f0005",
+      "name": "Registrar ou reconhecer evento",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [0, -80]
+    },
+    {
+      "parameters": {
+        "jsCode": "const current = $('Validar HMAC e janela').first().json;\nconst stored = $input.first().json;\nif (stored.payload_sha256 !== current.payload_sha256) {\n  return [{ json: { replay_ok: false, novo: false } }];\n}\nreturn [{ json: { replay_ok: true, novo: stored.novo === true } }];"
+      },
+      "id": "22d3b39e-f8d6-4a57-a5ac-7679ec8f0006",
+      "name": "Validar idempotência",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, -80]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2},
+          "conditions": [{"id": "replay-ok", "leftValue": "={{ $json.replay_ok }}", "rightValue": true, "operator": {"type": "boolean", "operation": "true", "singleValue": true}}],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "22d3b39e-f8d6-4a57-a5ac-7679ec8f0007",
+      "name": "Replay válido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [480, -80]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true, aceito: $json.novo, duplicado: !$json.novo } }}",
+        "options": {"responseCode": 200}
+      },
+      "id": "22d3b39e-f8d6-4a57-a5ac-7679ec8f0008",
+      "name": "Aceitar idempotente",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [720, -160]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\":false,\"erro\":\"evento_reutilizado\"}",
+        "options": {"responseCode": 409}
+      },
+      "id": "22d3b39e-f8d6-4a57-a5ac-7679ec8f0009",
+      "name": "Rejeitar replay divergente",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [720, 40]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Agenda": {"main": [[{"node": "Validar HMAC e janela", "type": "main", "index": 0}]]},
+    "Validar HMAC e janela": {"main": [[{"node": "Autenticado?", "type": "main", "index": 0}]]},
+    "Autenticado?": {"main": [[{"node": "Registrar ou reconhecer evento", "type": "main", "index": 0}], [{"node": "Rejeitar", "type": "main", "index": 0}]]},
+    "Registrar ou reconhecer evento": {"main": [[{"node": "Validar idempotência", "type": "main", "index": 0}]]},
+    "Validar idempotência": {"main": [[{"node": "Replay válido?", "type": "main", "index": 0}]]},
+    "Replay válido?": {"main": [[{"node": "Aceitar idempotente", "type": "main", "index": 0}], [{"node": "Rejeitar replay divergente", "type": "main", "index": 0}]]}
+  },
+  "active": false,
+  "settings": {"executionOrder": "v1", "saveDataErrorExecution": "none", "saveDataSuccessExecution": "none", "saveManualExecutions": false},
+  "versionId": "7b4c7dae-0585-4512-aa24-53bbff4a1ec2",
+  "meta": {"templateCredsSetupCompleted": false},
+  "tags": []
+}
