@@ -64,7 +64,10 @@ services:
       # Porta do HOST configuravel (evita conflitos com outros servicos, ex. Portainer:8000).
       # Publicada apenas no localhost do servidor (§4.1). Porta interna continua 8000.
       - "127.0.0.1:${BACKEND_HOST_PORT:-8000}:8000"
-    networks: [internal]
+    # A rede externa liga somente o emissor ao receptor n8n. Ela deve existir
+    # previamente (`docker network create --internal agenda-webhook`) e o n8n
+    # deve ser ligado a ela pelo seu stack no Portainer.
+    networks: [internal, agenda_webhook]
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)\""]
       interval: 15s
@@ -106,6 +109,9 @@ services:
 networks:
   internal:
     driver: bridge
+  agenda_webhook:
+    external: true
+    name: agenda-webhook
 
 volumes:
   pgdata:
