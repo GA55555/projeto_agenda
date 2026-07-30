@@ -63,3 +63,21 @@ são salvas para evitar persistir texto clínico no histórico do n8n.
 
 O arquivo versionado usa `active: false`. A ativação só ocorre após teste sintético de:
 assinatura válida, assinatura inválida, timestamp expirado, retry igual e replay divergente.
+
+## Correção temporária da imagem 2.30.5
+
+A imagem estável 2.30.5 contém uma regressão no rollup de estatísticas com PostgreSQL:
+trata `firstEvent` sempre como `Date`, embora o driver possa devolvê-lo como string. O erro
+`firstEvent.getTime is not a function` impede a finalização/limpeza esperada das execuções.
+O `Dockerfile` deste diretório aplica somente a correção oficial do upstream
+`n8n-io/n8n#34670` (commit `0316336`) e falha no build se o trecho original não existir.
+
+Construir com tag local explícita:
+
+```bash
+docker build -t agenda-n8n:2.30.5-timestamp-fix -f infra/n8n/Dockerfile infra/n8n
+```
+
+No stack do n8n, usar `image: agenda-n8n:2.30.5-timestamp-fix`. Remover esta imagem
+derivada e voltar a uma imagem oficial fixada quando uma versão estável posterior incluir
+a correção; antes da troca, executar backup coordenado e repetir os cinco testes sintéticos.
