@@ -64,20 +64,22 @@ são salvas para evitar persistir texto clínico no histórico do n8n.
 O arquivo versionado usa `active: false`. A ativação só ocorre após teste sintético de:
 assinatura válida, assinatura inválida, timestamp expirado, retry igual e replay divergente.
 
-## Correção temporária da imagem 2.30.5
+## Versão e retenção de execuções
 
-A imagem estável 2.30.5 contém uma regressão no rollup de estatísticas com PostgreSQL:
-trata `firstEvent` sempre como `Date`, embora o driver possa devolvê-lo como string. O erro
-`firstEvent.getTime is not a function` impede a finalização/limpeza esperada das execuções.
-O `Dockerfile` deste diretório aplica somente a correção oficial do upstream
-`n8n-io/n8n#34670` (commit `0316336`) e falha no build se o trecho original não existir.
+A versão operacional mínima é n8n **2.33.0**, que inclui a correção oficial
+`n8n-io/n8n#34670` (commit `0316336`) para timestamps do rollup no PostgreSQL. O n8n e
+o `n8nio/runners` devem usar exatamente a mesma versão.
 
-Construir com tag local explícita:
+Este receptor proíbe histórico com payload clínico e configura `saveDataErrorExecution`
+e `saveDataSuccessExecution` como `none`. No n8n 2.33.0, porém,
+`EXECUTIONS_DATA_PRUNE=true` transforma esse descarte em *soft-delete*: a execução some
+da interface, mas `execution_entity` e `execution_data` permanecem até o *hard-delete*.
+Por isso o stack dedicado usa:
 
-```bash
-docker build -t agenda-n8n:2.30.5-timestamp-fix -f infra/n8n/Dockerfile infra/n8n
+```yaml
+EXECUTIONS_DATA_PRUNE: "false"
 ```
 
-No stack do n8n, usar `image: agenda-n8n:2.30.5-timestamp-fix`. Remover esta imagem
-derivada e voltar a uma imagem oficial fixada quando uma versão estável posterior incluir
-a correção; antes da troca, executar backup coordenado e repetir os cinco testes sintéticos.
+Nesse modo, execuções descartadas seguem para *hard-delete* imediato. Qualquer mudança
+dessa variável exige repetir os cinco testes sintéticos e provar diretamente no PostgreSQL
+`0` linhas em `execution_entity` e `execution_data` antes de liberar payload real.
