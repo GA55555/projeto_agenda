@@ -55,6 +55,13 @@ O usuário da credencial PostgreSQL deve receber apenas `SELECT, INSERT` sobre
 - `X-Agenda-Signature`: `sha256=HMAC(secret, timestamp + "." + evento_id + "." + corpo_canônico)`.
 - JSON canônico: UTF-8, chaves de primeiro nível ordenadas, sem espaços.
 
+O contrato documental v1 (`contrato_versao: 1`) leva somente o retrato necessário
+para o registro: evolução e assinatura; nome/data de nascimento do paciente;
+início/fim do atendimento; nome/CRP do assinante. O backend falha fechado se algum
+vínculo divergir ou se o CRP estiver ausente. O n8n não recebe acesso ao banco clínico.
+O payload só é preservado no item do workflow depois de HMAC e janela válidos e nunca
+deve ser gravado no histórico de execuções.
+
 A PK no PostgreSQL rejeita replay concorrente. Repetir o mesmo UUID+hash devolve 200
 idempotente; o mesmo UUID com corpo diferente devolve 409. Execuções de sucesso/erro não
 são salvas para evitar persistir texto clínico no histórico do n8n.

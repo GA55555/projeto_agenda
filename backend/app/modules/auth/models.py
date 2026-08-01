@@ -39,6 +39,10 @@ class Usuario(Base):
     email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     senha_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     nome: Mapped[str] = mapped_column(String(200), nullable=False)
+    # Registro profissional em formato canonico NN/NNNN... (sem prefixo "CRP").
+    # Nullable apenas para migrar contas existentes; a exportacao documental
+    # exige o preenchimento antes de gerar qualquer PDF.
+    crp: Mapped[str | None] = mapped_column(String(10), nullable=True)
     papel: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'psicologa'"))
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
     criado_em: Mapped[datetime] = mapped_column(

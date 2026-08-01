@@ -8,9 +8,10 @@ import { mensagemDeErro } from "../utils/erro";
 export function Perfil() {
   const { user, refresh } = useAuth();
 
-  // ---- Dados (nome / e-mail) ----
+  // ---- Dados (nome / e-mail / registro profissional) ----
   const [nome, setNome] = useState(user?.nome ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
+  const [crp, setCrp] = useState(user?.crp ?? "");
   // Trocar o e-mail (login) exige re-autenticação: senha atual junto ao PATCH.
   const [senhaEmail, setSenhaEmail] = useState("");
   const [salvandoDados, setSalvandoDados] = useState(false);
@@ -34,8 +35,9 @@ export function Perfil() {
     setSalvandoDados(true);
     try {
       // Envia só o que mudou; se nada mudou, não chama.
-      const patch: { nome?: string; email?: string; senha_atual?: string } = {};
+      const patch: { nome?: string; email?: string; crp?: string; senha_atual?: string } = {};
       if (nome !== user?.nome) patch.nome = nome;
+      if (crp !== (user?.crp ?? "")) patch.crp = crp;
       if (trocandoEmail) {
         patch.email = email;
         patch.senha_atual = senhaEmail; // re-auth exigida pelo backend
@@ -62,6 +64,7 @@ export function Perfil() {
       const me = await refresh();
       setNome(me.nome);
       setEmail(me.email);
+      setCrp(me.crp ?? "");
     } catch {
       /* sidebar/form atualizam na próxima navegação; o dado está salvo */
     } finally {
@@ -103,7 +106,7 @@ export function Perfil() {
 
   // Compara contra o valor NORMALIZADO do servidor (e-mail é case-insensitive):
   // sem isso, salvar 'ana@CLINICA.com' deixaria o form "sujo" para sempre.
-  const dadosInalterados = nome === user?.nome && !trocandoEmail;
+  const dadosInalterados = nome === user?.nome && crp === (user?.crp ?? "") && !trocandoEmail;
 
   return (
     <section>
@@ -116,6 +119,20 @@ export function Perfil() {
         <label className="campo">
           Nome
           <input value={nome} onChange={(e) => setNome(e.target.value)} required maxLength={200} />
+        </label>
+        <label className="campo">
+          CRP
+          <input
+            value={crp}
+            onChange={(e) => setCrp(e.target.value)}
+            placeholder="06/123456"
+            pattern="(?:CRP\\s*)?\\d{2}[/-]\\d{4,7}"
+            title="Use o formato 06/123456"
+            required
+            maxLength={14}
+            autoComplete="off"
+          />
+          <small>Registro profissional que constará nos documentos clínicos.</small>
         </label>
         <label className="campo">
           E-mail (usado para entrar)

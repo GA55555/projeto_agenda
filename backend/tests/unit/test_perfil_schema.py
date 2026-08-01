@@ -33,6 +33,25 @@ def test_perfil_vazio_ok():
     assert PerfilUpdate().model_dump(exclude_unset=True) == {}
 
 
+@pytest.mark.parametrize(
+    ("entrada", "esperado"),
+    [("06/123456", "06/123456"), ("CRP 06/123456", "06/123456"), ("06-12345", "06/12345")],
+)
+def test_perfil_crp_normalizado(entrada, esperado):
+    assert PerfilUpdate(crp=entrada).crp == esperado
+
+
+@pytest.mark.parametrize("crp", ["6/123456", "06/123", "CRP", "06/ABCDEF", ""])
+def test_perfil_crp_invalido_rejeitado(crp):
+    with pytest.raises(ValidationError):
+        PerfilUpdate(crp=crp)
+
+
+def test_perfil_crp_null_explicito_rejeitado():
+    with pytest.raises(ValidationError):
+        PerfilUpdate(crp=None)
+
+
 def test_senha_nova_curta_rejeitada():
     with pytest.raises(ValidationError):
         SenhaUpdate(senha_atual="atual123", senha_nova="curta")

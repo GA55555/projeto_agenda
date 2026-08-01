@@ -17,10 +17,16 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.modules.agendamentos.models import Agendamento
+from app.modules.auth.models import Usuario
 from app.modules.evolucoes.models import Evolucao
 from app.modules.n8n.models import N8nOutbox
+from app.modules.pacientes.models import Paciente
 
 logger = logging.getLogger(__name__)
+
+TIPO_DOCUMENTO_EVOLUCAO = "registro_evolucao_prontuario_psicologico"
+VERSAO_CONTRATO_DOCUMENTAL = 1
 
 
 def enfileirar(db: Session, *, tenant_id: uuid.UUID, evolucao_id: uuid.UUID) -> N8nOutbox:
@@ -41,6 +47,41 @@ def assinatura_hmac(*, secret: str, timestamp: str, evento_id: uuid.UUID, body: 
     return "sha256=" + hmac.new(secret.encode(), mensagem, hashlib.sha256).hexdigest()
 
 
+def montar_payload_documental(
+    *,
+    evento: N8nOutbox,
+    evolucao: Evolucao,
+    paciente: Paciente,
+    agendamento: Agendamento,
+    assinante: Usuario,
+) -> dict:
+    """Monta somente o retrato mínimo autorizado para o documento v1."""
+    return {
+        "evento_id": str(evento.id),
+        "tipo": "evolucao_assinada",
+        "contrato_versao": VERSAO_CONTRATO_DOCUMENTAL,
+        "documento_tipo": TIPO_DOCUMENTO_EVOLUCAO,
+        "evolucao_id": str(evolucao.id),
+        "assinada_em": evolucao.assinada_em.isoformat(),
+        "texto": evolucao.texto,
+        "paciente": {
+            "id": str(paciente.id),
+            "nome": paciente.nome,
+            "data_nascimento": paciente.data_nascimento.isoformat(),
+        },
+        "atendimento": {
+            "id": str(agendamento.id),
+            "inicio": agendamento.inicio.isoformat(),
+            "fim": agendamento.fim.isoformat(),
+        },
+        "psicologa": {
+            "id": str(assinante.id),
+            "nome": assinante.nome,
+            "crp": assinante.crp,
+        },
+    }
+
+
 def despachar(db: Session, evento_id: uuid.UUID) -> bool:
     evento = db.scalar(
         select(N8nOutbox).where(N8nOutbox.id == evento_id).with_for_update()
@@ -58,13 +99,38 @@ def despachar(db: Session, evento_id: uuid.UUID) -> bool:
         evento.ultimo_erro = "evolucao_inexistente"
         return False
 
-    payload = {
-        "evento_id": str(evento.id),
-        "tipo": "evolucao_assinada",
-        "evolucao_id": str(evolucao.id),
-        "assinada_em": evolucao.assinada_em.isoformat(),
-        "texto": evolucao.texto,
-    }
+    # O n8n recebe um retrato minimo e fechado do documento; nunca recebe uma
+    # credencial de leitura geral do banco Agenda. As buscas abaixo continuam
+    # sob o tenant da sessao/RLS e os vinculos sao conferidos novamente antes
+    # de qualquer dado clinico sair do backend.
+    paciente = db.get(Paciente, evolucao.paciente_id)
+    agendamento = (
+        db.get(Agendamento, evolucao.agendamento_id)
+        if evolucao.agendamento_id is not None
+        else None
+    )
+    assinante = db.get(Usuario, evolucao.assinada_por_usuario_id)
+    dados_coerentes = (
+        paciente is not None
+        and paciente.tenant_id == evento.tenant_id
+        and agendamento is not None
+        and agendamento.tenant_id == evento.tenant_id
+        and agendamento.paciente_id == evolucao.paciente_id
+        and assinante is not None
+        and assinante.tenant_id == evento.tenant_id
+        and assinante.crp is not None
+    )
+    if not dados_coerentes:
+        evento.ultimo_erro = "dados_documentais_incompletos"
+        return False
+
+    payload = montar_payload_documental(
+        evento=evento,
+        evolucao=evolucao,
+        paciente=paciente,
+        agendamento=agendamento,
+        assinante=assinante,
+    )
     body = corpo_canonico(payload)
     agora = datetime.now(UTC)
     timestamp = str(int(agora.timestamp()))

@@ -59,7 +59,9 @@ def atualizar_perfil(db: Session, user: CurrentUser, dados: PerfilUpdate) -> Usu
     campos.pop("senha_atual", None)  # credencial de re-auth, nunca um campo gravavel
 
     email_anterior = usuario.email
+    crp_anterior = usuario.crp
     troca_email = "email" in campos and campos["email"] != email_anterior
+    troca_crp = "crp" in campos and campos["crp"] != crp_anterior
     if troca_email:
         if not dados.senha_atual or not verify_password(dados.senha_atual, usuario.senha_hash):
             raise SenhaAtualIncorreta()
@@ -88,6 +90,19 @@ def atualizar_perfil(db: Session, user: CurrentUser, dados: PerfilUpdate) -> Usu
             entidade_id=usuario.id,
             ator_usuario_id=user.id,
             payload={"email_anterior": email_anterior, "email_novo": usuario.email},
+        )
+    if troca_crp:
+        from app.modules.audit import service as audit_service
+        from app.modules.audit.models import TIPO_PERFIL_CRP_ALTERADO
+
+        audit_service.registrar_evento(
+            db,
+            tenant_id=user.tenant_id,
+            tipo_evento=TIPO_PERFIL_CRP_ALTERADO,
+            entidade="usuario",
+            entidade_id=usuario.id,
+            ator_usuario_id=user.id,
+            payload={"crp_anterior": crp_anterior, "crp_novo": usuario.crp},
         )
     return usuario
 

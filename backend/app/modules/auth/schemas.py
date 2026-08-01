@@ -3,6 +3,7 @@
 Regras de ouro: §2.1, §4.1
 Fase do roadmap: Fase 2
 """
+import re
 import uuid
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
@@ -24,6 +25,7 @@ class UsuarioOut(BaseModel):
     nome: str
     papel: str
     tenant_id: uuid.UUID
+    crp: str | None
 
 
 class PerfilOut(BaseModel):
@@ -36,6 +38,7 @@ class PerfilOut(BaseModel):
     papel: str
     nome: str
     email: str  # str, nao EmailStr (ver UsuarioOut) — nao revalidar na saida
+    crp: str | None
 
 
 class PerfilUpdate(BaseModel):
@@ -50,6 +53,7 @@ class PerfilUpdate(BaseModel):
 
     nome: str | None = Field(default=None, min_length=1, max_length=200)
     email: EmailStr | None = None
+    crp: str | None = Field(default=None, min_length=7, max_length=10)
     # Obrigatoria QUANDO o email muda (checado no service, que conhece o atual).
     senha_atual: str | None = None
 
@@ -61,10 +65,22 @@ class PerfilUpdate(BaseModel):
         # conta e burlaria o UNIQUE contra 'ana@x'.
         return v.lower() if v is not None else v
 
+    @field_validator("crp", mode="before")
+    @classmethod
+    def _normalizar_crp(cls, v: object) -> object:
+        if not isinstance(v, str):
+            return v
+        valor = v.strip().upper()
+        valor = re.sub(r"^CRP\s*[-:]?\s*", "", valor)
+        valor = re.sub(r"\s+", "", valor).replace("-", "/")
+        if not re.fullmatch(r"\d{2}/\d{4,7}", valor):
+            raise ValueError("CRP deve estar no formato 06/123456")
+        return valor
+
     @model_validator(mode="after")
     def _nao_anular_enviados(self) -> "PerfilUpdate":
         # Enviar o campo explicitamente como null e 422 (sao NOT NULL no BD).
-        for campo in ("nome", "email"):
+        for campo in ("nome", "email", "crp"):
             if campo in self.model_fields_set and getattr(self, campo) is None:
                 raise ValueError(f"{campo} nao pode ser nulo")
         return self

@@ -46,6 +46,7 @@ export interface Me {
   papel: string;
   nome: string;
   email: string;
+  crp: string | null;
 }
 
 export interface Tenant {
@@ -324,6 +325,7 @@ export interface DocumentosPagina {
 export interface PerfilUpdate {
   nome?: string;
   email?: string;
+  crp?: string;
   senha_atual?: string;
 }
 

@@ -28,6 +28,7 @@ TIPO_CONSENTIMENTO_REVOGADO = "consentimento_revogado"
 TIPO_GUARDA_ALTERADA = "guarda_alterada"
 # Fase 7c: troca do identificador de login e mutacao sensivel -> auditavel.
 TIPO_PERFIL_EMAIL_ALTERADO = "perfil_email_alterado"
+TIPO_PERFIL_CRP_ALTERADO = "perfil_crp_alterado"
 # Fase 7e: exclusoes/arquivamento sao mutacoes sensiveis -> auditaveis.
 TIPO_AGENDAMENTO_APAGADO = "agendamento_apagado"
 TIPO_PACIENTE_APAGADO = "paciente_apagado"
@@ -46,6 +47,7 @@ TIPOS_EVENTO = (
     TIPO_CONSENTIMENTO_REVOGADO,
     TIPO_GUARDA_ALTERADA,
     TIPO_PERFIL_EMAIL_ALTERADO,
+    TIPO_PERFIL_CRP_ALTERADO,
     TIPO_AGENDAMENTO_APAGADO,
     TIPO_PACIENTE_APAGADO,
     TIPO_PACIENTE_ARQUIVADO,
