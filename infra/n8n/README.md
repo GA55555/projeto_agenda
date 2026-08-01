@@ -90,3 +90,38 @@ EXECUTIONS_DATA_PRUNE: "false"
 Nesse modo, execuções descartadas seguem para *hard-delete* imediato. Qualquer mudança
 dessa variável exige repetir os cinco testes sintéticos e provar diretamente no PostgreSQL
 `0` linhas em `execution_entity` e `execution_data` antes de liberar payload real.
+
+## Runner isolado para PDF
+
+O PDF é produzido pelo módulo fechado `@agenda/pdf-evolucao` dentro do runner externo.
+Ele usa PDFKit fixado pelo `package-lock.json` e fonte DejaVu Unicode, sem Chromium,
+LibreOffice, serviço adicional ou acesso ao banco Agenda. A imagem mantém a mesma versão
+do n8n e do launcher:
+
+```bash
+docker build -t agenda-n8n-runners:2.33.0-pdf infra/n8n/runner
+```
+
+No serviço `task-runners` do stack, usar a imagem acima e permitir exclusivamente:
+
+```yaml
+environment:
+  NODE_FUNCTION_ALLOW_BUILTIN: crypto
+  NODE_FUNCTION_ALLOW_EXTERNAL: "@agenda/pdf-evolucao"
+```
+
+O módulo valida o contrato v1, gera A4 com texto selecionável, fonte Unicode, metadados,
+autoria/CRP, assinatura eletrônica registrada, identificadores de integridade, aviso de
+sigilo e paginação. O nome do arquivo contém somente UUID, nunca nome do paciente.
+
+O alvo descartável `test` gera PDFs totalmente sintéticos curto e multipágina:
+
+```bash
+docker build --target test -t agenda-n8n-runners:2.33.0-pdf-test infra/n8n/runner
+docker run --rm agenda-n8n-runners:2.33.0-pdf-test
+```
+
+Não conectar o módulo ao receptor ativo antes de completar idempotência do processamento
+e upload privado no Google Drive. Responder `200` antes do upload sem estado durável faria
+uma falha posterior perder o documento; marcar o evento como duplicado antes de concluir
+o upload também impediria retry seguro.
