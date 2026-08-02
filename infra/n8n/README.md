@@ -40,13 +40,14 @@ esse for o nome estável do contêiner criado pelo stack.
 ## Credencial PostgreSQL mínima
 
 `role_webhook.sql` cria/atualiza o role `agenda_webhook` e limita seus privilégios à
-leitura e inserção da tabela antirreplay. Informe a senha por prompt do `psql` ou outro
+leitura da tabela de eventos e execução das funções fechadas de estado. Informe a senha por prompt do `psql` ou outro
 canal que não grave o valor no Git/histórico. Na credencial PostgreSQL do n8n use o host
 do serviço PostgreSQL do próprio stack, banco `n8n`, usuário `agenda_webhook` e essa
 senha. Não reutilize o administrador do banco.
 
-O usuário da credencial PostgreSQL deve receber apenas `SELECT, INSERT` sobre
-`agenda_webhook_eventos`. Não reutilizar o superusuário do contêiner no workflow.
+O role não recebe `INSERT`, `UPDATE` nem `DELETE` direto. Claim, conclusão e falha passam
+somente por funções `SECURITY DEFINER` com entradas validadas e `search_path` fixo. Não
+reutilizar o superusuário do contêiner no workflow.
 
 ## Contrato
 
@@ -66,10 +67,19 @@ A PK no PostgreSQL rejeita replay concorrente. Repetir o mesmo UUID+hash devolve
 idempotente; o mesmo UUID com corpo diferente devolve 409. Execuções de sucesso/erro não
 são salvas para evitar persistir texto clínico no histórico do n8n.
 
+O processamento documental usa estados `recebido`, `processando`, `processado` e
+`falhou`, com claim transacional, lease de cinco minutos e backoff. O Drive recebe
+`agenda_evento_id` e `agenda_pdf_sha256` em `appProperties` privadas. Antes do upload, o
+workflow procura essas propriedades dentro da pasta configurada: se o arquivo já existir
+com o mesmo hash, conclui sem duplicar; divergência ou multiplicidade falha fechada. O
+`200` só é enviado depois de `agenda_concluir_evento` confirmar a persistência.
+
 ## Estado
 
-O arquivo versionado usa `active: false`. A ativação só ocorre após teste sintético de:
-assinatura válida, assinatura inválida, timestamp expirado, retry igual e replay divergente.
+O arquivo versionado usa `active: false` e deixa credenciais e
+`CONFIGURAR_URL_PASTA_DRIVE` para seleção operacional no n8n. A ativação só ocorre após
+teste sintético de assinatura válida/inválida, timestamp expirado, retry igual, replay
+divergente, falha/retry do Drive e prova de ausência de duplicação e histórico.
 
 ## Versão e retenção de execuções
 
@@ -99,7 +109,7 @@ LibreOffice, serviço adicional ou acesso ao banco Agenda. A imagem mantém a me
 do n8n e do launcher:
 
 ```bash
-docker build -t agenda-n8n-runners:2.33.0-pdf infra/n8n/runner
+docker build -t agenda-n8n-runners:2.33.0-pdf-r2 infra/n8n/runner
 ```
 
 No serviço `task-runners` do stack, usar a imagem acima e permitir exclusivamente:
@@ -109,6 +119,13 @@ environment:
   NODE_FUNCTION_ALLOW_BUILTIN: crypto
   NODE_FUNCTION_ALLOW_EXTERNAL: "@agenda/pdf-evolucao"
 ```
+
+A imagem também altera explicitamente `env-overrides.NODE_FUNCTION_ALLOW_EXTERNAL`
+em `/etc/n8n-task-runners.json`. O launcher oficial não repassa essa variável do
+Compose ao processo JavaScript e, na imagem-base 2.33.0, sobrescreve-a com `moment`;
+definir somente o ambiente do contêiner deixa o módulo instalado, porém bloqueado. O
+stack operacional usa a tag `agenda-n8n-runners:2.33.0-pdf-r2` para forçar a recriação
+após essa correção.
 
 O módulo valida o contrato v1, gera A4 com texto selecionável, fonte Unicode, metadados,
 autoria/CRP, assinatura eletrônica registrada, identificadores de integridade, aviso de

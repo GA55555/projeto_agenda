@@ -21,7 +21,10 @@ SELECT format('ALTER ROLE agenda_webhook PASSWORD %L', :'role_password')
 
 GRANT CONNECT ON DATABASE :DBNAME TO agenda_webhook;
 GRANT USAGE ON SCHEMA public TO agenda_webhook;
-GRANT SELECT, INSERT ON TABLE public.agenda_webhook_eventos TO agenda_webhook;
+GRANT SELECT ON TABLE public.agenda_webhook_eventos TO agenda_webhook;
+GRANT EXECUTE ON FUNCTION public.agenda_reivindicar_evento(uuid, char) TO agenda_webhook;
+GRANT EXECUTE ON FUNCTION public.agenda_concluir_evento(uuid, char, varchar, char) TO agenda_webhook;
+GRANT EXECUTE ON FUNCTION public.agenda_falhar_evento(uuid, char, varchar) TO agenda_webhook;
 
-REVOKE UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
 ON TABLE public.agenda_webhook_eventos FROM agenda_webhook;

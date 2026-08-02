@@ -56,38 +56,43 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH tentativa AS (\n  INSERT INTO agenda_webhook_eventos (evento_id, payload_sha256)\n  VALUES ($1::uuid, $2)\n  ON CONFLICT (evento_id) DO NOTHING\n  RETURNING true AS novo, payload_sha256\n)\nSELECT novo, payload_sha256 FROM tentativa\nUNION ALL\nSELECT false AS novo, payload_sha256\nFROM agenda_webhook_eventos\nWHERE evento_id = $1::uuid AND NOT EXISTS (SELECT 1 FROM tentativa);",
+        "query": "SELECT * FROM agenda_reivindicar_evento($1::uuid, $2::char(64));",
         "options": {
           "queryReplacement": "={{ [$json.evento_id, $json.payload_sha256] }}"
         }
       },
       "id": "22d3b39e-f8d6-4a57-a5ac-7679ec8f0005",
-      "name": "Registrar ou reconhecer evento",
+      "name": "Reivindicar processamento",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [0, -80]
     },
     {
       "parameters": {
-        "jsCode": "const current = $('Validar HMAC e janela').first().json;\nconst stored = $input.first().json;\nif (stored.payload_sha256 !== current.payload_sha256) {\n  return [{ json: { replay_ok: false, novo: false } }];\n}\nreturn [{ json: { replay_ok: true, novo: stored.novo === true } }];"
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2},
+          "conditions": [{"id": "processar", "leftValue": "={{ $json.decisao }}", "rightValue": "processar", "operator": {"type": "string", "operation": "equals"}}],
+          "combinator": "and"
+        },
+        "options": {}
       },
       "id": "22d3b39e-f8d6-4a57-a5ac-7679ec8f0006",
-      "name": "Validar idempotência",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "name": "Deve processar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
       "position": [240, -80]
     },
     {
       "parameters": {
         "conditions": {
           "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2},
-          "conditions": [{"id": "replay-ok", "leftValue": "={{ $json.replay_ok }}", "rightValue": true, "operator": {"type": "boolean", "operation": "true", "singleValue": true}}],
+          "conditions": [{"id": "divergente", "leftValue": "={{ $json.decisao }}", "rightValue": "replay_divergente", "operator": {"type": "string", "operation": "equals"}}],
           "combinator": "and"
         },
         "options": {}
       },
       "id": "22d3b39e-f8d6-4a57-a5ac-7679ec8f0007",
-      "name": "Replay válido?",
+      "name": "Replay divergente?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [480, -80]
@@ -95,14 +100,14 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { ok: true, aceito: $json.novo, duplicado: !$json.novo } }}",
+        "responseBody": "={\"ok\":true,\"aceito\":false,\"duplicado\":true,\"estado\":\"processado\"}",
         "options": {"responseCode": 200}
       },
       "id": "22d3b39e-f8d6-4a57-a5ac-7679ec8f0008",
-      "name": "Aceitar idempotente",
+      "name": "Responder já processado",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
-      "position": [720, -160]
+      "position": [720, 80]
     },
     {
       "parameters": {
@@ -114,17 +119,170 @@
       "name": "Rejeitar replay divergente",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
-      "position": [720, 40]
+      "position": [720, 240]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2},
+          "conditions": [{"id": "processado", "leftValue": "={{ $json.decisao }}", "rightValue": "ja_processado", "operator": {"type": "string", "operation": "equals"}}],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "22d3b39e-f8d6-4a57-a5ac-7679ec8f0010",
+      "name": "Já processado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [480, 160]
+    },
+    {
+      "parameters": {"respondWith": "json", "responseBody": "={\"ok\":false,\"erro\":\"retry_posterior\"}", "options": {"responseCode": 503}},
+      "id": "22d3b39e-f8d6-4a57-a5ac-7679ec8f0011",
+      "name": "Solicitar retry",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [720, 160]
+    },
+    {
+      "parameters": {
+        "jsCode": "const { gerarPdf } = require('@agenda/pdf-evolucao');\nconst atual = $('Validar HMAC e janela').first().json;\nconst resultado = await gerarPdf(atual.payload);\nreturn [{ json: { evento_id: atual.evento_id, payload_sha256: atual.payload_sha256, pdf_sha256: resultado.sha256 }, binary: { data: { data: resultado.buffer.toString('base64'), mimeType: resultado.mimeType, fileName: resultado.fileName, fileExtension: 'pdf' } } }];"
+      },
+      "id": "22d3b39e-f8d6-4a57-a5ac-7679ec8f0012",
+      "name": "Gerar PDF",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, -240],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "operation": "search",
+        "searchMethod": "query",
+        "queryString": "={{ \"appProperties has { key='agenda_evento_id' and value='\" + $json.evento_id + \"' } and trashed = false\" }}",
+        "returnAll": false,
+        "limit": 2,
+        "filter": {"driveId": {"mode": "list", "value": "My Drive"}, "folderId": {"mode": "url", "value": "CONFIGURAR_URL_PASTA_DRIVE"}, "whatToSearch": "files", "includeTrashed": false},
+        "options": {"fields": ["*"]}
+      },
+      "id": "22d3b39e-f8d6-4a57-a5ac-7679ec8f0013",
+      "name": "Buscar PDF existente",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [720, -240],
+      "alwaysOutputData": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const gerado = $('Gerar PDF').first();\nconst encontrados = $input.all().filter((item) => item.json && item.json.id);\nif (encontrados.length > 1) throw new Error('drive_idempotencia_duplicada');\nif (encontrados.length === 1) {\n  const arquivo = encontrados[0].json;\n  if (!arquivo.appProperties || arquivo.appProperties.agenda_pdf_sha256 !== gerado.json.pdf_sha256) throw new Error('drive_hash_divergente');\n  return [{ json: { ...gerado.json, arquivo_existente: true, drive_file_id: arquivo.id } }];\n}\nreturn [{ json: { ...gerado.json, arquivo_existente: false }, binary: gerado.binary }];"
+      },
+      "id": "22d3b39e-f8d6-4a57-a5ac-7679ec8f0014",
+      "name": "Decidir upload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, -240],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2},
+          "conditions": [{"id": "existente", "leftValue": "={{ $json.arquivo_existente }}", "rightValue": true, "operator": {"type": "boolean", "operation": "true", "singleValue": true}}],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "22d3b39e-f8d6-4a57-a5ac-7679ec8f0015",
+      "name": "PDF já existe?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1200, -240]
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "upload",
+        "inputDataFieldName": "data",
+        "name": "",
+        "driveId": {"mode": "list", "value": "My Drive"},
+        "folderId": {"mode": "url", "value": "CONFIGURAR_URL_PASTA_DRIVE"},
+        "options": {"appPropertiesUi": {"appPropertyValues": [{"key": "agenda_evento_id", "value": "={{ $('Gerar PDF').first().json.evento_id }}"}, {"key": "agenda_pdf_sha256", "value": "={{ $('Gerar PDF').first().json.pdf_sha256 }}"}]}, "simplifyOutput": false}
+      },
+      "id": "22d3b39e-f8d6-4a57-a5ac-7679ec8f0016",
+      "name": "Enviar PDF ao Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [1440, -160],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {"operation": "executeQuery", "query": "SELECT agenda_concluir_evento($1::uuid, $2::char(64), $3::varchar(255), $4::char(64)) AS concluido;", "options": {"queryReplacement": "={{ [$('Gerar PDF').first().json.evento_id, $('Gerar PDF').first().json.payload_sha256, $json.drive_file_id || $json.id, $('Gerar PDF').first().json.pdf_sha256] }}"}},
+      "id": "22d3b39e-f8d6-4a57-a5ac-7679ec8f0017",
+      "name": "Concluir processamento",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [1680, -240],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {"respondWith": "json", "responseBody": "={\"ok\":true,\"aceito\":true,\"duplicado\":false,\"estado\":\"processado\"}", "options": {"responseCode": 200}},
+      "id": "22d3b39e-f8d6-4a57-a5ac-7679ec8f0018",
+      "name": "Confirmar processamento",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [2160, -240]
+    },
+    {
+      "parameters": {"operation": "executeQuery", "query": "SELECT agenda_falhar_evento($1::uuid, $2::char(64), 'processamento_externo') AS falhou;", "options": {"queryReplacement": "={{ [$('Validar HMAC e janela').first().json.evento_id, $('Validar HMAC e janela').first().json.payload_sha256] }}"}},
+      "id": "22d3b39e-f8d6-4a57-a5ac-7679ec8f0019",
+      "name": "Registrar falha técnica",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [1440, 40]
+    },
+    {
+      "parameters": {"respondWith": "json", "responseBody": "={\"ok\":false,\"erro\":\"processamento_indisponivel\"}", "options": {"responseCode": 503}},
+      "id": "22d3b39e-f8d6-4a57-a5ac-7679ec8f0020",
+      "name": "Responder falha técnica",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [1920, 40]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2},
+          "conditions": [{"id": "concluido", "leftValue": "={{ $json.concluido }}", "rightValue": true, "operator": {"type": "boolean", "operation": "true", "singleValue": true}}],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "22d3b39e-f8d6-4a57-a5ac-7679ec8f0021",
+      "name": "Conclusão persistida?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1920, -240]
     }
   ],
   "pinData": {},
   "connections": {
     "Webhook Agenda": {"main": [[{"node": "Validar HMAC e janela", "type": "main", "index": 0}]]},
     "Validar HMAC e janela": {"main": [[{"node": "Autenticado?", "type": "main", "index": 0}]]},
-    "Autenticado?": {"main": [[{"node": "Registrar ou reconhecer evento", "type": "main", "index": 0}], [{"node": "Rejeitar", "type": "main", "index": 0}]]},
-    "Registrar ou reconhecer evento": {"main": [[{"node": "Validar idempotência", "type": "main", "index": 0}]]},
-    "Validar idempotência": {"main": [[{"node": "Replay válido?", "type": "main", "index": 0}]]},
-    "Replay válido?": {"main": [[{"node": "Aceitar idempotente", "type": "main", "index": 0}], [{"node": "Rejeitar replay divergente", "type": "main", "index": 0}]]}
+    "Autenticado?": {"main": [[{"node": "Reivindicar processamento", "type": "main", "index": 0}], [{"node": "Rejeitar", "type": "main", "index": 0}]]},
+    "Reivindicar processamento": {"main": [[{"node": "Deve processar?", "type": "main", "index": 0}]]},
+    "Deve processar?": {"main": [[{"node": "Gerar PDF", "type": "main", "index": 0}], [{"node": "Replay divergente?", "type": "main", "index": 0}]]},
+    "Replay divergente?": {"main": [[{"node": "Rejeitar replay divergente", "type": "main", "index": 0}], [{"node": "Já processado?", "type": "main", "index": 0}]]},
+    "Já processado?": {"main": [[{"node": "Responder já processado", "type": "main", "index": 0}], [{"node": "Solicitar retry", "type": "main", "index": 0}]]},
+    "Gerar PDF": {"main": [[{"node": "Buscar PDF existente", "type": "main", "index": 0}], [{"node": "Registrar falha técnica", "type": "main", "index": 0}]]},
+    "Buscar PDF existente": {"main": [[{"node": "Decidir upload", "type": "main", "index": 0}], [{"node": "Registrar falha técnica", "type": "main", "index": 0}]]},
+    "Decidir upload": {"main": [[{"node": "PDF já existe?", "type": "main", "index": 0}], [{"node": "Registrar falha técnica", "type": "main", "index": 0}]]},
+    "PDF já existe?": {"main": [[{"node": "Concluir processamento", "type": "main", "index": 0}], [{"node": "Enviar PDF ao Drive", "type": "main", "index": 0}]]},
+    "Enviar PDF ao Drive": {"main": [[{"node": "Concluir processamento", "type": "main", "index": 0}], [{"node": "Registrar falha técnica", "type": "main", "index": 0}]]},
+    "Concluir processamento": {"main": [[{"node": "Conclusão persistida?", "type": "main", "index": 0}], [{"node": "Responder falha técnica", "type": "main", "index": 0}]]},
+    "Conclusão persistida?": {"main": [[{"node": "Confirmar processamento", "type": "main", "index": 0}], [{"node": "Responder falha técnica", "type": "main", "index": 0}]]},
+    "Registrar falha técnica": {"main": [[{"node": "Responder falha técnica", "type": "main", "index": 0}]]}
   },
   "active": false,
   "settings": {"executionOrder": "v1", "saveDataErrorExecution": "none", "saveDataSuccessExecution": "none", "saveManualExecutions": false},
