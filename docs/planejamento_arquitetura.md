@@ -17,13 +17,13 @@
 | Fase corrente | **Transição Fase 8b → Fase 9 (revisão de segurança).** Exportação durável aprovada sinteticamente; hardening defensivo iniciado; receptor permanece despublicado. |
 | Última atualização | 2026-08-03 |
 | Bloqueios ativos | Segredos n8n/HMAC rotacionados e matriz pós-rotação aprovada, mas o receptor permanece despublicado. A LAN está contida por regra IPv4 temporária em `DOCKER-USER`, validada para PostgreSQL auxiliar e Portainer, preservando Tailscale; faltam persistência e equivalente IPv6. Homarr continua legado e com Docker socket gravável. No painel OpenAI, `API call logging` e os três controles de Sharing estão desativados, comprovando ausência de opt-in de treino; porém, não há seletores ZDR/MAM, portanto ZDR não está provisionado nem comprovado. Scans de imagens/segredos foram concluídos: frontend candidato corrigido está limpo, mas imagens upstream de backend/n8n/runner/PostgreSQL/pgvector mantêm CVEs que exigem correção do fornecedor ou exceção formal. O frontend ainda tem exceção temporária para advisory RSC do React Router, caminho não usado pela SPA. Nenhum novo dado real deve ser processado. |
-| Próximo passo imediato | **Fluxo de código:** code review concluído e lote validado; apresentar o resultado e aguardar autorização explícita antes de commit/push. Depois, planejar snapshot, migration `0014`, deploy e reteste sintético. **Go-live:** solicitar ZDR à OpenAI. Persistência/IPv6 do firewall e migração Homarr 0.x→1.x/socket proxy continuam mudanças separadas. |
+| Próximo passo imediato | **Fluxo de código:** lote revisado e versionado no commit `216d461`; planejar snapshot, migration `0014`, deploy e reteste sintético antes de qualquer promoção. **Go-live:** solicitar ZDR à OpenAI. Persistência/IPv6 do firewall e migração Homarr 0.x→1.x/socket proxy continuam mudanças separadas. |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
 ### 🔖 Ponto de Retomada (ler primeiro na próxima sessão)
 
-**Onde paramos (2026-08-03 — code review concluído, lote pronto para apresentação):**
+**Onde paramos (2026-08-03 — code review concluído e lote versionado):**
 o diff completo foi revisado e quatro problemas foram corrigidos: (1) troca de senha e
 logout agora bloqueiam a linha do usuário e exigem a `session_version` apresentada,
 evitando perda de incremento ou revogação de sessão nova em corridas; (2) logout
@@ -42,12 +42,12 @@ build Vite e build Docker; `nginx -t` passou com hostname sintético e o limitad
 ocorrências do advisory RSC não alcançável, e `7.18.2` segue como release estável mais
 nova. Lint focado, `compileall` e `git diff --check` passaram.
 
-**Nada foi promovido:** nenhum commit/push, migration/deploy/restart de produção,
-publicação do receptor ou dado real. O PostgreSQL/rede de teste foram descartados; apenas
-imagens Docker locais de revisão podem permanecer como artefatos recuperáveis. Próximo:
-(1) apresentar o lote; (2) com autorização, commit/push; (3) planejar deploy com snapshot
-e migration `0014` antes do backend; (4) retestar login/cache/revogação somente com dados
-sintéticos; (5) manter receptor e dado real bloqueados até ZDR e demais critérios de
+**Nada foi promovido para produção:** o lote técnico foi versionado no commit `216d461`,
+mas não houve migration/deploy/restart, publicação do receptor ou uso de dado real. O
+PostgreSQL/rede de teste foram descartados; apenas imagens Docker locais de revisão podem
+permanecer como artefatos recuperáveis. Próximo: (1) planejar deploy com snapshot e
+migration `0014` antes do backend; (2) retestar login/cache/revogação somente com dados
+sintéticos; (3) manter receptor e dado real bloqueados até ZDR e demais critérios de
 go-live.
 
 **Onde paramos (2026-08-02 — lote de hardening pronto para revisão, ainda sem
@@ -630,7 +630,7 @@ permanece desativado até seu banco, binários e chave de cifragem entrarem no b
 > Mantenha conciso — este é o resumo que será lido no início das próximas sessões.
 > As linhas são cronológicas: estados 🟡 antigos documentam o momento da entrega e são substituídos pelas linhas ✅ mais recentes; o estado corrente vive no topo deste arquivo.
 
-- 2026-08-03 — [Fase 9/Code review] 🟡 **Lote de hardening revisado e validado, sem commit/deploy.** Corrigidas corridas de `session_version`, logout idempotente de cookie inválido, exposição do valor JWT em traceback Pydantic e limpeza integrada outbox→evolução. Backend final: `157` unitários + `14` integrações aprovados em PostgreSQL descartável, migration `0014` validada em upgrade/downgrade e startup fail-fast sem ecoar segredo. Frontend: lock íntegro, TypeScript/build/Docker/Nginx/rate limit aprovados; audit mantém somente exceção RSC não alcançável. Lint focado, compileall e diff-check aprovados. **Próximo:** apresentar o lote e aguardar autorização para commit/push; produção e receptor permanecem inalterados.
+- 2026-08-03 — [Fase 9/Code review] 🟡 **Lote de hardening revisado, validado e versionado no commit `216d461`; sem deploy.** Corrigidas corridas de `session_version`, logout idempotente de cookie inválido, exposição do valor JWT em traceback Pydantic e limpeza integrada outbox→evolução. Backend final: `157` unitários + `14` integrações aprovados em PostgreSQL descartável, migration `0014` validada em upgrade/downgrade e startup fail-fast sem ecoar segredo. Frontend: lock íntegro, TypeScript/build/Docker/Nginx/rate limit aprovados; audit mantém somente exceção RSC não alcançável. Lint focado, compileall e diff-check aprovados. **Próximo:** planejar snapshot, migration `0014`, deploy e reteste sintético; produção e receptor permanecem inalterados.
 - 2026-08-02 — [Fase 9/Segurança] 🟡 **Rotação n8n/HMAC e reteste concluídos; hardening em curso.** As 12 execuções do workflow sintético do Drive foram removidas com guardas estritas. Script corrigido para publicação/despublicação atual e ordem segura n8n→runner; matriz pós-rotação passou `401/401/200/200/409`. Estado final: workflows inativos, serviços saudáveis, `0` execuções e `0` payloads globais. React Router `7.18.2` e Vite `6.4.3` passaram TypeScript/build; advisories antigos foram removidos, restando exceção RSC não alcançável pela arquitetura atual e ainda sem release corrigida. **Próximo:** firewall/alcance, scans de imagens/segredos e comprovação ZDR.
 - 2026-08-02 — [Fase 9/OpenAI] 🔴 **ZDR verificado e ainda não provisionado.** Em Data Controls, `API call logging` está desativado, mas não há seletores `Zero Data Retention`/`Modified Abuse Monitoring` para organização ou projeto. Conforme a documentação oficial, ZDR exige aprovação prévia da OpenAI. O código usa somente Chat Completions com `store=false` e Embeddings, ambos elegíveis, mas isso não substitui ZDR. Manter receptor despublicado e não processar dado real até aprovação e ativação explícita no projeto Agenda.
 - 2026-08-02 — [Fase 9/OpenAI] ✅ **Ausência de opt-in de treino comprovada.** Em Sharing, feedback de modelo, dados de avaliação/fine-tuning e inputs/outputs estão todos `Disabled`; `API call logging` também está desativado. Essa evidência fecha o item de compartilhamento para treinamento, mas não o ZDR, que continua aguardando aprovação/provisionamento.
