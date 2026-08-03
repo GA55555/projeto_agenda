@@ -9,7 +9,9 @@ import uuid
 
 import pytest
 
-TEN = str(uuid.uuid4())
+# UUID v4 sintético e estável: uma falha anterior não deixa um tenant com o
+# mesmo slug que a execução seguinte não consiga identificar e remover.
+TEN = "00000000-0000-4000-8000-000000000501"
 EMAIL = "psi-evol@teste.local"
 SENHA = "SenhaEvol!"
 
@@ -48,6 +50,9 @@ def cenario():
         cur.execute("ALTER TABLE auditoria DISABLE TRIGGER trg_auditoria_imutavel")
         try:
             cur.execute("DELETE FROM auditoria WHERE tenant_id=%s", (TEN,))
+            # A assinatura cria outbox com FK para a evolucao; limpar o filho
+            # antes do prontuario preserva a mesma ordem exigida pelo schema.
+            cur.execute("DELETE FROM n8n_outbox WHERE tenant_id=%s", (TEN,))
             cur.execute("DELETE FROM evolucao_chunks WHERE tenant_id=%s", (TEN,))
             cur.execute("DELETE FROM evolucoes WHERE tenant_id=%s", (TEN,))
             cur.execute("DELETE FROM agendamentos WHERE tenant_id=%s", (TEN,))

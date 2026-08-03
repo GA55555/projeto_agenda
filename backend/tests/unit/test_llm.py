@@ -14,11 +14,11 @@ import uuid
 
 import pytest
 
-from app.modules.auth.dependencies import CurrentUser
 from app.modules.anonimizacao.automaton import AhoCorasick, respeita_fronteira
 from app.modules.anonimizacao.exceptions import PIIVazadaError
 from app.modules.anonimizacao.pseudonimizador import anonimizar as _anon
 from app.modules.anonimizacao.recognizers import detectar_por_regex
+from app.modules.auth.dependencies import CurrentUser
 from app.modules.consentimentos.exceptions import SemConsentimentoAtivo
 from app.modules.llm import service
 from app.modules.llm.exceptions import PacienteInexistente
@@ -40,7 +40,12 @@ class _FakeDB:
 
 
 def _user():
-    return CurrentUser(id=uuid.uuid4(), tenant_id=uuid.uuid4(), papel="psicologa")
+    return CurrentUser(
+        id=uuid.uuid4(),
+        tenant_id=uuid.uuid4(),
+        papel="psicologa",
+        session_version=1,
+    )
 
 
 def _anon_real(entidades, texto):
@@ -89,13 +94,20 @@ def test_gerar_rascunho_mascara_saida_e_desanonimiza_resposta(monkeypatch):
     def fake_gerar_json(mensagens):
         enviado["payload"] = mensagens[1]["content"]
         # O LLM "responde" usando os marcadores que recebeu.
-        return '{"evolucao": "Hoje <PERSON_1> repetiu o padrao.", "destaques": ["<PERSON_1> tem gatilho sonoro"]}'
+        return (
+            '{"evolucao": "Hoje <PERSON_1> repetiu o padrao.", '
+            '"destaques": ["<PERSON_1> tem gatilho sonoro"]}'
+        )
 
     _patch_comum(monkeypatch, contexto=["Pedro ja teve gatilho sonoro."])
     monkeypatch.setattr(service, "gerar_json", fake_gerar_json)
 
     out = service.gerar_rascunho(
-        _FakeDB(), _user(), GerarEvolucaoIn(paciente_id=uuid.uuid4(), nota_do_dia="Hoje o Pedro teve crise.")
+        _FakeDB(),
+        _user(),
+        GerarEvolucaoIn(
+            paciente_id=uuid.uuid4(), nota_do_dia="Hoje o Pedro teve crise."
+        ),
     )
     # O que saiu para a OpenAI nao tem o nome real, so marcador.
     assert "Pedro" not in enviado["payload"]
@@ -138,7 +150,11 @@ def test_guard_rail_aborta_antes_da_openai(monkeypatch):
 
     with pytest.raises(PIIVazadaError):
         service.gerar_rascunho(
-            _FakeDB(), _user(), GerarEvolucaoIn(paciente_id=uuid.uuid4(), nota_do_dia="O Pedro veio.")
+            _FakeDB(),
+            _user(),
+            GerarEvolucaoIn(
+                paciente_id=uuid.uuid4(), nota_do_dia="O Pedro veio."
+            ),
         )
     assert chamou["llm"] is False  # nada foi enviado a OpenAI
 

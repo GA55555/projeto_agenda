@@ -21,7 +21,7 @@ COPY app ./app
 # pseudonimizacao (Fase 4, §2.3). Modelo pt PEQUENO (pt_core_news_sm) para caber
 # no mem_limit de 1 GB do backend (§1.1); instalado no venv e carregado lazy
 # em runtime (§1.3). O modelo vira um pacote no venv -> segue para o runtime.
-RUN pip install --upgrade pip && pip install ".[nlp]" \
+RUN pip install --upgrade pip "setuptools>=78.1.1" && pip install ".[nlp]" \
     && python -m spacy download pt_core_news_sm
 
 # ---- Estagio 2: runtime (apenas o venv + codigo, sem toolchain) ----

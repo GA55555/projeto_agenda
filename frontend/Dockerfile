@@ -4,7 +4,7 @@
 # =============================================================================
 
 # ---- Estagio 1: build da SPA ----
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /build
 
 # Cache de dependencias: copia manifests primeiro. `npm ci` = build deterministico
@@ -17,7 +17,7 @@ COPY . .
 RUN npm run build
 
 # ---- Estagio 2: runtime (Nginx estatico) ----
-FROM nginx:1.27-alpine AS runtime
+FROM nginx:1.30.4-alpine3.24 AS runtime
 
 ARG VCS_REF=unknown
 LABEL org.opencontainers.image.revision=$VCS_REF

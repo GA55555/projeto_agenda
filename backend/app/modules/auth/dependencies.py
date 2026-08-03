@@ -28,6 +28,7 @@ class CurrentUser:
     id: uuid.UUID
     tenant_id: uuid.UUID
     papel: str
+    session_version: int
 
 
 def _extrair_token(request: Request) -> str | None:
@@ -57,6 +58,7 @@ def _decodificar_current_user(request: Request) -> CurrentUser:
             id=uuid.UUID(payload["sub"]),
             tenant_id=uuid.UUID(payload["tenant_id"]),
             papel=payload["papel"],
+            session_version=int(payload["sv"]),
         )
     except (jwt.PyJWTError, KeyError, ValueError):
         raise credenciais_invalidas
@@ -73,6 +75,7 @@ def _conta_continua_ativa(user: CurrentUser) -> bool:
                 Usuario.id == user.id,
                 Usuario.tenant_id == user.tenant_id,
                 Usuario.papel == user.papel,
+                Usuario.session_version == user.session_version,
                 Usuario.ativo.is_(True),
             )
         ).scalar_one_or_none()
@@ -89,3 +92,17 @@ def get_current_user(request: Request) -> CurrentUser:
             headers={"WWW-Authenticate": "Bearer"},
         )
     return user
+
+
+def get_optional_current_user(request: Request) -> CurrentUser | None:
+    """Devolve a sessao valida, ou ``None`` para operacoes idempotentes.
+
+    O logout usa esta dependencia para sempre conseguir expirar o cookie local,
+    inclusive quando o JWT ja expirou ou foi revogado em outro navegador.
+    """
+    try:
+        return get_current_user(request)
+    except HTTPException as exc:
+        if exc.status_code != status.HTTP_401_UNAUTHORIZED:
+            raise
+        return None

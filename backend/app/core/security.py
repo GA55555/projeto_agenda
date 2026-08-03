@@ -29,13 +29,14 @@ def verify_password(senha: str, senha_hash: str) -> bool:
         return False
 
 
-def create_access_token(*, user_id, tenant_id, papel: str) -> str:
+def create_access_token(*, user_id, tenant_id, papel: str, session_version: int) -> str:
     """Emite um JWT de acesso com o locatario (psicologa) embutido."""
     now = datetime.now(timezone.utc)
     payload = {
         "sub": str(user_id),
         "tenant_id": str(tenant_id),
         "papel": papel,
+        "sv": session_version,
         "iat": now,
         "exp": now + timedelta(minutes=settings.jwt_access_token_expire_minutes),
     }

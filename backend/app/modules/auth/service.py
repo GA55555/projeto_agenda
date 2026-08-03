@@ -107,14 +107,49 @@ def atualizar_perfil(db: Session, user: CurrentUser, dados: PerfilUpdate) -> Usu
     return usuario
 
 
-def trocar_senha(db: Session, user_id: uuid.UUID, dados: SenhaUpdate) -> Usuario | None:
-    """Troca a senha do proprio usuario apos conferir a senha atual (§4.1)."""
-    usuario = db.get(Usuario, user_id)
+def trocar_senha(
+    db: Session,
+    user_id: uuid.UUID,
+    session_version: int,
+    dados: SenhaUpdate,
+) -> Usuario | None:
+    """Troca a senha e revoga JWTs sem perder incrementos concorrentes (§4.1)."""
+    usuario = db.execute(
+        select(Usuario)
+        .where(
+            Usuario.id == user_id,
+            Usuario.session_version == session_version,
+        )
+        .with_for_update()
+    ).scalar_one_or_none()
     if usuario is None:
         return None
     if not verify_password(dados.senha_atual, usuario.senha_hash):
         raise SenhaAtualIncorreta()
     usuario.senha_hash = hash_password(dados.senha_nova)
+    usuario.session_version += 1
+    usuario.atualizado_em = datetime.now(timezone.utc)
+    db.flush()
+    return usuario
+
+
+def revogar_sessoes(
+    db: Session,
+    user_id: uuid.UUID,
+    session_version: int,
+) -> Usuario | None:
+    """Invalida JWTs atuais sem revogar uma sessao mais nova por corrida."""
+    usuario = db.execute(
+        select(Usuario)
+        .where(
+            Usuario.id == user_id,
+            Usuario.session_version == session_version,
+        )
+        .with_for_update()
+    ).scalar_one_or_none()
+    if usuario is None:
+        return None
+    usuario.session_version += 1
     usuario.atualizado_em = datetime.now(timezone.utc)
     db.flush()
     return usuario

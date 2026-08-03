@@ -14,14 +14,108 @@
 
 | Campo | Valor |
 | --- | --- |
-| Fase corrente | **Fase 8b (automação/exportação).** OAuth2, PDF e processamento durável/idempotente aprovados com matriz sintética; receptor permanece despublicado. |
-| Última atualização | 2026-08-01 |
-| Bloqueios ativos | Senha administrativa do PostgreSQL n8n e segredo HMAC foram expostos na sessão; rotação recusada e pendente, portanto nenhum novo dado real deve ser processado. A confirmação formal de ZDR permanece na Fase 9. |
-| Próximo passo imediato | Confirmar visualmente que a recuperação pós-upload não criou PDF duplicado; revisar/commit/push. Publicação para dado real continua bloqueada pela rotação recusada. |
+| Fase corrente | **Transição Fase 8b → Fase 9 (revisão de segurança).** Exportação durável aprovada sinteticamente; hardening defensivo iniciado; receptor permanece despublicado. |
+| Última atualização | 2026-08-03 |
+| Bloqueios ativos | Segredos n8n/HMAC rotacionados e matriz pós-rotação aprovada, mas o receptor permanece despublicado. A LAN está contida por regra IPv4 temporária em `DOCKER-USER`, validada para PostgreSQL auxiliar e Portainer, preservando Tailscale; faltam persistência e equivalente IPv6. Homarr continua legado e com Docker socket gravável. No painel OpenAI, `API call logging` e os três controles de Sharing estão desativados, comprovando ausência de opt-in de treino; porém, não há seletores ZDR/MAM, portanto ZDR não está provisionado nem comprovado. Scans de imagens/segredos foram concluídos: frontend candidato corrigido está limpo, mas imagens upstream de backend/n8n/runner/PostgreSQL/pgvector mantêm CVEs que exigem correção do fornecedor ou exceção formal. O frontend ainda tem exceção temporária para advisory RSC do React Router, caminho não usado pela SPA. Nenhum novo dado real deve ser processado. |
+| Próximo passo imediato | **Fluxo de código:** code review concluído e lote validado; apresentar o resultado e aguardar autorização explícita antes de commit/push. Depois, planejar snapshot, migration `0014`, deploy e reteste sintético. **Go-live:** solicitar ZDR à OpenAI. Persistência/IPv6 do firewall e migração Homarr 0.x→1.x/socket proxy continuam mudanças separadas. |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
 ### 🔖 Ponto de Retomada (ler primeiro na próxima sessão)
+
+**Onde paramos (2026-08-03 — code review concluído, lote pronto para apresentação):**
+o diff completo foi revisado e quatro problemas foram corrigidos: (1) troca de senha e
+logout agora bloqueiam a linha do usuário e exigem a `session_version` apresentada,
+evitando perda de incremento ou revogação de sessão nova em corridas; (2) logout
+inválido/expirado permanece idempotente e remove o cookie local; (3) erros de validação
+das settings ocultam valores de entrada, impedindo que um JWT fraco apareça no traceback;
+(4) o fixture integrado de evoluções limpa a outbox antes da evolução e usa tenant
+sintético estável, respeitando a FK criada pela `0012`. Estados históricos de firewall e
+da Fase 8b também foram reconciliados.
+
+**Validação final deste lote:** imagem backend final importou com segredo sintético forte
+e recusou segredo fraco sem exibir o valor; `157 passed, 1 deselected` nos unitários e
+`14 passed` nas integrações contra PostgreSQL 16 descartável, após migrations completas,
+ciclo `0014→0013→0014` e reteste de autenticação. Frontend passou `npm ci`, TypeScript,
+build Vite e build Docker; `nginx -t` passou com hostname sintético e o limitador repetiu
+`502×5`, depois `429`, sem limitar rota comum. `npm audit` completo mantém apenas duas
+ocorrências do advisory RSC não alcançável, e `7.18.2` segue como release estável mais
+nova. Lint focado, `compileall` e `git diff --check` passaram.
+
+**Nada foi promovido:** nenhum commit/push, migration/deploy/restart de produção,
+publicação do receptor ou dado real. O PostgreSQL/rede de teste foram descartados; apenas
+imagens Docker locais de revisão podem permanecer como artefatos recuperáveis. Próximo:
+(1) apresentar o lote; (2) com autorização, commit/push; (3) planejar deploy com snapshot
+e migration `0014` antes do backend; (4) retestar login/cache/revogação somente com dados
+sintéticos; (5) manter receptor e dado real bloqueados até ZDR e demais critérios de
+go-live.
+
+**Onde paramos (2026-08-02 — lote de hardening pronto para revisão, ainda sem
+commit/deploy):** o working tree contém o relatório defensivo, atualização React Router
+`7.18.2`/Vite `6.4.3`, imagens candidatas Node 22 + Nginx
+`1.30.4-alpine3.24`, pisos Python para `msgpack`/`setuptools`, allowlist Gitleaks restrita
+a dois JWTs sintéticos, esclarecimentos sobre `store=false`, `Cache-Control: no-store,
+private` em toda `/api/`, rate limiting do login por IP na borda e validação fail-fast
+do JWT (segredo ≥32 bytes, somente `HS256`). A migration local `0014` adiciona
+`session_version`: troca de senha revoga tokens anteriores e reemite apenas o cookie da
+sessão que comprovou a senha; logout global e suspensão/reativação incrementam a versão.
+O SQL `0013→0014` foi somente renderizado offline — **não foi aplicado ao PostgreSQL**.
+
+**Evidências deste ponto:** frontend candidato passou TypeScript/build, `nginx -t` e o
+teste isolado de rate limit (`502×5`, depois `429`; rota comum não limitada); o `429`
+contém `Retry-After: 60` e `no-store`. Backend candidato consolidado contém `0014`, inicia
+com configuração sintética válida e recusa segredo fraco. Unitários:
+`152 passed, 1 deselected` (NER “Lucas” já conhecido); lint básico dos arquivos alterados
+e `git diff --check` passaram. Gitleaks terminou os 68 commits sem vazamento após a
+allowlist AND estrita; Trivy e exceções upstream estão descritos em
+[`revisao_seguranca_2026-08-01.md`](./revisao_seguranca_2026-08-01.md). Arquivos/logs de
+build temporários foram removidos; somente as imagens Docker candidatas foram mantidas.
+
+**Nada operacional foi feito neste lote:** nenhum commit/push, migration, deploy,
+reinício de produção, publicação do receptor ou processamento de dado real. O receptor
+n8n permanece inativo; produção continua no código/schema anteriores. **Retomar
+exatamente por:** (1) revisar o diff e executar code-review; (2) corrigir achados e
+repetir unitários/builds; (3) apresentar o lote ao usuário antes de commit; (4) planejar
+deploy com snapshot, migration `0014` antes do novo backend e reteste exclusivamente
+sintético de login/cache/revogação; (5) manter o receptor despublicado e dado real
+bloqueado até ZDR comprovado e demais bloqueios de go-live encerrados.
+
+**Onde paramos (2026-08-02 — retomada da Fase 9):** senha administrativa do PostgreSQL
+n8n e HMAC Agenda↔n8n foram rotacionados sem exibir valores. As 12 execuções/payloads do
+workflow de teste do Drive foram removidas por transação com guardas estritas. O script
+pós-rotação passou a usar `publish:workflow`/`unpublish:workflow`, reiniciar n8n antes do
+runner e limitar requisições a 55 segundos; a matriz inteiramente sintética passou
+`401/401/200/200/409`. Estado final: receptor e workflow de teste inativos, n8n e banco
+saudáveis, **0 execuções e 0 payloads globais**. Frontend validado com React Router
+`7.18.2` e Vite `6.4.3`: TypeScript e build aprovados; advisories anteriores foram
+fechados. Resta um advisory alto exclusivo de RSC, recurso ausente nesta SPA declarativa;
+não há versão estável corrigida publicada, portanto a exceção é temporária e deve ser
+monitorada. Exposição de rede e ZDR continuam pendentes. Não processar dado real nem
+publicar o receptor.
+
+**Onde paramos (2026-08-01 — revisão defensiva inicial concluída):** criado
+[`revisao_seguranca_2026-08-01.md`](./revisao_seguranca_2026-08-01.md), com plano em seis
+partes, **4 achados altos, 11 médios e 4 baixos**. Altos: (1) senha administrativa do
+PostgreSQL n8n e HMAC expostos na conversa, ainda ativos por decisão do usuário; (2)
+Portainer em todas as interfaces com Docker socket gravável; (3) code-server em todas as
+interfaces com o workspace/`.env` acessível pelo mount; (4) pgAdmin e PostgreSQL auxiliar
+publicados em todas as interfaces. O Git alcançável não contém `.env` real, chave privada,
+token conhecido, dump ou backup; `.env` principal está `0600`. `pip-audit` do backend em
+execução e `npm audit` do módulo PDF ficaram limpos. Frontend: React Router `6.30.4` tem
+dois advisories moderados de produção; Vite `5.4.21`/esbuild têm advisories de dev, sendo
+um alto. Bandit encontrou somente dois alertas baixos já mitigados no subprocesso do
+sanitizador. n8n efetivo: `N8N_BLOCK_ENV_ACCESS_IN_NODE=false`,
+`N8N_SECURE_COOKIE=false`, `EXECUTIONS_DATA_PRUNE=false`; rede `agenda-webhook` interna e
+não anexável. **Limitações a fechar:** leitura de UFW/nftables exigiu senha sudo; não houve
+scan a partir de outra máquina/Internet, DAST, scanner de imagens ou scanner de segredos
+por entropia; pytest não existe no ambiente de produção. Docker socket apresentou esperas
+longas, portanto evitar inspeções repetidas e agrupar somente consultas necessárias.
+**Retomar exatamente por:** (1) reler o relatório; (2) com o usuário no terminal, capturar
+apenas a política efetiva de firewall sem segredos; (3) testar da LAN as portas
+`5432/8000/8080/8081/8443/9443`; (4) reclassificar ALT-02..04 pela alcançabilidade; (5)
+rodar Trivy/Grype nas imagens e Gitleaks/TruffleHog no histórico; (6) revisar o relatório
+antes de qualquer correção. Não rotacionar, fechar portas ou mudar stacks sem autorização
+expressa. O workflow n8n continua despublicado e só pode receber payload sintético.
 
 **Onde paramos (2026-07-31 — bloqueio técnico resolvido):** n8n e runner externo foram atualizados em conjunto para 2.33.0. A causa da retenção não era a finalização do workflow: logs `debug` provaram `Execution finalized` e `Execution removed`. Com `EXECUTIONS_DATA_PRUNE=true`, o n8n implementa `saveData*=none` como *soft-delete* e mantém temporariamente `execution_entity`/`execution_data`; a configuração final usa `EXECUTIONS_DATA_PRUNE=false`, que faz *hard-delete* imediato nesse caminho. O smoke externo passou `401/401/200/200/409` e, imediatamente depois, havia `0` execuções e `0` payloads; somente o hash antirreplay sintético permaneceu. Topologia final: n8n em `agenda-n8n_default` + `agenda-webhook`; runner e PostgreSQL apenas em `agenda-n8n_default`. Workflow novamente inativo. **Retomar pela rotação dos segredos expostos no diagnóstico; não enviar dado real antes dela.**
 
@@ -480,9 +574,11 @@ nenhum webhook/workflow é ativado antes de o backup do próprio n8n estar compr
 - [x] Inventariar banco, volumes, versão e presença da `N8N_ENCRYPTION_KEY` do n8n, sem expor valores. *(n8n 2.30.5 + PostgreSQL 16 dedicado, dois volumes persistentes, chave explícita; 2026-07-28.)*
 - [x] Incluir banco, volume persistente e cópia root-only da chave no backup coordenado e provar restore isolado. *(Snapshot `aa64be52`, bundle `4bd3dd57`; 114 tabelas e 4/4 arquivos recuperados em recursos exclusivos, depois removidos.)*
 - [x] Webhook FastAPI → n8n disparado **após assinatura eletrônica**, com autenticação e proteção contra replay (§4.2). *(HMAC/janela/replay `401/401/200/200/409`; evento real entregue em uma tentativa; antirreplay +1; retenção imediata `0` execuções/`0` payloads em n8n 2.33.0.)*
-- [~] Fluxo n8n: JSON mínimo → PDF padronizado e processamento durável/idempotente aprovados sinteticamente; receptor despublicado até resolver bloqueio de segredos. Google Sheets somente se houver finalidade aprovada.
+- [~] Fluxo n8n: JSON mínimo → PDF padronizado e processamento durável/idempotente aprovados sinteticamente; segredos já rotacionados, mas receptor mantido despublicado pelos bloqueios de go-live da Fase 9. Google Sheets somente se houver finalidade aprovada.
 - [x] OAuth2 do Google **inteiramente no n8n**, com escopo mínimo `drive.file`; upload sintético aprovado. App/BD nunca tocam senhas Google (§4.2).
-- [ ] Entrega ao diretório cifrado da psicóloga, com idempotência, auditoria e tratamento de falha sem duplicação.
+- [~] Entrega à pasta privada da psicóloga com idempotência e tratamento de falha sem
+  duplicação aprovada sinteticamente. Ainda falta fechar a garantia de destino cifrado,
+  auditoria operacional e liberação real pelos critérios da Fase 9.
 
 **Contrato de segurança antes da implementação:** evento UUID único; timestamp UTC com
 janela máxima de 5 minutos; HMAC-SHA256 sobre timestamp + evento + hash do corpo;
@@ -506,8 +602,17 @@ permanece desativado até seu banco, binários e chave de cifragem entrarem no b
 ### Tarefas
 - [ ] Rodar o **Checklist de Conformidade (§5)** ponta a ponta.
 - [ ] Teste de carga leve validando os `mem_limit` (sem OOM Killer).
-- [ ] Revisão de segredos, permissões de arquivos, exposição de portas (confirmar que **não há console web de administração** e que o acesso privilegiado é só por `psql`/`exec` — §2.1.1/§4.1).
-- [ ] Confirmar elegibilidade/aprovação e ativação de **Zero Data Retention** no projeto/organização OpenAI; confirmar ausência de opt-in de treino; registrar projeto, modo efetivo, data e responsável, sem segredos (§3.4 #6). `store=false` sozinho não encerra esta tarefa.
+- [~] Revisão de segredos, permissões, imagens e exposição registrada em
+  [`revisao_seguranca_2026-08-01.md`](./revisao_seguranca_2026-08-01.md): Trivy do
+  workspace e Gitleaks dos 68 commits terminaram sem vazamentos; seis imagens foram
+  escaneadas e as correções candidatas de frontend/backend validadas sem deploy. A LAN
+  tem contenção IPv4 temporária comprovada, mas faltam persistência/IPv6; consoles web
+  auxiliares continuam com bindings amplos e há CVEs upstream pendentes/excepcionáveis.
+  A proteção `Cache-Control: no-store, private` para toda a API foi implementada e
+  validada em contêiner efêmero. O login agora possui limitador por IP na imagem
+  candidata (`429`+`Retry-After`+warning sem credenciais); ambos aguardam revisão/deploy,
+  e o encaminhamento do warning para alerta externo permanece pendente.
+- [ ] Obter aprovação/provisionamento e ativar **Zero Data Retention** no projeto/organização OpenAI; registrar projeto, modo efetivo, data e responsável, sem segredos (§3.4 #6). **Ausência de opt-in de treino comprovada em 2026-08-02:** os três controles de Sharing estão `Disabled`, assim como `API call logging`. Ainda não há seletor ZDR/MAM; `store=false` sozinho não encerra esta tarefa.
 - [ ] Observabilidade mínima (logs, uso de RAM por contentor).
 - [ ] Verificação de conformidade LGPD/ECA/CFP (consentimento, sigilo, auditoria).
 - [ ] Documentar procedimento de restore e plano de contingência.
@@ -525,6 +630,16 @@ permanece desativado até seu banco, binários e chave de cifragem entrarem no b
 > Mantenha conciso — este é o resumo que será lido no início das próximas sessões.
 > As linhas são cronológicas: estados 🟡 antigos documentam o momento da entrega e são substituídos pelas linhas ✅ mais recentes; o estado corrente vive no topo deste arquivo.
 
+- 2026-08-03 — [Fase 9/Code review] 🟡 **Lote de hardening revisado e validado, sem commit/deploy.** Corrigidas corridas de `session_version`, logout idempotente de cookie inválido, exposição do valor JWT em traceback Pydantic e limpeza integrada outbox→evolução. Backend final: `157` unitários + `14` integrações aprovados em PostgreSQL descartável, migration `0014` validada em upgrade/downgrade e startup fail-fast sem ecoar segredo. Frontend: lock íntegro, TypeScript/build/Docker/Nginx/rate limit aprovados; audit mantém somente exceção RSC não alcançável. Lint focado, compileall e diff-check aprovados. **Próximo:** apresentar o lote e aguardar autorização para commit/push; produção e receptor permanecem inalterados.
+- 2026-08-02 — [Fase 9/Segurança] 🟡 **Rotação n8n/HMAC e reteste concluídos; hardening em curso.** As 12 execuções do workflow sintético do Drive foram removidas com guardas estritas. Script corrigido para publicação/despublicação atual e ordem segura n8n→runner; matriz pós-rotação passou `401/401/200/200/409`. Estado final: workflows inativos, serviços saudáveis, `0` execuções e `0` payloads globais. React Router `7.18.2` e Vite `6.4.3` passaram TypeScript/build; advisories antigos foram removidos, restando exceção RSC não alcançável pela arquitetura atual e ainda sem release corrigida. **Próximo:** firewall/alcance, scans de imagens/segredos e comprovação ZDR.
+- 2026-08-02 — [Fase 9/OpenAI] 🔴 **ZDR verificado e ainda não provisionado.** Em Data Controls, `API call logging` está desativado, mas não há seletores `Zero Data Retention`/`Modified Abuse Monitoring` para organização ou projeto. Conforme a documentação oficial, ZDR exige aprovação prévia da OpenAI. O código usa somente Chat Completions com `store=false` e Embeddings, ambos elegíveis, mas isso não substitui ZDR. Manter receptor despublicado e não processar dado real até aprovação e ativação explícita no projeto Agenda.
+- 2026-08-02 — [Fase 9/OpenAI] ✅ **Ausência de opt-in de treino comprovada.** Em Sharing, feedback de modelo, dados de avaliação/fine-tuning e inputs/outputs estão todos `Disabled`; `API call logging` também está desativado. Essa evidência fecha o item de compartilhamento para treinamento, mas não o ZDR, que continua aguardando aprovação/provisionamento.
+- 2026-08-02 — [Fase 9/Supply chain] 🟡 **Scans de segredos e imagens concluídos; correções candidatas validadas sem deploy.** Trivy do workspace não encontrou segredos; Gitleaks `8.30.1` validado por checksum percorreu 68 commits e, após allowlist AND restrita aos JWTs sintéticos de teste, terminou em zero. Trivy `0.70.0` validado por checksum escaneou seis imagens. Frontend atual tinha `2C/33A`; com Node 22 + Nginx `1.30.4-alpine3.24`, build e scan da candidata ficaram zerados em todas as severidades. Backend candidata usa `msgpack 1.2.1`/`setuptools 83.0.0` e importa a aplicação; duas altas residuais são SBOM obsoleto da base, desmentido por inspeção do filesystem. Permanecem CVEs upstream no Debian, runner, n8n, `gosu` PostgreSQL e pgvector; produção não foi reiniciada.
+- 2026-08-02 — [Fase 9/Cache] 🟡 **Cache de respostas sensíveis bloqueado no código, sem deploy.** Middleware cobre toda resposta `/api/`, inclusive login e erros, com `Cache-Control: no-store, private`; healthcheck público fica fora. Teste de regressão criado e smoke em contêiner efêmero sem rede aprovado. Nginx documentado conforme o controle efetivo do backend.
+- 2026-08-02 — [Fase 9/Auth] 🟡 **Rate limiting de login validado localmente, sem deploy.** Zona compartilhada do Nginx limita apenas `/api/v1/auth/login` por IP: cinco requisições imediatas, depois `429` com `Retry-After: 60` e `no-store`; rejeições geram warning sem e-mail/senha. Imagem candidata passou build, `nginx -t` e teste sem rede (`502×5`, depois `429`; rota comum não limitada). Falta encaminhar warnings para alerta externo e retestar no deploy.
+- 2026-08-02 — [Fase 9/JWT] 🟡 **Configuração JWT agora falha cedo, sem deploy.** `JWT_SECRET_KEY` com menos de 32 bytes e algoritmo diferente de `HS256` impedem a carga de `Settings`, sem imprimir o segredo. Três testes de regressão adicionados; smoke em backend candidato sem rede recusou os casos inseguros e iniciou com configuração sintética válida. A revogação por versão de sessão foi tratada na etapa seguinte, registrada abaixo.
+- 2026-08-02 — [Fase 9/Sessões] 🟡 **Revogação imediata de JWT construída, sem aplicar migration.** `0014` adiciona `session_version`; a claim `sv` é conferida em toda requisição e incrementada na troca de senha, logout global e suspensão/reativação. Trocar a senha revoga tokens anteriores e reemite somente o cookie do navegador que comprovou a senha. SQL renderizado offline; fluxo sintético validou `2→3→4`; unitários: `152 passed, 1 deselected` (NER “Lucas” já conhecido). Imagem backend consolidada passou startup/recusa de segredo sem mounts. O teste PostgreSQL cobre bearer antigo recusado, mas aguarda deploy. A implantação encerrará todas as sessões antigas uma única vez.
+- 2026-08-01 — [Fase 9/Segurança] 🟡 **Revisão defensiva inicial registrada, sem correções operacionais.** Relatório prioriza 4 altos/11 médios/4 baixos; Git sem segredo/backup conhecido; backend Python e PDF sem CVE conhecida; React Router/Vite exigem atualização. Superfícies principais: segredos n8n recusados para rotação, Portainer+Docker socket, code-server+workspace e pgAdmin/PostgreSQL em todas as interfaces. Receptor n8n segue despublicado. **Próxima sessão:** confirmar firewall/alcance LAN, scan de imagens e scan Git por entropia; só depois propor remediação.
 - 2026-07-28 — [Fase 8b] 🟡 **n8n incluído e provado no backup coordenado.** n8n 2.30.5 em localhost, PostgreSQL 16 dedicado, volumes separados e chave explícita confirmados sem expor valores. Cópia root-only corresponde à chave ativa. O snapshot `aa64be52` contém e validou dump/globals, volume, configuração efetiva, chave e checksums. O primeiro bundle recusou corretamente imagens `f97d237` contra fonte `4965916`; após rebuild/deploy coerente, `4bd3dd57` preservou as cinco imagens exatas. Serviços saudáveis e staging desmontado. Restore isolado do n8n ainda bloqueia o webhook.
 - 2026-07-28 — [Fase 8b] ✅ **Restore isolado do n8n comprovado e limpo.** Snapshot/bundle restaurados em rede interna, PostgreSQL e volumes exclusivos: 114 tabelas, 0 workflows/credenciais (origem recém-instalada), 4/4 arquivos e chave correspondente. Tentativas de telemetria foram bloqueadas pela rede sem saída; nenhum workflow existia. Contêineres, volumes, rede e staging temporários removidos; produção saudável. Recovery deixa de bloquear o desenho do webhook.
 - 2026-07-28 — [Fase 8b/webhook] 🟡 **Emissor construído e validado localmente, sem deploy.** Migration `0012` cria outbox por tenant com RLS+FORCE, FK composta e UUID estável por evolução. Assinatura enfileira atomicamente; envio posterior usa JSON canônico, timestamp, HMAC-SHA256 e retry idempotente, sem corpo clínico em logs. SPA tenta despachar após o commit sem desfazer prontuário em falha. SQL offline, imports/rotas, Ruff, TypeScript/Vite e 137 testes passaram; 1 teste NER conhecido foi excluído (modelo `sm` não reconhece “Lucas”, limitação já registrada). Receptor/replay no n8n ainda não existe.

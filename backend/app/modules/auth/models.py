@@ -13,7 +13,15 @@ Fase do roadmap: Fase 2
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, UniqueConstraint, text
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -43,8 +51,14 @@ class Usuario(Base):
     # Nullable apenas para migrar contas existentes; a exportacao documental
     # exige o preenchimento antes de gerar qualquer PDF.
     crp: Mapped[str | None] = mapped_column(String(10), nullable=True)
-    papel: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'psicologa'"))
+    papel: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default=text("'psicologa'")
+    )
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    # Copiada para o JWT; qualquer incremento revoga imediatamente tokens antigos.
+    session_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1")
+    )
     criado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )

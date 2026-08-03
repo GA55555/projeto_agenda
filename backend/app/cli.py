@@ -55,7 +55,8 @@ def definir_usuario_ativo(email: str, *, ativo: bool) -> bool:
     with engine.begin() as conn:
         usuario_id = conn.execute(
             text(
-                "UPDATE usuarios SET ativo = :ativo, atualizado_em = now() "
+                "UPDATE usuarios SET ativo = :ativo, session_version = session_version + 1, "
+                "atualizado_em = now() "
                 "WHERE lower(email) = lower(:email) RETURNING id"
             ),
             {"ativo": ativo, "email": email},

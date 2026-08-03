@@ -1,16 +1,16 @@
+import uuid
+import zipfile
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
-import uuid
-import zipfile
 
 import pytest
 from fastapi import UploadFile
 
 from app.core.config import settings
 from app.modules.auth.dependencies import CurrentUser
-from app.modules.documentos.exceptions import DocumentoInvalido, SanitizacaoFalhou
 from app.modules.documentos import service as documentos_service
+from app.modules.documentos.exceptions import DocumentoInvalido, SanitizacaoFalhou
 from app.modules.documentos.sanitizer import sanitizar_arquivo
 from app.modules.documentos.validation import (
     detectar_formato,
@@ -183,7 +183,12 @@ def test_fluxo_de_upload_grava_somente_resultado_sanitizado(
 
     paciente_id = uuid.uuid4()
     tenant_id = uuid.uuid4()
-    user = CurrentUser(id=uuid.uuid4(), tenant_id=tenant_id, papel="psicologa")
+    user = CurrentUser(
+        id=uuid.uuid4(),
+        tenant_id=tenant_id,
+        papel="psicologa",
+        session_version=1,
+    )
     paciente = SimpleNamespace(id=paciente_id)
 
     class Resultado:
@@ -211,7 +216,11 @@ def test_fluxo_de_upload_grava_somente_resultado_sanitizado(
     raiz = tmp_path / "privado"
     monkeypatch.setattr(settings, "documentos_dir", str(raiz))
     monkeypatch.setattr(documentos_service.event, "listen", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(documentos_service.audit_service, "registrar_evento", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        documentos_service.audit_service,
+        "registrar_evento",
+        lambda *_a, **_k: None,
+    )
 
     bruto = BytesIO()
     metadata = PngImagePlugin.PngInfo()

@@ -11,7 +11,11 @@ from app.core.config import settings
 from app.core.security import create_access_token
 from app.db.deps import get_db, get_tenant_session
 from app.modules.auth import service
-from app.modules.auth.dependencies import CurrentUser, get_current_user
+from app.modules.auth.dependencies import (
+    CurrentUser,
+    get_current_user,
+    get_optional_current_user,
+)
 from app.modules.auth.exceptions import EmailDuplicado, SenhaAtualIncorreta
 from app.modules.auth.models import Usuario
 from app.modules.auth.schemas import (
@@ -37,6 +41,17 @@ def _set_cookie_sessao(response: Response, token: str) -> None:
     )
 
 
+def _remover_cookie_sessao(response: Response) -> None:
+    """Remove o cookie usando os mesmos atributos adotados na criacao."""
+    response.delete_cookie(
+        key=settings.cookie_name,
+        path="/",
+        secure=settings.cookie_secure,
+        httponly=True,
+        samesite=settings.cookie_samesite,
+    )
+
+
 @router.post("/login", response_model=TokenResponse)
 def login(
     response: Response,
@@ -57,7 +72,10 @@ def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
     token = create_access_token(
-        user_id=usuario.id, tenant_id=usuario.tenant_id, papel=usuario.papel
+        user_id=usuario.id,
+        tenant_id=usuario.tenant_id,
+        papel=usuario.papel,
+        session_version=usuario.session_version,
     )
     _set_cookie_sessao(response, token)
     # Dual-mode INTENCIONAL: cookie httpOnly = caminho do browser (a SPA nunca
@@ -68,16 +86,15 @@ def login(
 
 
 @router.post("/logout")
-def logout(response: Response) -> dict[str, str]:
-    """Encerra a sessao removendo o cookie (mesmos atributos do set, p/ o browser
-    remover de forma confiavel)."""
-    response.delete_cookie(
-        key=settings.cookie_name,
-        path="/",
-        secure=settings.cookie_secure,
-        httponly=True,
-        samesite=settings.cookie_samesite,
-    )
+def logout(
+    response: Response,
+    user: CurrentUser | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    """Encerra sessoes validas e sempre remove o cookie local, de forma idempotente."""
+    if user is not None:
+        service.revogar_sessoes(db, user.id, user.session_version)
+    _remover_cookie_sessao(response)
     return {"detail": "sessao encerrada"}
 
 
@@ -128,16 +145,26 @@ def atualizar_meu_perfil(
 @router.post("/me/senha", status_code=status.HTTP_204_NO_CONTENT)
 def trocar_minha_senha(
     dados: SenhaUpdate,
+    response: Response,
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> Response:
+) -> None:
     """Troca a senha apos conferir a senha atual. Senha atual errada -> 400."""
     try:
-        usuario = service.trocar_senha(db, user.id, dados)
+        usuario = service.trocar_senha(db, user.id, user.session_version, dados)
     except SenhaAtualIncorreta:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Senha atual incorreta."
         )
     if usuario is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Nao autenticado")
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    # Todos os tokens anteriores foram revogados pelo incremento. O navegador
+    # que acabou de comprovar a senha recebe uma unica sessao nova e continua
+    # funcional; clientes bearer precisam autenticar novamente.
+    token = create_access_token(
+        user_id=usuario.id,
+        tenant_id=usuario.tenant_id,
+        papel=usuario.papel,
+        session_version=usuario.session_version,
+    )
+    _set_cookie_sessao(response, token)

@@ -9,11 +9,17 @@ Fase do roadmap: Fase 7
 import uuid
 
 import pytest
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
 
 from app.core.config import settings
 from app.core.security import create_access_token
-from app.modules.auth.dependencies import CurrentUser, _extrair_token, get_current_user
+from app.modules.auth.dependencies import (
+    CurrentUser,
+    _extrair_token,
+    get_current_user,
+    get_optional_current_user,
+)
+from app.modules.auth.router import logout
 
 
 class _FakeReq:
@@ -46,13 +52,16 @@ def test_sem_token_retorna_none():
 
 def test_get_current_user_valida_jwt_do_cookie(monkeypatch):
     uid, tid = uuid.uuid4(), uuid.uuid4()
-    token = create_access_token(user_id=uid, tenant_id=tid, papel="psicologa")
+    token = create_access_token(
+        user_id=uid, tenant_id=tid, papel="psicologa", session_version=2
+    )
     monkeypatch.setattr(
         "app.modules.auth.dependencies._conta_continua_ativa", lambda _user: True
     )
     user = get_current_user(_FakeReq(cookies={settings.cookie_name: token}))
     assert isinstance(user, CurrentUser)
     assert user.id == uid and user.tenant_id == tid and user.papel == "psicologa"
+    assert user.session_version == 2
 
 
 def test_get_current_user_sem_token_401():
@@ -63,7 +72,10 @@ def test_get_current_user_sem_token_401():
 
 def test_get_current_user_revoga_jwt_de_conta_inativa(monkeypatch):
     token = create_access_token(
-        user_id=uuid.uuid4(), tenant_id=uuid.uuid4(), papel="psicologa"
+        user_id=uuid.uuid4(),
+        tenant_id=uuid.uuid4(),
+        papel="psicologa",
+        session_version=1,
     )
     monkeypatch.setattr(
         "app.modules.auth.dependencies._conta_continua_ativa", lambda _user: False
@@ -73,3 +85,18 @@ def test_get_current_user_revoga_jwt_de_conta_inativa(monkeypatch):
         get_current_user(_FakeReq(cookies={settings.cookie_name: token}))
 
     assert exc.value.status_code == 401
+
+
+def test_optional_current_user_aceita_token_ja_invalido() -> None:
+    assert get_optional_current_user(_FakeReq(cookies={settings.cookie_name: "invalido"})) is None
+
+
+def test_logout_invalido_continua_idempotente_e_remove_cookie() -> None:
+    response = Response()
+
+    resultado = logout(response=response, user=None, db=object())
+
+    assert resultado == {"detail": "sessao encerrada"}
+    cookie = response.headers["set-cookie"]
+    assert cookie.startswith(f'{settings.cookie_name}=""')
+    assert "Max-Age=0" in cookie

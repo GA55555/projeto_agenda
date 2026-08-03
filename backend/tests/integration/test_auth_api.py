@@ -80,10 +80,32 @@ def test_login_e_isolamento_via_api(seed_dois_tenants):
     assert me_a.json()["email"] == EMAIL_A and me_a.json()["papel"] == "psicologa"
     assert "nome" in me_a.json()
 
+    # Troca de senha revoga o token anterior e renova somente o cookie atual.
+    troca = client.post(
+        "/api/v1/auth/me/senha",
+        json={"senha_atual": "senhaA", "senha_nova": "senhaA-nova"},
+    )
+    assert troca.status_code == 204
+    assert client.get("/api/v1/auth/me").status_code == 200
+    client.cookies.clear()
+    assert client.get(
+        "/api/v1/auth/me", headers={"Authorization": f"Bearer {tok_a}"}
+    ).status_code == 401
+    ra_novo = _login(client, EMAIL_A, "senhaA-nova")
+    assert ra_novo.status_code == 200
+    tok_a = ra_novo.json()["access_token"]
+
     # Login B -> ve apenas o tenant B.
     tok_b = _login(client, EMAIL_B, "senhaB").json()["access_token"]
     vb = client.get("/api/v1/tenants/atual", headers={"Authorization": f"Bearer {tok_b}"})
     assert vb.status_code == 200 and vb.json()["slug"] == "seed-b"
+
+    # Logout e global: incrementa a versao e invalida tambem o bearer copiado.
+    assert client.post("/api/v1/auth/logout").status_code == 200
+    client.cookies.clear()
+    assert client.get(
+        "/api/v1/auth/me", headers={"Authorization": f"Bearer {tok_b}"}
+    ).status_code == 401
 
     # Senha errada -> 401.
     assert _login(client, EMAIL_A, "errada").status_code == 401

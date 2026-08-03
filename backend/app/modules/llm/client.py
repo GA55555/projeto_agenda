@@ -1,8 +1,10 @@
-"""Cliente OpenAI de chat — import lazy (§1.3), sem tools, retencao-zero (§3.4).
+"""Cliente OpenAI de chat — import lazy (§1.3), sem tools (§3.4).
 
 §3.4: a chamada NAO passa nenhuma tool/function (o LLM jamais toca o BD) e usa
-`store=False` (a OpenAI nao retem o payload). Timeout curto: geracao sincrona
-dentro do request, 2 workers (§1.3).
+`store=False` (sem estado de aplicacao da resposta). Isso nao ativa nem comprova
+Zero Data Retention: ZDR depende da aprovacao e configuracao operacional da
+organizacao/projeto OpenAI. Timeout curto: geracao sincrona dentro do request,
+2 workers (§1.3).
 
 Regras de ouro: §3.4, §1.3
 Fase do roadmap: Fase 6
@@ -32,8 +34,9 @@ def _client():
 def gerar_json(mensagens: list[dict[str, str]]) -> str:
     """Chama o chat e devolve o conteudo (string JSON). Levanta se indisponivel.
 
-    Sem `tools` (§3.4 #1). `store=False` (retencao-zero §3.4 #6). O chamador ja
-    garantiu que as mensagens contem apenas texto anonimizado (§2.3).
+    Sem `tools` (§3.4 #1). `store=False` desativa o estado de aplicacao, mas nao
+    substitui a comprovacao operacional de ZDR (§3.4 #6). O chamador ja garantiu
+    que as mensagens contem apenas texto anonimizado (§2.3).
     """
     client = _client()
     if client is None:

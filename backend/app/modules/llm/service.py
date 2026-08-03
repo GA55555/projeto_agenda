@@ -7,7 +7,8 @@ Fluxo (§2.3/§3.3/§3.4):
      passagem -> marcadores consistentes em todo o prompt (§2.3).
   4. GUARD-RAIL (§3.4 #4): aborta se PII conhecida escapou no payload de saida —
      nenhuma chamada externa acontece.
-  5. Chama a OpenAI com instrucao separada do dado, sem tools, retencao-zero (§3.4).
+  5. Chama a OpenAI com instrucao separada do dado, sem tools e sem estado de
+     aplicacao (`store=False`); ZDR depende do controle operacional (§3.4).
   6. DESANONIMIZA a resposta com o mesmo mapa volatil (§2.3) e devolve o rascunho
      legivel para revisao da psicologa (Fase 7). Nada e persistido (stateless).
 
@@ -34,7 +35,11 @@ from app.modules.consentimentos.service import tem_consentimento_ativo
 from app.modules.evolucoes.service import buscar_contexto
 from app.modules.llm.client import gerar_json
 from app.modules.llm.exceptions import PacienteInexistente
-from app.modules.llm.prompts import SYSTEM_INSTRUCAO, construir_mensagens, montar_bloco_dados
+from app.modules.llm.prompts import (
+    SYSTEM_INSTRUCAO,
+    construir_mensagens,
+    montar_bloco_dados,
+)
 from app.modules.llm.schemas import GerarEvolucaoIn, RascunhoOut
 from app.modules.pacientes.models import Paciente
 
@@ -99,5 +104,9 @@ def _parse_resposta(conteudo_json: str) -> tuple[str, list[str]]:
         return conteudo_json.strip(), []
     evolucao = str(dados.get("evolucao", "")).strip()
     brutos = dados.get("destaques", [])
-    destaques = [str(d).strip() for d in brutos if str(d).strip()] if isinstance(brutos, list) else []
+    destaques = (
+        [str(d).strip() for d in brutos if str(d).strip()]
+        if isinstance(brutos, list)
+        else []
+    )
     return evolucao, destaques

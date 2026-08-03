@@ -1,0 +1,10 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "JWT deterministico e sintetico usado somente nos testes"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "line"
+paths = ['''^backend/tests/(conftest\.py|unit/test_security\.py)$''']
+regexes = ['''os\.environ\.setdefault\("JWT_SECRET_KEY",\s*"test-secret-[0-9]+-[a-z]+-[A-Z]+"\)''']

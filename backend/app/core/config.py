@@ -8,11 +8,17 @@ Distingue dois papeis de acesso a BD (§2.1.1):
 Regras de ouro: §2.1.1, §4.1
 Fase do roadmap: Fase 1/2
 """
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=False,
+        extra="ignore",
+        hide_input_in_errors=True,
+    )
 
     # ---- Postgres: role admin/owner (bootstrap + migrations) ----
     postgres_host: str = "postgres"
@@ -84,6 +90,22 @@ class Settings(BaseSettings):
     n8n_webhook_url: str = ""
     n8n_webhook_secret: str = ""
     n8n_webhook_timeout_seconds: float = 10.0
+
+    @field_validator("jwt_secret_key")
+    @classmethod
+    def validar_segredo_jwt(cls, valor: str) -> str:
+        """Recusa startup inseguro sem expor o segredo na mensagem de erro."""
+        if len(valor.encode("utf-8")) < 32:
+            raise ValueError("JWT_SECRET_KEY deve conter ao menos 32 bytes")
+        return valor
+
+    @field_validator("jwt_algorithm")
+    @classmethod
+    def validar_algoritmo_jwt(cls, valor: str) -> str:
+        """O algoritmo faz parte do contrato, nao e uma escolha livre de deploy."""
+        if valor != "HS256":
+            raise ValueError("JWT_ALGORITHM deve ser HS256")
+        return valor
 
     @property
     def admin_database_url(self) -> str:

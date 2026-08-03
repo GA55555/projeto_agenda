@@ -25,11 +25,14 @@ def test_hash_verifica_senha_correta_e_rejeita_errada():
 
 def test_token_roundtrip_carrega_tenant_e_papel():
     uid, tid = uuid.uuid4(), uuid.uuid4()
-    token = create_access_token(user_id=uid, tenant_id=tid, papel="psicologa")
+    token = create_access_token(
+        user_id=uid, tenant_id=tid, papel="psicologa", session_version=3
+    )
     payload = decode_access_token(token)
     assert payload["sub"] == str(uid)
     assert payload["tenant_id"] == str(tid)
     assert payload["papel"] == "psicologa"
+    assert payload["sv"] == 3
 
 
 def test_token_invalido_e_rejeitado():
