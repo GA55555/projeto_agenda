@@ -30,6 +30,9 @@ Antes de executar `configurar_manual.sh`, guardar uma cópia exata da
 `N8N_ENCRYPTION_KEY` em `/etc/agenda-backup/n8n-encryption-key`, pertencente a `root` e
 com modo `0600`. A chave não deve ser copiada para o Git nem exibida no terminal. O
 script compara a cópia com a chave ativa por hash e falha antes da pausa se divergirem.
+Após toda rotação da chave ativa, sincronizar essa cópia root-only por canal local sem
+ecoar o valor e executar novamente o backup coordenado. Uma divergência é falha segura:
+o wrapper desmonta o staging e não inicia a pausa dos serviços.
 
 Não há unidade nem timer systemd neste modo. A execução exige terminal interativo e duas
 senhas informadas durante a janela. O wrapper desmonta o staging ao final, inclusive em

@@ -14,14 +14,42 @@
 
 | Campo | Valor |
 | --- | --- |
-| Fase corrente | **Transição Fase 8b → Fase 9 (revisão de segurança).** Exportação durável aprovada sinteticamente; hardening defensivo iniciado; receptor permanece despublicado. |
+| Fase corrente | **Fase 9 (hardening e go-live) em progresso.** Hardening defensivo implantado no commit `293a127`, migration `0014` aplicada e receptor permanece despublicado. |
 | Última atualização | 2026-08-03 |
-| Bloqueios ativos | Segredos n8n/HMAC rotacionados e matriz pós-rotação aprovada, mas o receptor permanece despublicado. A LAN está contida por regra IPv4 temporária em `DOCKER-USER`, validada para PostgreSQL auxiliar e Portainer, preservando Tailscale; faltam persistência e equivalente IPv6. Homarr continua legado e com Docker socket gravável. No painel OpenAI, `API call logging` e os três controles de Sharing estão desativados, comprovando ausência de opt-in de treino; porém, não há seletores ZDR/MAM, portanto ZDR não está provisionado nem comprovado. Scans de imagens/segredos foram concluídos: frontend candidato corrigido está limpo, mas imagens upstream de backend/n8n/runner/PostgreSQL/pgvector mantêm CVEs que exigem correção do fornecedor ou exceção formal. O frontend ainda tem exceção temporária para advisory RSC do React Router, caminho não usado pela SPA. Nenhum novo dado real deve ser processado. |
-| Próximo passo imediato | **Fluxo de código:** lote revisado e versionado no commit `216d461`; planejar snapshot, migration `0014`, deploy e reteste sintético antes de qualquer promoção. **Go-live:** solicitar ZDR à OpenAI. Persistência/IPv6 do firewall e migração Homarr 0.x→1.x/socket proxy continuam mudanças separadas. |
+| Bloqueios ativos | Segredos n8n/HMAC rotacionados e matriz pós-rotação aprovada, mas o receptor permanece despublicado. A LAN está contida por regra IPv4 temporária em `DOCKER-USER`, validada para PostgreSQL auxiliar e Portainer, preservando Tailscale; faltam persistência e equivalente IPv6. Homarr continua legado e com Docker socket gravável. No painel OpenAI, `API call logging` e os três controles de Sharing estão desativados, comprovando ausência de opt-in de treino; porém, não há seletores ZDR/MAM, portanto ZDR não está provisionado nem comprovado. Scans de imagens/segredos foram concluídos: frontend corrigido e implantado está limpo, mas imagens upstream de backend/n8n/runner/PostgreSQL/pgvector mantêm CVEs que exigem correção do fornecedor ou exceção formal. O frontend ainda tem exceção temporária para advisory RSC do React Router, caminho não usado pela SPA. Nenhum novo dado real deve ser processado. |
+| Próximo passo imediato | **Go-live continua bloqueado:** solicitar ZDR à OpenAI e não processar dado real enquanto não houver comprovação. Planejar separadamente persistência/equivalente IPv6 do firewall e migração Homarr 0.x→1.x/socket proxy. Hardening de código, migration `0014`, deploy, reteste sintético e backups pré/pós-deploy estão concluídos. |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
 ### 🔖 Ponto de Retomada (ler primeiro na próxima sessão)
+
+**Onde paramos (2026-08-03 — hardening implantado e retestado):** o backup coordenado
+pré-deploy falhou de forma fechada antes de parar serviços porque a cópia root-only da
+`N8N_ENCRYPTION_KEY` não acompanhara a rotação. A cópia foi sincronizada diretamente do
+contêiner, sem exibir o valor; nova execução validou os artefatos e criou o snapshot
+`ebde69c8`. O staging gocryptfs foi desmontado e a aplicação voltou saudável.
+
+As imagens anteriores foram preservadas localmente sob tags de rollback. Backend e
+frontend foram reconstruídos com revisão OCI
+`293a1275a79825f41a001a135a691a48e468f06d`; a migration transacional `0014` foi
+aplicada antes da recriação exclusiva desses dois serviços. PostgreSQL, n8n e runner não
+foram recriados. Estado final: Agenda e os dois PostgreSQL saudáveis, backend/frontend
+sem reinícios anormais, schema `0014 (head)`, redes corretas, receptor e workflow de
+teste inativos e `0` execuções no n8n.
+
+**Reteste publicado aprovado:** tenant/usuário inteiramente sintéticos provaram login,
+`Cache-Control: no-store, private`, troca de senha com revogação do bearer anterior,
+relogin, logout global, revogação do novo bearer e logout idempotente de cookie inválido;
+a limpeza terminou com zero tenants do smoke. Pela origem publicada, cinco logins
+inválidos chegaram ao backend (`401`), o sexto e o sétimo receberam `429` com
+`Retry-After: 60`, e `/auth/me` continuou sem limitação e com `no-store`. Logs não
+mostraram erro/traceback nem credenciais. O bundle pós-deploy preservou as imagens
+efetivamente executadas no snapshot `38272c78`; staging novamente desmontado.
+
+**Retomar por:** (1) solicitar/provar ZDR no projeto OpenAI; (2) persistir a contenção do
+firewall e criar equivalente IPv6 em janela separada; (3) planejar a migração segura do
+Homarr e socket proxy. Receptor, workflow e dado real permanecem bloqueados até os
+critérios de go-live serem encerrados.
 
 **Onde paramos (2026-08-03 — code review concluído e lote versionado):**
 o diff completo foi revisado e quatro problemas foram corrigidos: (1) troca de senha e
@@ -42,8 +70,9 @@ build Vite e build Docker; `nginx -t` passou com hostname sintético e o limitad
 ocorrências do advisory RSC não alcançável, e `7.18.2` segue como release estável mais
 nova. Lint focado, `compileall` e `git diff --check` passaram.
 
-**Nada foi promovido para produção:** o lote técnico foi versionado no commit `216d461`,
-mas não houve migration/deploy/restart, publicação do receptor ou uso de dado real. O
+**Estado naquele checkpoint, antes da autorização de deploy:** o lote técnico havia sido
+versionado no commit `216d461`, mas ainda não houvera migration/deploy/restart,
+publicação do receptor ou uso de dado real. O
 PostgreSQL/rede de teste foram descartados; apenas imagens Docker locais de revisão podem
 permanecer como artefatos recuperáveis. Próximo: (1) planejar deploy com snapshot e
 migration `0014` antes do backend; (2) retestar login/cache/revogação somente com dados
@@ -605,18 +634,19 @@ permanece desativado até seu banco, binários e chave de cifragem entrarem no b
 - [~] Revisão de segredos, permissões, imagens e exposição registrada em
   [`revisao_seguranca_2026-08-01.md`](./revisao_seguranca_2026-08-01.md): Trivy do
   workspace e Gitleaks dos 68 commits terminaram sem vazamentos; seis imagens foram
-  escaneadas e as correções candidatas de frontend/backend validadas sem deploy. A LAN
+  escaneadas e as correções de frontend/backend foram validadas e implantadas. A LAN
   tem contenção IPv4 temporária comprovada, mas faltam persistência/IPv6; consoles web
   auxiliares continuam com bindings amplos e há CVEs upstream pendentes/excepcionáveis.
-  A proteção `Cache-Control: no-store, private` para toda a API foi implementada e
-  validada em contêiner efêmero. O login agora possui limitador por IP na imagem
-  candidata (`429`+`Retry-After`+warning sem credenciais); ambos aguardam revisão/deploy,
-  e o encaminhamento do warning para alerta externo permanece pendente.
+  A proteção `Cache-Control: no-store, private` para toda a API e o limitador de login
+  por IP foram retestados na origem publicada (`401×5`, `429×2`, `Retry-After: 60` e
+  warning sem credenciais). O encaminhamento do warning para alerta externo permanece
+  pendente.
 - [ ] Obter aprovação/provisionamento e ativar **Zero Data Retention** no projeto/organização OpenAI; registrar projeto, modo efetivo, data e responsável, sem segredos (§3.4 #6). **Ausência de opt-in de treino comprovada em 2026-08-02:** os três controles de Sharing estão `Disabled`, assim como `API call logging`. Ainda não há seletor ZDR/MAM; `store=false` sozinho não encerra esta tarefa.
 - [ ] Observabilidade mínima (logs, uso de RAM por contentor).
 - [ ] Verificação de conformidade LGPD/ECA/CFP (consentimento, sigilo, auditoria).
 - [ ] Documentar procedimento de restore e plano de contingência.
-- [ ] Deploy no servidor Debian 12.
+- [x] Deploy do hardening no servidor Debian 12. *(Commit `293a127`, migration `0014`,
+  snapshots `ebde69c8` e `38272c78`, smokes sintéticos aprovados em 2026-08-03.)*
 
 ### Definition of Done
 - Checklist §5 100% verde.
@@ -630,7 +660,8 @@ permanece desativado até seu banco, binários e chave de cifragem entrarem no b
 > Mantenha conciso — este é o resumo que será lido no início das próximas sessões.
 > As linhas são cronológicas: estados 🟡 antigos documentam o momento da entrega e são substituídos pelas linhas ✅ mais recentes; o estado corrente vive no topo deste arquivo.
 
-- 2026-08-03 — [Fase 9/Code review] 🟡 **Lote de hardening revisado, validado e versionado no commit `216d461`; sem deploy.** Corrigidas corridas de `session_version`, logout idempotente de cookie inválido, exposição do valor JWT em traceback Pydantic e limpeza integrada outbox→evolução. Backend final: `157` unitários + `14` integrações aprovados em PostgreSQL descartável, migration `0014` validada em upgrade/downgrade e startup fail-fast sem ecoar segredo. Frontend: lock íntegro, TypeScript/build/Docker/Nginx/rate limit aprovados; audit mantém somente exceção RSC não alcançável. Lint focado, compileall e diff-check aprovados. **Próximo:** planejar snapshot, migration `0014`, deploy e reteste sintético; produção e receptor permanecem inalterados.
+- 2026-08-03 — [Fase 9/Deploy] ✅ **Hardening `293a127` implantado e retestado; receptor continua inativo.** Após sincronizar sem exposição a cópia de recuperação da chave n8n, snapshot coordenado pré-deploy `ebde69c8` aprovado. Imagens com revisão OCI correta, migration `0014` antes do backend e recriação exclusiva de backend/frontend concluídas; serviços saudáveis e redes corretas. Smoke publicado sintético aprovou login/cache/troca de senha/revogação/logout e limpeza; rate limit repetiu `401×5`/`429×2` com `Retry-After: 60`, sem limitar rota comum. Bundle pós-deploy `38272c78` preservou as imagens executadas. **Próximo:** ZDR, firewall persistente/IPv6 e Homarr/socket proxy; nenhum dado real até o go-live.
+- 2026-08-03 — [Fase 9/Code review] 🟡 **Lote de hardening revisado, validado e versionado no commit `216d461`; sem deploy naquele checkpoint.** Corrigidas corridas de `session_version`, logout idempotente de cookie inválido, exposição do valor JWT em traceback Pydantic e limpeza integrada outbox→evolução. Backend final: `157` unitários + `14` integrações aprovados em PostgreSQL descartável, migration `0014` validada em upgrade/downgrade e startup fail-fast sem ecoar segredo. Frontend: lock íntegro, TypeScript/build/Docker/Nginx/rate limit aprovados; audit mantém somente exceção RSC não alcançável. Lint focado, compileall e diff-check aprovados.
 - 2026-08-02 — [Fase 9/Segurança] 🟡 **Rotação n8n/HMAC e reteste concluídos; hardening em curso.** As 12 execuções do workflow sintético do Drive foram removidas com guardas estritas. Script corrigido para publicação/despublicação atual e ordem segura n8n→runner; matriz pós-rotação passou `401/401/200/200/409`. Estado final: workflows inativos, serviços saudáveis, `0` execuções e `0` payloads globais. React Router `7.18.2` e Vite `6.4.3` passaram TypeScript/build; advisories antigos foram removidos, restando exceção RSC não alcançável pela arquitetura atual e ainda sem release corrigida. **Próximo:** firewall/alcance, scans de imagens/segredos e comprovação ZDR.
 - 2026-08-02 — [Fase 9/OpenAI] 🔴 **ZDR verificado e ainda não provisionado.** Em Data Controls, `API call logging` está desativado, mas não há seletores `Zero Data Retention`/`Modified Abuse Monitoring` para organização ou projeto. Conforme a documentação oficial, ZDR exige aprovação prévia da OpenAI. O código usa somente Chat Completions com `store=false` e Embeddings, ambos elegíveis, mas isso não substitui ZDR. Manter receptor despublicado e não processar dado real até aprovação e ativação explícita no projeto Agenda.
 - 2026-08-02 — [Fase 9/OpenAI] ✅ **Ausência de opt-in de treino comprovada.** Em Sharing, feedback de modelo, dados de avaliação/fine-tuning e inputs/outputs estão todos `Disabled`; `API call logging` também está desativado. Essa evidência fecha o item de compartilhamento para treinamento, mas não o ZDR, que continua aguardando aprovação/provisionamento.

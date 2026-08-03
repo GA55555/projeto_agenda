@@ -2,10 +2,10 @@
 
 ## Resumo executivo
 
-Escopo: repositório no commit `96e3f50`, histórico Git alcançável e configuração
-observável do host Docker. A revisão foi somente leitura, exceto pela criação deste
-relatório e pela instalação de scanners em `/tmp`. Não houve exploração, força bruta,
-alteração de firewall, publicação do webhook ou uso de dados clínicos reais.
+Escopo inicial: repositório no commit `96e3f50`, histórico Git alcançável e configuração
+observável do host Docker. O reteste posterior incluiu o deploy controlado do commit
+`293a127`, migration `0014` e requisições de autenticação inteiramente sintéticas. Não
+houve exploração, publicação do webhook ou uso de dados clínicos reais.
 
 **Conclusão:** a aplicação Agenda tem bons controles internos, mas o ambiente ainda não
 deve ser liberado para novos dados reais. Os segredos expostos foram rotacionados e a
@@ -115,22 +115,23 @@ host exige senha administrativa.
   e pgvector `20C/45A`. `C/A` são ocorrências críticas/altas, não CVEs únicas; muitas
   ocorrências Debian repetem o mesmo CVE em pacotes relacionados e não possuem correção
   do fornecedor.
-- **Correção de imagem validada sem deploy:** frontend migrou o builder para Node 22 e
+- **Correção de imagem implantada em 2026-08-03:** frontend migrou o builder para Node 22 e
   o runtime para Nginx `1.30.4-alpine3.24`; build passou e a imagem candidata caiu para
   zero vulnerabilidades em todas as severidades. Backend ganhou pisos
   `msgpack>=1.2.1` e `setuptools>=78.1.1`; candidata importa a aplicação com versões
   corrigidas. O Trivy continua reproduzindo as duas altas Python a partir do SBOM
   terceirizado da base, mas contêiner sem rede comprovou que as versões antigas não
-  existem no Python do sistema nem no venv. Nenhum contêiner de produção foi reiniciado.
-- **Hardening local adicional, sem deploy:** toda resposta `/api/` recebe
+  existem no Python do sistema nem no venv. As candidatas foram promovidas no commit
+  `293a127` após snapshot coordenado.
+- **Hardening implantado:** toda resposta `/api/` recebe
   `Cache-Control: no-store, private` no backend e na borda; login possui limite por IP
   comprovado (`429` na sexta requisição imediata, warning sem credenciais); configuração
   JWT recusa segredo com menos de 32 bytes e algoritmo diferente de `HS256`.
-- **Revogação de sessão construída, sem aplicar migration:** `0014` adiciona versão de
+- **Revogação de sessão implantada:** `0014` adiciona versão de
   sessão ao usuário/JWT. Troca de senha revoga tokens antigos e entrega um cookie novo
-  somente ao navegador que comprovou a senha; logout revoga todas as sessões. SQL foi
-  renderizado offline. Unitários: `152 passed, 1 deselected` (NER conhecido); integração
-  PostgreSQL aguarda deploy.
+  somente ao navegador que comprovou a senha; logout revoga todas as sessões. O schema
+  publicado está em `0014 (head)` e o smoke HTTP comprovou revogação após troca de senha
+  e logout.
 
 ## Code review e reteste final — 2026-08-03
 
@@ -157,8 +158,29 @@ host exige senha administrativa.
   rate limit isolado passaram. O audit completo mantém apenas duas ocorrências do mesmo
   advisory RSC não alcançável; `react-router-dom@7.18.2` continua sendo a release estável
   mais recente no registro.
-- **Sem promoção operacional:** nenhum commit/push, migration ou deploy de produção; o
-  receptor permanece despublicado e nenhum dado real foi processado.
+- **Estado no fechamento do review:** antes da autorização ainda não havia promoção
+  operacional. O deploy controlado posterior está registrado na seção seguinte.
+
+## Deploy controlado e reteste publicado — 2026-08-03
+
+- A cópia root-only da chave de recuperação n8n estava desatualizada após a rotação. O
+  backup recusou continuar antes de parar serviços; a cópia foi sincronizada diretamente
+  do contêiner, sem exibir valor, e o snapshot pré-deploy `ebde69c8` foi validado.
+- Backend e frontend anteriores receberam tags locais de rollback. As novas imagens
+  registram a revisão OCI `293a1275a79825f41a001a135a691a48e468f06d`; a migration
+  transacional `0014` foi aplicada antes de recriar exclusivamente esses dois serviços.
+- Agenda, n8n e ambos os PostgreSQL terminaram saudáveis, sem reinícios anormais. O
+  receptor e o workflow de teste seguem inativos, com zero execuções n8n; nenhum dado
+  clínico real foi processado.
+- Um tenant/usuário sintético temporário comprovou pela origem publicada: login, perfil,
+  `no-store`, troca de senha, recusa do bearer anterior, relogin, logout global, recusa do
+  novo bearer e logout idempotente de cookie inválido. A limpeza deixou zero tenants do
+  smoke.
+- Sete logins inválidos sintéticos comprovaram `401×5` e `429×2`; ambos os `429`
+  incluíram `Retry-After: 60`, toda resposta usou `Cache-Control: no-store, private` e
+  uma rota comum permaneceu sem limitação. Logs não mostraram traceback nem credenciais.
+- O bundle pós-deploy das imagens efetivamente executadas foi preservado no snapshot
+  Restic `38272c78`; o staging gocryptfs foi desmontado após ambos os backups.
 
 ## Plano da operação de code review
 
@@ -297,21 +319,22 @@ por proxy com permissões mínimas ou remover a integração Docker se não for 
 ### MED-01 — Login sem rate limiting, atraso progressivo ou bloqueio
 
 **Severidade:** Média
-**Estado:** Revisado e validado localmente; aguarda deploy e alerta externo
+**Estado:** Implantado e validado na origem publicada; alerta externo pendente
 **Evidência:** `frontend/nginx/nginx.conf` limita exclusivamente
 `/api/v1/auth/login` por IP numa zona compartilhada entre workers: cinco requisições
 imediatas, drenagem de cinco por minuto e `429` depois do limite. Rejeições são emitidas
 em nível `warn`, sem corpo, e-mail ou senha. O `429` usa `Retry-After: 60` e
 `Cache-Control: no-store, private`.
 
-O teste em imagem candidata, isolada da rede e sem backend real, comprovou cinco
-passagens ao upstream simulado, `429` na sexta e sétima e ausência de limitação numa
-rota comum. A resposta continua genérica, evitando enumeração de contas.
+O teste em imagem candidata comprovou o contrato antes do deploy. O reteste publicado
+repetiu cinco respostas `401`, `429` na sexta e sétima tentativas, `Retry-After: 60` e
+ausência de limitação numa rota comum. A resposta continua genérica, evitando enumeração
+de contas.
 
 **Risco residual:** o controle é da borda publicada, não do socket local do backend; não
 há bloqueio persistente por identificador, deliberadamente, para não permitir que um
 atacante trave uma conta conhecida. Os warnings ainda precisam ser encaminhados pela
-observabilidade a um alerta operacional. Retestar com POSTs sintéticos após deploy.
+observabilidade a um alerta operacional.
 
 ### MED-02 — Tráfego HTTP e cookies sem `Secure` no deploy atual
 
@@ -342,7 +365,7 @@ workflow e auditar alterações.
 ### MED-04 — Respostas clínicas não declaram `Cache-Control: no-store`
 
 **Severidade:** Média
-**Estado:** Revisado e validado localmente; aguarda deploy
+**Estado:** Implantado e validado na origem publicada
 **Evidência:** middleware em `backend/app/main.py` aplica
 `Cache-Control: no-store, private` às respostas devolvidas sob `/api/`, inclusive login
 e erros tratados; `backend/tests/unit/test_cache_control.py` cobre resposta 404 da API e
@@ -353,15 +376,15 @@ O controle está no backend, portanto também protege acessos diretos sem Nginx.
 o proxy remove eventual duplicata upstream e reaplica a mesma política a toda `/api/`,
 inclusive ao `429` gerado localmente.
 
-**Reteste após deploy:** confirmar o cabeçalho no login, numa resposta autenticada e num
-erro via origem publicada. Adicionar `Pragma: no-cache` somente se um cliente legado o
-exigir.
+**Reteste publicado:** login, resposta autenticada, erro de bearer revogado, logout e
+`429` confirmaram `Cache-Control: no-store, private`. Adicionar `Pragma: no-cache`
+somente se um cliente legado o exigir.
 
 ### MED-05 — Vulnerabilidades conhecidas no React Router em produção
 
 **Severidade:** Média
-**Estado:** Advisories alcançáveis corrigidos localmente; exceção RSC temporária
-**Pacotes candidatos:** `react-router-dom@7.18.2` e `react-router@7.18.2`
+**Estado:** Advisories alcançáveis corrigidos e implantados; exceção RSC temporária
+**Pacotes implantados:** `react-router-dom@7.18.2` e `react-router@7.18.2`
 
 A atualização removeu os advisories antigos de open redirect/XSS e desserialização. O
 `npm audit --omit=dev` ainda reporta duas ocorrências altas do mesmo advisory
@@ -370,14 +393,14 @@ data routers, loaders ou actions, e não existe versão estável corrigida no mo
 reteste.
 
 **Evidência:** TypeScript e build Vite passaram. Manter exceção formal temporária,
-monitorar release corrigida e retestar antes do deploy; não introduzir RSC/SSR enquanto
+monitorar release corrigida e retestar em cada atualização; não introduzir RSC/SSR enquanto
 o advisory permanecer.
 
 ### MED-06 — Vite vulnerável no ambiente de desenvolvimento
 
 **Severidade:** Média no contexto do projeto
-**Estado:** Revisado e validado localmente; aguarda deploy
-**Pacote candidato:** `vite@6.4.3`
+**Estado:** Mitigado e implantado
+**Pacote implantado no estágio de build:** `vite@6.4.3`
 
 Os advisories de Vite/esbuild foram removidos pela atualização. TypeScript e build
 passaram, e o multi-stage continua excluindo Vite da imagem final Nginx.
@@ -397,15 +420,16 @@ ganhou pisos para os dois pacotes Python corrigíveis. Ainda há tags sem digest
 `latest`. Dois builds do mesmo commit ainda podem produzir artefatos diferentes.
 
 **Mitigação:** gerar lock Python com hashes, fixar modelo e índices, usar digest para
-imagens aprovadas e gerar SBOM próprio. Implantar as candidatas somente após revisão;
-monitorar correções upstream do runner, n8n, `gosu` das imagens PostgreSQL e bases Debian
+imagens aprovadas e gerar SBOM próprio. As candidatas revisadas foram implantadas e
+preservadas no bundle `38272c78`; monitorar correções upstream do runner, n8n, `gosu`
+das imagens PostgreSQL e bases Debian
 do Python/pgvector. Não trocar a imagem do banco só para reduzir contagem sem restore e
 teste de compatibilidade.
 
 ### MED-08 — Sessões JWT não são invalidadas por logout ou troca de senha
 
 **Severidade:** Média
-**Estado:** Revisado e validado em PostgreSQL descartável; aguarda migration/deploy
+**Estado:** Implantado e validado em PostgreSQL descartável e na origem publicada
 
 Migration `0014` adiciona `usuarios.session_version` positiva, com grant de runtime
 limitado à nova coluna. A versão entra na claim `sv` e é conferida no banco junto com
@@ -424,7 +448,8 @@ local sem alterar a versão corrente no banco.
 recebeu migrations completas, ciclo `0014→0013→0014` e reteste de autenticação. O teste
 integrado cobre revogação do bearer após troca de senha e logout. Tokens anteriores à
 migration não possuem `sv` e serão recusados: todos os usuários precisarão entrar
-novamente uma vez.
+novamente uma vez. No deploy, `0014 (head)` foi confirmado e o smoke sintético publicou
+a mesma prova de revogação pela borda Nginx.
 
 ### MED-09 — Hardening Docker incompleto
 
@@ -484,7 +509,7 @@ modo efetivo e responsável sem IDs ou segredos. Não processar dado real até a
 ### BAI-01 — Configuração não falha cedo com segredo JWT vazio
 
 **Severidade:** Baixa no deploy atual; potencialmente alta em novo deploy incorreto
-**Estado:** Revisado e validado localmente; aguarda deploy
+**Estado:** Implantado; startup fail-fast validado na imagem publicada
 
 `Settings` agora recusa o startup quando `JWT_SECRET_KEY` possui menos de 32 bytes ou
 quando `JWT_ALGORITHM` difere do contrato `HS256`. A validação não inclui o valor do
@@ -568,16 +593,16 @@ porta do backend for exposta futuramente.
 
 ### P1 — em até sete dias
 
-1. ~~Atualizar React Router e Vite; repetir audits e build.~~ Concluído localmente;
-   aguarda revisão/deploy e permanece a exceção RSC não alcançável documentada.
-2. Rate limiting do login concluído localmente e validado em imagem candidata; ainda
-   falta encaminhar os warnings para alerta operacional e retestar após deploy.
-3. ~~Adicionar `Cache-Control: no-store, private` à API autenticada e login.~~ Concluído
-   localmente; teste isolado aprovado, aguarda revisão/deploy.
+1. ~~Atualizar React Router e Vite; repetir audits, build e deploy.~~ Concluído e
+   implantado; permanece a exceção RSC não alcançável documentada.
+2. ~~Implantar e retestar o rate limiting do login.~~ Concluído; ainda falta encaminhar
+   os warnings para alerta operacional.
+3. ~~Adicionar `Cache-Control: no-store, private` à API autenticada e login.~~ Concluído,
+   implantado e aprovado na origem publicada.
 4. Implantar TLS e cookies `Secure` antes de abandonar o túnel local.
 5. Projetar remoção de acesso de workflows às variáveis de ambiente.
-6. Validação fail-fast e versão de sessão JWT concluídas localmente; migration e teste
-   integrado aguardam revisão/deploy.
+6. ~~Implantar validação fail-fast e versão de sessão JWT.~~ Migration `0014` e smoke de
+   revogação publicados e aprovados.
 
 ### P2 — em até trinta dias
 
@@ -608,15 +633,15 @@ porta do backend for exposta futuramente.
   persistência, equivalente IPv6 e auditoria completa do ruleset nftables;
 - houve reteste LAN somente de `5432` e `9443` após a contenção; não houve varredura
   completa pós-regra a partir da LAN, roteador ou Internet;
-- não houve DAST autenticado, exploração de CVE nem força bruta contra o deploy; o
-  limitador foi exercitado apenas na imagem candidata, sem backend e sem dados;
+- não houve DAST autenticado, exploração de CVE nem força bruta prolongada contra o
+  deploy; o limitador foi exercitado por sete logins inválidos sintéticos controlados;
 - seis imagens foram escaneadas com Trivy; não houve segundo scanner independente,
   geração de SBOM próprio ou validação contínua em CI;
 - Gitleaks percorreu os 68 commits e Trivy o workspace; scanner de segredos ainda não
   integra pre-commit/CI nem proteção de push do provedor;
-- unitários rodaram na imagem candidata (`152 passed, 1 deselected`); o teste NER
-  conhecido continua limitado pelo modelo pequeno e os testes integrados PostgreSQL da
-  migration `0014` aguardam deploy controlado;
+- o lote final passou `157` unitários (`1 deselected`) e `14` integrações em PostgreSQL
+  descartável; o teste NER conhecido continua limitado pelo modelo pequeno. O deploy
+  recebeu smoke HTTP direcionado, não a suíte integrada completa contra a base ativa;
 - configurações de compartilhamento da pasta Google Drive e do console OAuth não foram
   auditadas por API.
 
