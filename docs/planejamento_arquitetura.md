@@ -15,13 +15,26 @@
 | Campo | Valor |
 | --- | --- |
 | Fase corrente | **Fase 9 (hardening e go-live) em progresso.** Hardening defensivo implantado no commit `293a127`, migration `0014` aplicada e receptor permanece despublicado. |
-| Última atualização | 2026-08-03 |
-| Bloqueios ativos | Segredos n8n/HMAC rotacionados e matriz pós-rotação aprovada, mas o receptor permanece despublicado. A LAN está contida por regra IPv4 temporária em `DOCKER-USER`, validada para PostgreSQL auxiliar e Portainer, preservando Tailscale; faltam persistência e equivalente IPv6. Homarr continua legado e com Docker socket gravável. No painel OpenAI, `API call logging` e os três controles de Sharing estão desativados, comprovando ausência de opt-in de treino; porém, não há seletores ZDR/MAM, portanto ZDR não está provisionado nem comprovado. Scans de imagens/segredos foram concluídos: frontend corrigido e implantado está limpo, mas imagens upstream de backend/n8n/runner/PostgreSQL/pgvector mantêm CVEs que exigem correção do fornecedor ou exceção formal. O frontend ainda tem exceção temporária para advisory RSC do React Router, caminho não usado pela SPA. Nenhum novo dado real deve ser processado. |
-| Próximo passo imediato | **Go-live continua bloqueado:** solicitar ZDR à OpenAI e não processar dado real enquanto não houver comprovação. Planejar separadamente persistência/equivalente IPv6 do firewall e migração Homarr 0.x→1.x/socket proxy. Hardening de código, migration `0014`, deploy, reteste sintético e backups pré/pós-deploy estão concluídos. |
+| Última atualização | 2026-08-04 |
+| Bloqueios ativos | Segredos n8n/HMAC rotacionados e matriz pós-rotação aprovada, mas o receptor permanece despublicado. A LAN física está contida de forma persistente em IPv4 e IPv6 nas seis portas administrativas; o reteste externo preservou o acesso pela Tailscale. Os bindings continuam amplos, Homarr permanece legado e com Docker socket gravável. No painel OpenAI, `API call logging` e os três controles de Sharing estão desativados, comprovando ausência de opt-in de treino; porém, não há seletores ZDR/MAM, portanto ZDR não está provisionado nem comprovado. Scans de imagens/segredos foram concluídos: frontend corrigido e implantado está limpo, mas imagens upstream de backend/n8n/runner/PostgreSQL/pgvector mantêm CVEs que exigem correção do fornecedor ou exceção formal. O frontend ainda tem exceção temporária para advisory RSC do React Router, caminho não usado pela SPA. Nenhum novo dado real deve ser processado. |
+| Próximo passo imediato | **Go-live continua bloqueado:** solicitar ZDR à OpenAI e não processar dado real enquanto não houver comprovação. Planejar a migração Homarr 0.x→1.x/socket proxy e atribuir os listeners externos `139`, `445` e `3000`. Hardening de código, migration `0014`, deploy, reteste sintético, backups pré/pós-deploy e contenção persistente dual-stack da LAN estão concluídos. |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
 ### 🔖 Ponto de Retomada (ler primeiro na próxima sessão)
+
+**Onde paramos (2026-08-04 — firewall persistente dual-stack comprovado):** o serviço
+oneshot `agenda-docker-firewall.service` está instalado, `enabled` e `active`, ordenado
+depois de UFW e Docker e associado a reinícios do daemon. Em IPv4, a chain
+`AGENDA-LAN-DOCKER` em `DOCKER-USER` bloqueou pela interface física as seis portas
+`5432/8000/8080/8081/8443/9443`; em IPv6, a chain `AGENDA-LAN-INPUT` em `INPUT`
+bloqueou as mesmas seis portas. O teste externo obteve timeout/bloqueio em ambas as
+famílias, com incremento dos seis contadores correspondentes, enquanto as seis portas
+continuaram abertas pela Tailscale. Uma reinicialização controlada somente do serviço
+reaplicou os quatro hooks e todas as regras; Docker e servidor não foram reiniciados.
+O lote versionável está em `infra/firewall/`. **Retomar por:** (1) solicitar/provar ZDR
+no projeto OpenAI; (2) planejar Homarr 0.x→1.x e socket proxy mínimo; (3) atribuir os
+listeners externos `139`, `445` e `3000`. Receptor e dado real permanecem bloqueados.
 
 **Onde paramos (2026-08-03 — hardening implantado e retestado):** o backup coordenado
 pré-deploy falhou de forma fechada antes de parar serviços porque a cópia root-only da
@@ -635,8 +648,9 @@ permanece desativado até seu banco, binários e chave de cifragem entrarem no b
   [`revisao_seguranca_2026-08-01.md`](./revisao_seguranca_2026-08-01.md): Trivy do
   workspace e Gitleaks dos 68 commits terminaram sem vazamentos; seis imagens foram
   escaneadas e as correções de frontend/backend foram validadas e implantadas. A LAN
-  tem contenção IPv4 temporária comprovada, mas faltam persistência/IPv6; consoles web
-  auxiliares continuam com bindings amplos e há CVEs upstream pendentes/excepcionáveis.
+  física tem contenção persistente comprovada em IPv4 e IPv6 nas seis portas
+  administrativas, com Tailscale preservada; consoles web auxiliares continuam com
+  bindings amplos e há CVEs upstream pendentes/excepcionáveis.
   A proteção `Cache-Control: no-store, private` para toda a API e o limitador de login
   por IP foram retestados na origem publicada (`401×5`, `429×2`, `Retry-After: 60` e
   warning sem credenciais). O encaminhamento do warning para alerta externo permanece
@@ -660,6 +674,7 @@ permanece desativado até seu banco, binários e chave de cifragem entrarem no b
 > Mantenha conciso — este é o resumo que será lido no início das próximas sessões.
 > As linhas são cronológicas: estados 🟡 antigos documentam o momento da entrega e são substituídos pelas linhas ✅ mais recentes; o estado corrente vive no topo deste arquivo.
 
+- 2026-08-04 — [Fase 9/Firewall] ✅ **Contenção persistente IPv4/IPv6 da LAN comprovada; Tailscale preservada.** Serviço oneshot `enabled/active` aplica chains separadas em `INPUT` e `DOCKER-USER`. Teste externo das seis portas administrativas terminou bloqueado nas duas famílias e incrementou todas as regras esperadas; as seis portas permaneceram abertas pela Tailscale. Reinício controlado somente do serviço reaplicou os quatro hooks e as chains completas; Docker/host não foram reiniciados. Bindings amplos permanecem como defesa em profundidade a reduzir. **Próximo:** ZDR e plano Homarr/socket proxy; nenhum dado real até o go-live.
 - 2026-08-03 — [Fase 9/Deploy] ✅ **Hardening `293a127` implantado e retestado; receptor continua inativo.** Após sincronizar sem exposição a cópia de recuperação da chave n8n, snapshot coordenado pré-deploy `ebde69c8` aprovado. Imagens com revisão OCI correta, migration `0014` antes do backend e recriação exclusiva de backend/frontend concluídas; serviços saudáveis e redes corretas. Smoke publicado sintético aprovou login/cache/troca de senha/revogação/logout e limpeza; rate limit repetiu `401×5`/`429×2` com `Retry-After: 60`, sem limitar rota comum. Bundle pós-deploy `38272c78` preservou as imagens executadas. **Próximo:** ZDR, firewall persistente/IPv6 e Homarr/socket proxy; nenhum dado real até o go-live.
 - 2026-08-03 — [Fase 9/Code review] 🟡 **Lote de hardening revisado, validado e versionado no commit `216d461`; sem deploy naquele checkpoint.** Corrigidas corridas de `session_version`, logout idempotente de cookie inválido, exposição do valor JWT em traceback Pydantic e limpeza integrada outbox→evolução. Backend final: `157` unitários + `14` integrações aprovados em PostgreSQL descartável, migration `0014` validada em upgrade/downgrade e startup fail-fast sem ecoar segredo. Frontend: lock íntegro, TypeScript/build/Docker/Nginx/rate limit aprovados; audit mantém somente exceção RSC não alcançável. Lint focado, compileall e diff-check aprovados.
 - 2026-08-02 — [Fase 9/Segurança] 🟡 **Rotação n8n/HMAC e reteste concluídos; hardening em curso.** As 12 execuções do workflow sintético do Drive foram removidas com guardas estritas. Script corrigido para publicação/despublicação atual e ordem segura n8n→runner; matriz pós-rotação passou `401/401/200/200/409`. Estado final: workflows inativos, serviços saudáveis, `0` execuções e `0` payloads globais. React Router `7.18.2` e Vite `6.4.3` passaram TypeScript/build; advisories antigos foram removidos, restando exceção RSC não alcançável pela arquitetura atual e ainda sem release corrigida. **Próximo:** firewall/alcance, scans de imagens/segredos e comprovação ZDR.

@@ -1,0 +1,17 @@
+[Unit]
+Description=Protege portas Docker administrativas da Agenda na interface LAN
+Documentation=file:///usr/local/share/doc/agenda-firewall/README.md
+Wants=network-online.target ufw.service
+Requires=docker.service
+After=network-online.target ufw.service docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/agenda-docker-firewall apply
+ExecReload=/usr/local/sbin/agenda-docker-firewall apply
+ExecStop=/usr/local/sbin/agenda-docker-firewall remove
+
+[Install]
+WantedBy=multi-user.target

@@ -9,9 +9,10 @@ houve exploração, publicação do webhook ou uso de dados clínicos reais.
 
 **Conclusão:** a aplicação Agenda tem bons controles internos, mas o ambiente ainda não
 deve ser liberado para novos dados reais. Os segredos expostos foram rotacionados e a
-LAN recebeu contenção IPv4 temporária; permanecem a falta de persistência/IPv6 dessa
-regra, painéis administrativos com bindings amplos, Homarr legado e ZDR OpenAI ainda
-sem provisionamento. O receptor n8n permanece despublicado, reduzindo o risco imediato.
+LAN física recebeu contenção persistente IPv4/IPv6 nas seis portas administrativas,
+preservando Tailscale. Permanecem painéis administrativos com bindings amplos, Homarr
+legado e ZDR OpenAI ainda sem provisionamento. O receptor n8n permanece despublicado,
+reduzindo o risco imediato.
 
 Resultado da passagem inicial de 2026-08-01 (a seção de reteste abaixo prevalece):
 
@@ -182,6 +183,26 @@ host exige senha administrativa.
 - O bundle pós-deploy das imagens efetivamente executadas foi preservado no snapshot
   Restic `38272c78`; o staging gocryptfs foi desmontado após ambos os backups.
 
+## Reteste do firewall — 2026-08-04
+
+- Um serviço oneshot persistente, ordenado depois de UFW e Docker, passou a administrar
+  chains próprias em IPv4 e IPv6. `AGENDA-LAN-INPUT`, ligada ao início de `INPUT`, cobre
+  listeners locais/proxy IPv6 por `--dport`; `AGENDA-LAN-DOCKER`, ligada ao início de
+  `DOCKER-USER`, cobre publicações após DNAT por `--ctorigdstport`.
+- Uma máquina distinta na LAN testou `5432`, `8000`, `8080`, `8081`, `8443` e `9443`.
+  As seis portas expiraram em IPv4 e os seis contadores correspondentes aumentaram em
+  `AGENDA-LAN-DOCKER`. Em IPv6, as seis portas foram bloqueadas e os seis contadores
+  aumentaram em `AGENDA-LAN-INPUT`.
+- Pela Tailscale, as seis portas permaneceram abertas. Endereços de origem e destino não
+  foram registrados.
+- Reiniciar somente `agenda-docker-firewall.service` reaplicou os quatro hooks e as
+  chains completas; o serviço terminou `enabled` e `active`. Docker e servidor não
+  foram reiniciados. O lote e o rollback dirigido estão documentados em
+  `infra/firewall/`.
+- O controle fecha a exposição pela interface física da LAN, mas não elimina o risco dos
+  bindings amplos nem substitui a migração do Homarr e a remoção/proxy do Docker socket.
+  Alcance a partir da Internet permanece fora do escopo comprovado.
+
 ## Plano da operação de code review
 
 ### Parte 1 — Inventário e fronteiras de confiança
@@ -256,8 +277,8 @@ nunca copiar valores para chat, documentação ou terminal capturado.
 ### ALT-02 — Portainer publicado em todas as interfaces com Docker socket gravável
 
 **Severidade:** Alta
-**Estado:** Binding amplo permanece; contenção IPv4 temporária aplicada, sem persistência
-nem equivalente IPv6
+**Estado:** Binding amplo permanece; LAN física contida persistentemente em IPv4/IPv6,
+com Tailscale preservada
 **Evidência:** portas `0.0.0.0:8000` e `0.0.0.0:9443`; mount
 `/var/run/docker.sock:/var/run/docker.sock` com escrita
 
@@ -272,8 +293,8 @@ atualizar e fixar a versão; não expor a porta de túnel Edge se não for usada
 ### ALT-03 — code-server publicado em todas as interfaces e com escrita no workspace
 
 **Severidade:** Alta
-**Estado:** Binding amplo permanece; contenção IPv4 temporária aplicada, sem persistência
-nem equivalente IPv6
+**Estado:** Binding amplo permanece; LAN física contida persistentemente em IPv4/IPv6,
+com Tailscale preservada
 **Evidência:** `0.0.0.0:8443`; mount gravável `/home/hades/vscode/config:/config`
 
 O mount inclui o workspace e o `.env` da Agenda. Uma tomada da conta do code-server pode
@@ -287,8 +308,8 @@ e deploy; alertar tentativas de login.
 ### ALT-04 — PostgreSQL e pgAdmin auxiliares publicados em todas as interfaces
 
 **Severidade:** Alta
-**Estado:** Bindings amplos permanecem; contenção IPv4 temporária aplicada, sem
-persistência nem equivalente IPv6; Internet ainda não testada
+**Estado:** Bindings amplos permanecem; LAN física contida persistentemente em
+IPv4/IPv6, com Tailscale preservada; Internet ainda não testada
 **Evidência:** `postgres_db` em `0.0.0.0:5432`; `pgadmin_viz` em `0.0.0.0:8081`
 
 São stacks distintas do banco privado da Agenda, mas compartilham o mesmo host e plano
@@ -303,8 +324,8 @@ TLS e contas; atualizar e abandonar a tag `latest`.
 ### ALT-05 — Homarr legado publicado na LAN com Docker socket gravável
 
 **Severidade:** Alta
-**Estado:** Confirmado no runtime; acesso LAN contido temporariamente em IPv4 e Tailscale
-preservada; rota exige login
+**Estado:** Confirmado no runtime; LAN física contida persistentemente em IPv4/IPv6,
+Tailscale preservada; rota exige login
 **Evidência:** `0.0.0.0:8080`, imagem `ghcr.io/ajnart/homarr:latest` 0.16.0 e mount
 `/var/run/docker.sock:/var/run/docker.sock` com escrita
 
@@ -629,10 +650,11 @@ porta do backend for exposta futuramente.
 
 ## Limitações desta revisão
 
-- UFW, `DOCKER-USER` IPv4/IPv6 e a regra temporária IPv4 foram lidos; ainda faltam
-  persistência, equivalente IPv6 e auditoria completa do ruleset nftables;
-- houve reteste LAN somente de `5432` e `9443` após a contenção; não houve varredura
-  completa pós-regra a partir da LAN, roteador ou Internet;
+- UFW e os hooks `INPUT`/`DOCKER-USER` em IPv4/IPv6 foram lidos; persistência e bloqueio
+  dual-stack das seis portas foram comprovados. Ainda falta auditoria completa do
+  ruleset nftables;
+- houve reteste completo das seis portas a partir da LAN em IPv4/IPv6 e pela Tailscale;
+  não houve teste a partir do roteador ou da Internet;
 - não houve DAST autenticado, exploração de CVE nem força bruta prolongada contra o
   deploy; o limitador foi exercitado por sete logins inválidos sintéticos controlados;
 - seis imagens foram escaneadas com Trivy; não houve segundo scanner independente,
