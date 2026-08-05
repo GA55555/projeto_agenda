@@ -98,6 +98,13 @@ pré-flight.
 4. Validar que o backup contém os três volumes, a definição e a imagem, e que o Homarr
    antigo voltou saudável. Desmontar o staging.
 
+O helper interativo `infra/homarr/backup_legado_manual.sh` implementa os passos 2–4
+com validações fail-fast, lock, restart em trap e staging gocryptfs. Ele recebe uma
+cópia privada (`0600`) do ZIP já exportado, confere o conteúdo, move-a para o staging
+cifrado, preserva stack/inspects/imagem, para somente o Homarr, arquiva os três volumes,
+restaura a saúde, grava no Restic, executa `restic check` e desmonta o staging. A chave
+de migração não entra no servidor nem no script.
+
 ### Fase B — candidato paralelo
 
 1. Baixar `v1.73.0`, registrar digest e escanear a imagem antes de executar.
