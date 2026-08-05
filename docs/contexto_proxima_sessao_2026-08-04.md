@@ -10,9 +10,14 @@ Encerrar os bloqueios de hardening e obter evidência suficiente para decidir o 
 O receptor n8n e qualquer processamento de novos dados reais continuam bloqueados até,
 no mínimo, haver ZDR comprovado no projeto OpenAI e fechamento das validações de rede.
 
+Atualização de 2026-08-05: a solicitação de ZDR foi enviada pelo canal oficial, mas o
+recurso não está disponível para o projeto. Não há nova ação de ZDR nesta retomada; o
+bloqueio de dados reais permanece e as demais frentes independentes podem avançar.
+
 ## Base versionada e deploy concluído
 
-- Branch `main` local e `origin/main`: `daa32b9` (`Registra deploy do hardening da Fase 9`).
+- Firewall persistente versionado no commit `9f7b656` (`Adiciona firewall persistente
+  dual-stack`), sobre a base de deploy `daa32b9`.
 - Código de hardening implantado: commit `293a127`.
 - Backend e frontend foram reconstruídos e implantados com a revisão OCI correta.
 - Migration `0014 (head)` aplicada.
@@ -69,7 +74,7 @@ física da LAN; loopback, Tailscale e tráfego interno Docker devem continuar pe
 
 ### Implementação instalada no host
 
-Foi criado o lote ainda não versionado `infra/firewall/`:
+O lote `infra/firewall/` foi versionado no commit `9f7b656`:
 
 - `agenda-docker-firewall.sh` — aplica/remove regras idempotentes em IPv4 e IPv6;
 - `agenda-docker-firewall.service` — serviço oneshot persistente, ordenado depois de
@@ -168,22 +173,19 @@ ser planejado separadamente.
 
 ## Ponto exato para retomar
 
-### 4. Versionar o checkpoint
+### 4. Checkpoint do firewall versionado
 
-Os retestes e a documentação foram concluídos. Antes de versionar:
-
-- revisar `infra/firewall/` e este handoff;
-- executar `git diff --check` e checagens estáticas;
-- criar commit e push apenas após conferência final do diff.
-
-Estado Git no momento deste handoff: `main` em `daa32b9`, sincronizada com
-`origin/main`; `infra/firewall/` e este documento ainda não estão versionados.
+Os retestes, o lote `infra/firewall/` e a documentação operacional do firewall foram
+revisados e versionados no commit `9f7b656`. O `git diff --check` e as checagens
+estáticas aplicáveis passaram antes do commit.
 
 ### 5. Próximos bloqueios depois do firewall
 
-1. Solicitar/provar ZDR no projeto OpenAI.
-2. Planejar a migração do Homarr legado `0.16.0` para a linha atual, com backup e
-   rollback, e substituir o mount gravável do Docker socket por socket proxy mínimo.
+1. ZDR não está disponível para o projeto; manter o bloqueio de dados reais sem parar as
+   demais frentes independentes.
+2. Executar, somente após autorização de janela, o plano de migração do Homarr legado
+   descrito em [`plano_migracao_homarr_2026-08-04.md`](./plano_migracao_homarr_2026-08-04.md),
+   começando por exportação e backup; nenhuma mudança operacional foi feita no inventário.
 3. Atribuir e revisar listeners externos que não pertencem à Agenda (`139`, `445` e
    `3000`) sem alterá-los por suposição.
 4. Formalizar exceções temporárias das CVEs sem correção upstream e do advisory RSC não

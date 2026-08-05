@@ -102,7 +102,9 @@ host exige senha administrativa.
   oferece seletores `Zero Data Retention` ou `Modified Abuse Monitoring` no nível da
   organização/projeto. `store=false` reduz estado de aplicação no Chat Completions, mas
   não elimina os logs de monitoramento de abuso. Solicitar aprovação à OpenAI e manter o
-  bloqueio de dados reais até ZDR aparecer e ser selecionado no projeto da Agenda.
+  bloqueio de dados reais até ZDR aparecer e ser selecionado no projeto da Agenda. Em
+  2026-08-05, o recurso permanecia indisponível para o projeto; as frentes independentes
+  de hardening continuam sem publicar o receptor.
 - **Scan de segredos concluído:** Trivy não encontrou segredos no workspace, com `.env`,
   `.git` e dependências excluídos conscientemente. Gitleaks `8.30.1`, validado pelo
   checksum oficial, percorreu 68 commits. As duas ocorrências iniciais eram o mesmo JWT
@@ -325,7 +327,7 @@ TLS e contas; atualizar e abandonar a tag `latest`.
 
 **Severidade:** Alta
 **Estado:** Confirmado no runtime; LAN física contida persistentemente em IPv4/IPv6,
-Tailscale preservada; rota exige login
+Tailscale preservada; rota exige login; migração segura planejada, não executada
 **Evidência:** `0.0.0.0:8080`, imagem `ghcr.io/ajnart/homarr:latest` 0.16.0 e mount
 `/var/run/docker.sock:/var/run/docker.sock` com escrita
 
@@ -336,6 +338,8 @@ de segurança apenas para a última versão estável.
 **Mitigação:** restringir imediatamente a publicação à Tailscale/loopback; preservar os
 volumes; planejar separadamente a migração assistida 0.x→1.x; substituir o socket direto
 por proxy com permissões mínimas ou remover a integração Docker se não for necessária.
+O inventário somente leitura e o plano paralelo com backup/rollback estão em
+[`plano_migracao_homarr_2026-08-04.md`](./plano_migracao_homarr_2026-08-04.md).
 
 ### MED-01 — Login sem rate limiting, atraso progressivo ou bloqueio
 

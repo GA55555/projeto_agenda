@@ -15,13 +15,29 @@
 | Campo | Valor |
 | --- | --- |
 | Fase corrente | **Fase 9 (hardening e go-live) em progresso.** Hardening defensivo implantado no commit `293a127`, migration `0014` aplicada e receptor permanece despublicado. |
-| Última atualização | 2026-08-04 |
-| Bloqueios ativos | Segredos n8n/HMAC rotacionados e matriz pós-rotação aprovada, mas o receptor permanece despublicado. A LAN física está contida de forma persistente em IPv4 e IPv6 nas seis portas administrativas; o reteste externo preservou o acesso pela Tailscale. Os bindings continuam amplos, Homarr permanece legado e com Docker socket gravável. No painel OpenAI, `API call logging` e os três controles de Sharing estão desativados, comprovando ausência de opt-in de treino; porém, não há seletores ZDR/MAM, portanto ZDR não está provisionado nem comprovado. Scans de imagens/segredos foram concluídos: frontend corrigido e implantado está limpo, mas imagens upstream de backend/n8n/runner/PostgreSQL/pgvector mantêm CVEs que exigem correção do fornecedor ou exceção formal. O frontend ainda tem exceção temporária para advisory RSC do React Router, caminho não usado pela SPA. Nenhum novo dado real deve ser processado. |
-| Próximo passo imediato | **Go-live continua bloqueado:** solicitar ZDR à OpenAI e não processar dado real enquanto não houver comprovação. Planejar a migração Homarr 0.x→1.x/socket proxy e atribuir os listeners externos `139`, `445` e `3000`. Hardening de código, migration `0014`, deploy, reteste sintético, backups pré/pós-deploy e contenção persistente dual-stack da LAN estão concluídos. |
+| Última atualização | 2026-08-05 |
+| Bloqueios ativos | Segredos n8n/HMAC rotacionados e matriz pós-rotação aprovada, mas o receptor permanece despublicado. A LAN física está contida de forma persistente em IPv4 e IPv6 nas seis portas administrativas; o reteste externo preservou o acesso pela Tailscale. Os bindings continuam amplos, Homarr permanece legado e com Docker socket gravável. A solicitação de ZDR foi enviada à OpenAI, mas o recurso não está disponível para o projeto; isso mantém o bloqueio de dados reais, sem impedir as demais frentes independentes. Scans de imagens/segredos foram concluídos: frontend corrigido e implantado está limpo, mas imagens upstream de backend/n8n/runner/PostgreSQL/pgvector mantêm CVEs que exigem correção do fornecedor ou exceção formal. O frontend ainda tem exceção temporária para advisory RSC do React Router, caminho não usado pela SPA. |
+| Próximo passo imediato | **Go-live continua bloqueado, mas o hardening pode avançar:** executar somente com janela autorizada a Fase A do plano Homarr 0.x→1.x/socket proxy, ou atribuir primeiro os listeners externos `139`, `445` e `3000`. Não processar dado real enquanto ZDR continuar indisponível. |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
 ### 🔖 Ponto de Retomada (ler primeiro na próxima sessão)
+
+**Onde paramos (2026-08-05 — ZDR indisponível; frentes independentes liberadas):** o
+recurso ZDR não está disponível para o projeto, portanto não há nova ação nessa frente
+agora e o bloqueio de dados reais permanece. O firewall já está versionado em
+`9f7b656`. **Retomar por:** executar a Fase A do plano Homarr somente com janela
+autorizada ou atribuir, por inventário somente leitura, os listeners `139/445/3000`.
+
+**Onde paramos (2026-08-04 — ZDR solicitado e Homarr inventariado):** a solicitação de
+Zero Data Retention foi enviada pelo canal oficial da OpenAI, sem registrar IDs ou
+segredos; aguarda aprovação/provisionamento e seleção explícita no projeto. O Homarr
+legado foi inventariado somente por metadados: saudável, três volumes pequenos, sem
+limite de memória e com socket Docker direto gravável. A migração paralela para a
+release estável atual, backup/rollback, binding privado e proxy sem `POST` estão em
+[`plano_migracao_homarr_2026-08-04.md`](./plano_migracao_homarr_2026-08-04.md). Nenhuma
+stack foi parada ou alterada. **Retomar por:** acompanhar ZDR; depois obter autorização
+de janela para a Fase A do plano Homarr ou atribuir os listeners `139/445/3000`.
 
 **Onde paramos (2026-08-04 — firewall persistente dual-stack comprovado):** o serviço
 oneshot `agenda-docker-firewall.service` está instalado, `enabled` e `active`, ordenado
@@ -655,7 +671,7 @@ permanece desativado até seu banco, binários e chave de cifragem entrarem no b
   por IP foram retestados na origem publicada (`401×5`, `429×2`, `Retry-After: 60` e
   warning sem credenciais). O encaminhamento do warning para alerta externo permanece
   pendente.
-- [ ] Obter aprovação/provisionamento e ativar **Zero Data Retention** no projeto/organização OpenAI; registrar projeto, modo efetivo, data e responsável, sem segredos (§3.4 #6). **Ausência de opt-in de treino comprovada em 2026-08-02:** os três controles de Sharing estão `Disabled`, assim como `API call logging`. Ainda não há seletor ZDR/MAM; `store=false` sozinho não encerra esta tarefa.
+- [~] Obter aprovação/provisionamento e ativar **Zero Data Retention** no projeto/organização OpenAI; registrar projeto, modo efetivo, data e responsável, sem segredos (§3.4 #6). **Solicitação enviada em 2026-08-04; em 2026-08-05 o recurso permanecia indisponível para o projeto, sem nova ação possível nesta retomada.** Ausência de opt-in de treino comprovada em 2026-08-02: os três controles de Sharing estão `Disabled`, assim como `API call logging`. Ainda não há seletor ZDR/MAM; `store=false` sozinho não encerra esta tarefa.
 - [ ] Observabilidade mínima (logs, uso de RAM por contentor).
 - [ ] Verificação de conformidade LGPD/ECA/CFP (consentimento, sigilo, auditoria).
 - [ ] Documentar procedimento de restore e plano de contingência.
@@ -674,6 +690,8 @@ permanece desativado até seu banco, binários e chave de cifragem entrarem no b
 > Mantenha conciso — este é o resumo que será lido no início das próximas sessões.
 > As linhas são cronológicas: estados 🟡 antigos documentam o momento da entrega e são substituídos pelas linhas ✅ mais recentes; o estado corrente vive no topo deste arquivo.
 
+- 2026-08-05 — [Fase 9/Retomada] 🟡 **ZDR indisponível; trabalho independente continua.** A solicitação já havia sido enviada, mas o recurso não está disponível para o projeto. O bloqueio de dados reais permanece; acompanhamento de ZDR deixa de ser a ação imediata. O firewall está versionado em `9f7b656` e o plano Homarr está pronto para execução somente com janela autorizada. **Próximo:** Fase A do Homarr ou atribuição somente leitura dos listeners `139/445/3000`.
+- 2026-08-04 — [Fase 9/ZDR+Homarr] 🟡 **ZDR solicitado; migração Homarr planejada sem mudança operacional.** Solicitação enviada pelo canal oficial da OpenAI; aprovação, provisionamento e seleção no projeto seguem pendentes. Inventário somente leitura confirmou Homarr legado saudável, três volumes pequenos, ausência de limite de memória e socket Docker gravável. Plano fixa migração paralela para `v1.73.0`, exportação oficial + backup cifrado, rollback sem conversão reversa, binding privado e socket ausente ou proxy `CONTAINERS=1`/`POST=0`. Nenhuma stack foi parada ou alterada. **Próximo:** acompanhar ZDR e autorizar separadamente a fase de backup/exportação do Homarr.
 - 2026-08-04 — [Fase 9/Firewall] ✅ **Contenção persistente IPv4/IPv6 da LAN comprovada; Tailscale preservada.** Serviço oneshot `enabled/active` aplica chains separadas em `INPUT` e `DOCKER-USER`. Teste externo das seis portas administrativas terminou bloqueado nas duas famílias e incrementou todas as regras esperadas; as seis portas permaneceram abertas pela Tailscale. Reinício controlado somente do serviço reaplicou os quatro hooks e as chains completas; Docker/host não foram reiniciados. Bindings amplos permanecem como defesa em profundidade a reduzir. **Próximo:** ZDR e plano Homarr/socket proxy; nenhum dado real até o go-live.
 - 2026-08-03 — [Fase 9/Deploy] ✅ **Hardening `293a127` implantado e retestado; receptor continua inativo.** Após sincronizar sem exposição a cópia de recuperação da chave n8n, snapshot coordenado pré-deploy `ebde69c8` aprovado. Imagens com revisão OCI correta, migration `0014` antes do backend e recriação exclusiva de backend/frontend concluídas; serviços saudáveis e redes corretas. Smoke publicado sintético aprovou login/cache/troca de senha/revogação/logout e limpeza; rate limit repetiu `401×5`/`429×2` com `Retry-After: 60`, sem limitar rota comum. Bundle pós-deploy `38272c78` preservou as imagens executadas. **Próximo:** ZDR, firewall persistente/IPv6 e Homarr/socket proxy; nenhum dado real até o go-live.
 - 2026-08-03 — [Fase 9/Code review] 🟡 **Lote de hardening revisado, validado e versionado no commit `216d461`; sem deploy naquele checkpoint.** Corrigidas corridas de `session_version`, logout idempotente de cookie inválido, exposição do valor JWT em traceback Pydantic e limpeza integrada outbox→evolução. Backend final: `157` unitários + `14` integrações aprovados em PostgreSQL descartável, migration `0014` validada em upgrade/downgrade e startup fail-fast sem ecoar segredo. Frontend: lock íntegro, TypeScript/build/Docker/Nginx/rate limit aprovados; audit mantém somente exceção RSC não alcançável. Lint focado, compileall e diff-check aprovados.
