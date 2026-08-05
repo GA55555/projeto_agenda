@@ -20,7 +20,7 @@ autoriza parar, recriar ou excluir a stack atual.
 - A imagem atual é `ghcr.io/homarr-labs/homarr`; a instalação usa somente `/appdata` e
   exige `SECRET_ENCRYPTION_KEY` com 64 caracteres hexadecimais:
   [instalação Docker](https://homarr.dev/docs/getting-started/installation/docker/).
-- A versão estável mais recente confirmada em 2026-08-04 é `v1.73.0`. Segurança é
+- A versão estável mais recente confirmada novamente em 2026-08-05 é `v1.73.0`. Segurança é
   corrigida somente na versão estável mais nova:
   [release](https://github.com/homarr-labs/homarr/releases/tag/v1.73.0) e
   [política de segurança](https://github.com/homarr-labs/homarr/security).
@@ -82,6 +82,24 @@ Portainer não contém o binário `test`. O helper foi corrigido para validar po
 `docker cp` e retomou a única execução cifrada incompleta, sem novo upload. Nenhuma
 parada ocorreu na tentativa recusada.
 
+## Fase B bloqueada pelo scan — 2026-08-05
+
+- o endpoint oficial de latest release ainda aponta `v1.73.0`;
+- a imagem fixa foi baixada sem criar container e resolve para
+  `sha256:72f98c87dbd556736a3f25f7d19fefa77a7e48eb76c4d7929e5535f7e3c0fdd0`;
+- Trivy `0.70.0`, binário validado pelo checksum oficial e base atualizada, encontrou
+  `2` achados críticos e `19` altos, todos com versão corrigida informada;
+- a crítica de `protobufjs@7.4.0` está em `app/node_modules` e possui correção; quatro
+  altas de `next@16.2.10` também estão no runtime da aplicação e possuem correção;
+- a outra crítica, em `tar@7.5.15`, está no npm global da imagem e pode não ser
+  alcançável pelo serviço, mas isso não neutraliza os achados do runtime;
+- nenhum container candidato, volume, rede, segredo ou porta foi criado.
+
+**Decisão:** não executar `v1.73.0`. Retomar quando houver nova release estável e
+repetir pull por tag fixa, registro de digest e scan. Uma exceção exigiria análise de
+alcançabilidade individual e aceite formal; não criar imagem customizada silenciosa nem
+usar build não lançado como substituto da stable upstream.
+
 ## Decisões da migração
 
 1. **Sem atualização in-place.** A stack antiga fica intacta até o aceite final.
@@ -126,6 +144,8 @@ restaura a saúde, grava no Restic, executa `restic check` e desmonta o staging.
 de migração não entra no servidor nem no script.
 
 ### Fase B — candidato paralelo
+
+**Estado:** bloqueada antes da execução pelo scan de `v1.73.0`; nenhum candidato criado.
 
 1. Baixar `v1.73.0`, registrar digest e escanear a imagem antes de executar.
 2. Criar secret novo de 64 caracteres hexadecimais e armazená-lo somente no inventário
