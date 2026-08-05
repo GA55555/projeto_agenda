@@ -23,6 +23,7 @@ logs exige atualizar as definições Compose/Portainer e recriar os containers d
 planejada; não alterar globalmente o daemon sem avaliar stacks externas.
 
 O Compose versionado da Agenda prepara `json-file` com `max-size: 10m` e `max-file: 5`
-para PostgreSQL, backend e frontend. A política só entra no runtime quando esses
-containers forem recriados em deploy autorizado. n8n, runner e seu PostgreSQL pertencem
-a stack Portainer separada e exigem atualização coordenada equivalente.
+para PostgreSQL, backend e frontend. A política foi aplicada no runtime em 2026-08-05,
+após o snapshot coordenado `4e602160`; healthchecks, migration e HTTP foram aprovados.
+n8n, runner e seu PostgreSQL pertencem a stack Portainer separada e exigem atualização
+coordenada equivalente.

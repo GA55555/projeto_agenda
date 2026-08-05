@@ -195,7 +195,10 @@ estáticas aplicáveis passaram antes do commit.
    com os responsáveis por esses serviços.
 4. Formalizar exceções temporárias das CVEs sem correção upstream e do advisory RSC não
    alcançável pela SPA.
-5. Somente quando os critérios de go-live estiverem encerrados, planejar publicação
+5. Rotação `json-file` `10m × 5` já está aplicada em PostgreSQL/backend/frontend após o
+   snapshot `4e602160`; aplicar equivalente em n8n/runner/PostgreSQL em janela própria e
+   definir destino/responsável pelo alerta antes de qualquer timer.
+6. Somente quando os critérios de go-live estiverem encerrados, planejar publicação
    controlada do receptor e novo smoke exclusivamente sintético antes de dado real.
 
 ## Guardas operacionais

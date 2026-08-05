@@ -221,6 +221,17 @@ host exige senha administrativa.
   projeto Ascensão exige validação de uso e autorização dos respectivos responsáveis;
   até lá, a atribuição está concluída, mas o alcance externo permanece pendente.
 
+## Baseline de observabilidade — 2026-08-05
+
+- Um verificador manual cobre estado/health, reinícios, OOM, limites/uso de memória,
+  disco e rotação dos seis containers Agenda/n8n sem ler logs, ambientes ou payloads.
+- Após o snapshot coordenado `4e602160`, PostgreSQL, backend e frontend foram recriados
+  sem rebuild e passaram a usar `json-file` com `max-size: 10m` e `max-file: 5`.
+  Volumes, migration `0014`, healthchecks e HTTP foram aprovados.
+- n8n, runner e seu PostgreSQL permaneceram saudáveis e sem reinícios, mas ainda usam
+  `json-file` sem limites. A mudança deve ser feita na stack Portainer em janela própria;
+  encaminhamento de alerta, responsável e eventual timer também permanecem pendentes.
+
 ## Plano da operação de code review
 
 ### Parte 1 — Inventário e fronteiras de confiança
