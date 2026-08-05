@@ -21,6 +21,10 @@ três volumes divergirem. Antes de parar o Homarr, preserva ZIP, definição da 
 inspects efetivos e imagem legada. Durante a pausa, arquiva separadamente os três
 volumes. Um trap tenta reiniciar o Homarr e desmontar o staging em qualquer saída.
 
+Se uma falha ocorrer depois que o ZIP for movido para o staging, a próxima execução com
+o mesmo caminho já ausente retoma automaticamente uma única execução cifrada incompleta,
+sem exigir novo upload. Mais de uma execução incompleta causa recusa para revisão manual.
+
 Depois do retorno saudável, valida ZIP, TARs e checksums, envia o conjunto ao Restic com
 a tag `homarr-migracao`, executa `restic check` e remove apenas o diretório temporário
 criado dentro do staging. O ZIP, a configuração efetiva e os nomes operacionais nunca

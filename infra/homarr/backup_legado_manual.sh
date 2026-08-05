@@ -55,19 +55,24 @@ done
 
 readonly OPERATOR="${SUDO_USER:-root}"
 readonly RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
-readonly BACKUP_RUN="$BACKUP_STAGE_ROOT/homarr-migracao-$RUN_ID"
+BACKUP_RUN="$BACKUP_STAGE_ROOT/homarr-migracao-$RUN_ID"
 readonly LOCK_FILE="/run/lock/agenda-homarr-migracao.lock"
 
 (( $# == 1 )) || die "uso: sudo $0 /caminho/privado/export-homarr.zip"
 ZIP_SOURCE="$1"
-[[ "$ZIP_SOURCE" = /* && -f "$ZIP_SOURCE" && ! -L "$ZIP_SOURCE" ]] || \
-  die "informe um ZIP regular por caminho absoluto"
+[[ "$ZIP_SOURCE" = /* ]] || die "informe o ZIP por caminho absoluto"
 [[ "$ZIP_SOURCE" == *.zip || "$ZIP_SOURCE" == *.ZIP ]] || die "arquivo deve terminar em .zip"
-zip_owner="$(stat -c '%U' -- "$ZIP_SOURCE")"
-zip_mode="$(stat -c '%a' -- "$ZIP_SOURCE")"
-[[ "$zip_owner" == "$OPERATOR" ]] || die "ZIP deve pertencer ao usuário operador"
-(( (8#$zip_mode & 8#77) == 0 )) || die "ZIP deve estar restrito ao proprietário (modo 0600)"
-unzip -tq "$ZIP_SOURCE" >/dev/null || die "ZIP de migração inválido"
+zip_source_available=0
+if [[ -e "$ZIP_SOURCE" || -L "$ZIP_SOURCE" ]]; then
+  [[ -f "$ZIP_SOURCE" && ! -L "$ZIP_SOURCE" ]] || die "ZIP deve ser arquivo regular"
+  zip_owner="$(stat -c '%U' -- "$ZIP_SOURCE")"
+  zip_mode="$(stat -c '%a' -- "$ZIP_SOURCE")"
+  [[ "$zip_owner" == "$OPERATOR" ]] || die "ZIP deve pertencer ao usuário operador"
+  (( (8#$zip_mode & 8#77) == 0 )) || \
+    die "ZIP deve estar restrito ao proprietário (modo 0600)"
+  unzip -tq "$ZIP_SOURCE" >/dev/null || die "ZIP de migração inválido"
+  zip_source_available=1
+fi
 
 mkdir -p -- "$(dirname -- "$LOCK_FILE")"
 exec 9>"$LOCK_FILE"
@@ -130,12 +135,28 @@ mount_source="$(findmnt -n -o SOURCE --target "$BACKUP_STAGE_ROOT")"
 [[ "$fstype" == fuse.gocryptfs ]] || die "staging não usa gocryptfs"
 [[ "$mount_source" == "$BACKUP_CIPHER_DIR" ]] || die "origem inesperada do staging"
 
-mkdir --mode=0700 -- "$BACKUP_RUN"
-zip_hash_before="$(sha256sum "$ZIP_SOURCE" | cut -d ' ' -f 1)"
-install -m 0600 "$ZIP_SOURCE" "$BACKUP_RUN/homarr-export.zip"
-zip_hash_after="$(sha256sum "$BACKUP_RUN/homarr-export.zip" | cut -d ' ' -f 1)"
-[[ "$zip_hash_before" == "$zip_hash_after" ]] || die "cópia do ZIP divergiu"
-rm -f -- "$ZIP_SOURCE"
+mapfile -d '' prior_runs < <(find "$BACKUP_STAGE_ROOT" -mindepth 1 -maxdepth 1 \
+  -type d -name 'homarr-migracao-*' -print0)
+if (( zip_source_available )); then
+  (( ${#prior_runs[@]} == 0 )) || \
+    die "há execução cifrada incompleta; não consumir um novo ZIP"
+  mkdir --mode=0700 -- "$BACKUP_RUN"
+  zip_hash_before="$(sha256sum "$ZIP_SOURCE" | cut -d ' ' -f 1)"
+  install -m 0600 "$ZIP_SOURCE" "$BACKUP_RUN/homarr-export.zip"
+  zip_hash_after="$(sha256sum "$BACKUP_RUN/homarr-export.zip" | cut -d ' ' -f 1)"
+  [[ "$zip_hash_before" == "$zip_hash_after" ]] || die "cópia do ZIP divergiu"
+  rm -f -- "$ZIP_SOURCE"
+else
+  (( ${#prior_runs[@]} == 1 )) || \
+    die "ZIP privado ausente e não há uma única execução cifrada para retomar"
+  BACKUP_RUN="${prior_runs[0]}"
+  case "$BACKUP_RUN" in
+    "$BACKUP_STAGE_ROOT"/homarr-migracao-*) ;;
+    *) die "execução anterior possui caminho inesperado" ;;
+  esac
+  printf 'Retomando a execução cifrada incompleta anterior.\n'
+fi
+[[ -f "$BACKUP_RUN/homarr-export.zip" ]] || die "ZIP cifrado ausente"
 unzip -tq "$BACKUP_RUN/homarr-export.zip" >/dev/null || die "ZIP cifrado inválido"
 
 docker inspect "$HOMARR_CONTAINER" >/dev/null || die "container Homarr ausente"
@@ -172,11 +193,11 @@ compose_file="$(docker inspect "$HOMARR_CONTAINER" --format \
   '{{index .Config.Labels "com.docker.compose.project.config_files"}}')"
 [[ "$compose_file" =~ ^/data/compose/[0-9]+/docker-compose\.ya?ml$ ]] || \
   die "caminho da stack Portainer inesperado"
-docker exec "$PORTAINER_CONTAINER" test -f "$compose_file" || \
-  die "definição da stack não encontrada no Portainer"
 
 install -d -m 0700 "$BACKUP_RUN/stack"
-docker cp "$PORTAINER_CONTAINER:$compose_file" "$BACKUP_RUN/stack/docker-compose.yml"
+docker cp "$PORTAINER_CONTAINER:$compose_file" "$BACKUP_RUN/stack/docker-compose.yml" || \
+  die "definição da stack não encontrada no Portainer"
+[[ -s "$BACKUP_RUN/stack/docker-compose.yml" ]] || die "definição da stack está vazia"
 chmod 0600 "$BACKUP_RUN/stack/docker-compose.yml"
 docker inspect "$HOMARR_CONTAINER" > "$BACKUP_RUN/stack/container-inspect.json"
 chmod 0600 "$BACKUP_RUN/stack/container-inspect.json"
