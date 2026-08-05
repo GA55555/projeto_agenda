@@ -46,6 +46,24 @@ autoriza parar, recriar ou excluir a stack atual.
 Nomes de volume, caminhos Portainer, endereços, conteúdo do dashboard, integrações e
 credenciais permanecem no inventário operacional restrito, fora do Git.
 
+## Pré-flight de retomada — 2026-08-05
+
+- o container legado permanece `running/healthy`, com zero reinícios e política
+  `unless-stopped`;
+- a imagem efetiva continua sendo a linha legada local, com aproximadamente 390 MB; a
+  candidata `ghcr.io/homarr-labs/homarr:v1.73.0` ainda não foi baixada;
+- os três volumes e o socket Docker estão graváveis; não há limite de memória;
+- a leitura pontual indicou aproximadamente 378 MiB em uso, sem carga relevante de CPU;
+- o filesystem local possui aproximadamente 39 GiB livres, suficiente para o ensaio,
+  mas o backup definitivo continua destinado ao staging cifrado;
+- os scripts `infra/backup/` são coordenados especificamente para Agenda e n8n e não
+  devem ser usados diretamente para parar ou capturar o Homarr. A montagem gocryptfs e
+  o repositório Restic podem fornecer a fronteira cifrada, mas a execução do Homarr deve
+  parar somente seu container e produzir um conjunto separado.
+
+Nenhum pull, parada, exportação, cópia ou mudança de configuração foi feito no
+pré-flight.
+
 ## Decisões da migração
 
 1. **Sem atualização in-place.** A stack antiga fica intacta até o aceite final.
