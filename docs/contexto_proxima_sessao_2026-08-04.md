@@ -183,10 +183,11 @@ estáticas aplicáveis passaram antes do commit.
 
 1. ZDR não está disponível para o projeto; manter o bloqueio de dados reais sem parar as
    demais frentes independentes.
-2. Executar, somente após autorização de janela, o plano de migração do Homarr legado
-   descrito em [`plano_migracao_homarr_2026-08-04.md`](./plano_migracao_homarr_2026-08-04.md),
-   começando por exportação e backup. O pré-flight de 2026-08-05 confirmou saúde,
-   recursos e mounts sem executar pull, parada, exportação ou cópia.
+2. A Fase A do plano Homarr foi concluída no snapshot Restic `707f30a5`: ZIP, stack,
+   imagem e três volumes validados; legado novamente saudável e staging desmontado.
+   Retomar pela Fase B de [`plano_migracao_homarr_2026-08-04.md`](./plano_migracao_homarr_2026-08-04.md):
+   confirmar release estável, baixar por tag fixa, registrar digest e escanear antes de
+   executar o candidato paralelo.
 3. Os listeners externos foram atribuídos sem mudança operacional: `139/445` pertencem
    ao Samba do host e `3000` ao processo PM2 `mochila`, do projeto Ascensão. Os três
    mantêm binding amplo; alcance pela LAN e decisão de restrição continuam pendentes

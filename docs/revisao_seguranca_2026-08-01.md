@@ -343,7 +343,8 @@ TLS e contas; atualizar e abandonar a tag `latest`.
 
 **Severidade:** Alta
 **Estado:** Confirmado no runtime; LAN física contida persistentemente em IPv4/IPv6,
-Tailscale preservada; rota exige login; migração segura planejada, não executada
+Tailscale preservada; rota exige login; Fase A de exportação/backup concluída, migração
+ainda não executada
 **Evidência:** `0.0.0.0:8080`, imagem `ghcr.io/ajnart/homarr:latest` 0.16.0 e mount
 `/var/run/docker.sock:/var/run/docker.sock` com escrita
 
@@ -356,6 +357,8 @@ volumes; planejar separadamente a migração assistida 0.x→1.x; substituir o s
 por proxy com permissões mínimas ou remover a integração Docker se não for necessária.
 O inventário somente leitura e o plano paralelo com backup/rollback estão em
 [`plano_migracao_homarr_2026-08-04.md`](./plano_migracao_homarr_2026-08-04.md).
+Em 2026-08-05, ZIP, stack, imagem e três volumes foram preservados no snapshot Restic
+`707f30a5`; o legado voltou saudável e o staging foi desmontado.
 
 ### MED-01 — Login sem rate limiting, atraso progressivo ou bloqueio
 

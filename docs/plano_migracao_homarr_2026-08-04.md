@@ -64,6 +64,24 @@ credenciais permanecem no inventário operacional restrito, fora do Git.
 Nenhum pull, parada, exportação, cópia ou mudança de configuração foi feito no
 pré-flight.
 
+## Fase A concluída — 2026-08-05
+
+- o ZIP oficial foi validado e preservado sem registrar conteúdo ou chave de migração;
+- definição da stack, inspect efetivo e imagem legada foram capturados no staging
+  cifrado antes da pausa;
+- somente o Homarr foi parado; os três volumes foram arquivados separadamente e
+  validados;
+- o Homarr legado retornou `running/healthy`, com zero reinícios;
+- checksums do conjunto passaram, o Restic criou o snapshot `707f30a5` com a tag
+  `homarr-migracao` e o `restic check` terminou sem erros;
+- o staging gocryptfs foi desmontado, a cópia privada temporária do ZIP foi removida e
+  nenhum container auxiliar permaneceu.
+
+A primeira execução recusou a definição da stack antes da pausa porque a imagem do
+Portainer não contém o binário `test`. O helper foi corrigido para validar por
+`docker cp` e retomou a única execução cifrada incompleta, sem novo upload. Nenhuma
+parada ocorreu na tentativa recusada.
+
 ## Decisões da migração
 
 1. **Sem atualização in-place.** A stack antiga fica intacta até o aceite final.
@@ -87,6 +105,8 @@ pré-flight.
 ## Execução em fases
 
 ### Fase A — backup e exportação
+
+**Estado:** concluída e verificada em 2026-08-05; snapshot Restic `707f30a5`.
 
 1. Pela interface antiga, abrir **Management → Tools → Migrate to 1.0**, selecionar todo
    o conteúdo e baixar o ZIP. Guardar a chave mostrada separadamente em armazenamento
