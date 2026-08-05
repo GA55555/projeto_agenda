@@ -186,8 +186,10 @@ estáticas aplicáveis passaram antes do commit.
 2. Executar, somente após autorização de janela, o plano de migração do Homarr legado
    descrito em [`plano_migracao_homarr_2026-08-04.md`](./plano_migracao_homarr_2026-08-04.md),
    começando por exportação e backup; nenhuma mudança operacional foi feita no inventário.
-3. Atribuir e revisar listeners externos que não pertencem à Agenda (`139`, `445` e
-   `3000`) sem alterá-los por suposição.
+3. Os listeners externos foram atribuídos sem mudança operacional: `139/445` pertencem
+   ao Samba do host e `3000` ao processo PM2 `mochila`, do projeto Ascensão. Os três
+   mantêm binding amplo; alcance pela LAN e decisão de restrição continuam pendentes
+   com os responsáveis por esses serviços.
 4. Formalizar exceções temporárias das CVEs sem correção upstream e do advisory RSC não
    alcançável pela SPA.
 5. Somente quando os critérios de go-live estiverem encerrados, planejar publicação

@@ -205,6 +205,22 @@ host exige senha administrativa.
   bindings amplos nem substitui a migração do Homarr e a remoção/proxy do Docker socket.
   Alcance a partir da Internet permanece fora do escopo comprovado.
 
+## Atribuição dos listeners externos — 2026-08-05
+
+- `139/tcp` e `445/tcp` estão em todas as interfaces IPv4/IPv6 e pertencem ao Samba do
+  host. `smbd.service` e `nmbd.service` estão ativos e habilitados; o servidor opera no
+  modo standalone, sem lista explícita de interfaces e com `bind interfaces only = No`.
+- `3000/tcp` está em binding wildcard e pertence ao processo PM2 `mochila`, executado a
+  partir do projeto Ascensão fora do Docker. O servidor Node fixa a porta `3000` e chama
+  `listen` sem endereço de bind. Nenhum contêiner em execução publica essas três portas.
+- A configuração persistida do UFW confirma IPv6 habilitado e políticas padrão `DROP`
+  para entrada e encaminhamento. As regras efetivas e os arquivos `user.rules` exigem
+  privilégio administrativo, portanto não foi possível concluir por leitura local se há
+  exceções específicas. Também não houve reteste a partir de outra máquina da LAN.
+- Nenhum serviço, binding ou regra de firewall foi alterado. Restringir Samba ou o
+  projeto Ascensão exige validação de uso e autorização dos respectivos responsáveis;
+  até lá, a atribuição está concluída, mas o alcance externo permanece pendente.
+
 ## Plano da operação de code review
 
 ### Parte 1 — Inventário e fronteiras de confiança
