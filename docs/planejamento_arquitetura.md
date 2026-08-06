@@ -17,7 +17,7 @@
 | Fase corrente | **Fase 9 (hardening e go-live) em progresso.** Hardening defensivo implantado no commit `293a127`, migration `0014` aplicada e receptor permanece despublicado. |
 | Última atualização | 2026-08-05 |
 | Bloqueios ativos | Segredos n8n/HMAC rotacionados, mas a última matriz HTTP precede a rotação de 2026-08-05 e deve ser repetida de forma sintética antes de futura publicação; o receptor permanece despublicado. A LAN física está contida de forma persistente em IPv4 e IPv6 nas seis portas administrativas; o reteste externo preservou o acesso pela Tailscale. Os bindings continuam amplos e Homarr permanece legado com Docker socket gravável; seu backup/rollback está comprovado, mas a stable `v1.73.0` candidata foi bloqueada antes da execução por `2` achados críticos e `19` altos corrigíveis. Os listeners externos `139/445` foram atribuídos ao Samba do host e `3000` ao processo PM2 `mochila` do projeto Ascensão; alcance externo e eventual restrição dependem dos responsáveis por esses serviços. A solicitação de ZDR foi enviada à OpenAI, mas o recurso não está disponível para o projeto; isso mantém o bloqueio de dados reais, sem impedir as demais frentes independentes. Scans de imagens/segredos foram concluídos: frontend corrigido e implantado está limpo, mas imagens upstream de backend/n8n/runner/PostgreSQL/pgvector mantêm CVEs que exigem correção do fornecedor ou exceção formal. O frontend ainda tem exceção temporária para advisory RSC do React Router, caminho não usado pela SPA. |
-| Próximo passo imediato | **Go-live continua bloqueado, mas o hardening pode avançar:** configurar relay SMTP root-only para alertas por e-mail, mantendo backup/verificação manuais sem timer; não executar Homarr `v1.73.0`; testar `139/445/3000` a partir da LAN e formalizar exceções das imagens. O restore em host/VM separado foi recusado pelo operador; manter a limitação documentada e não processar dado real enquanto ZDR continuar indisponível. |
+| Próximo passo imediato | **Go-live continua bloqueado, mas o hardening pode avançar:** registrar backup/verificação manuais no `journald` local, sem timer e sem alerta externo; não executar Homarr `v1.73.0`; testar `139/445/3000` a partir da LAN e formalizar exceções das imagens. O restore em host/VM separado foi recusado pelo operador; manter a limitação documentada e não processar dado real enquanto ZDR continuar indisponível. |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
@@ -32,10 +32,11 @@ cifragem e token do runner não foram expostos. Validação final: seis containe
 monitorados estáveis, zero reinícios/OOM, segredos consistentes, 2 workflows inativos,
 0 execuções e observabilidade em `0` erros/`0` avisos. O receptor não foi publicado e a
 matriz HTTP fica para o smoke sintético obrigatório anterior a qualquer publicação.
-**Próximo:** informar endereço/remetente e relay SMTP para preparar o alerta por e-mail;
-depois seguir com listeners e exceções de CVE. Backup e verificação permanecem manuais;
-o restore em host/VM separado foi recusado pelo operador, mantendo a limitação de
-recuperação no mesmo host e o bloqueio de dados reais por ausência de ZDR.
+**Próximo:** usar `infra/observabilidade/registrar_runtime.sh` nas execuções manuais e
+consultar a tag `agenda-observabilidade` com `journalctl`; depois seguir com listeners
+e exceções de CVE. Backup e verificação permanecem manuais; o restore em host/VM
+separado foi recusado pelo operador, mantendo a limitação de recuperação no mesmo
+host e o bloqueio de dados reais por ausência de ZDR.
 
 **Onde paramos (2026-08-05 — ZDR indisponível; frentes independentes liberadas):** o
 recurso ZDR não está disponível para o projeto, portanto não há nova ação nessa frente
@@ -693,7 +694,7 @@ permanece desativado até seu banco, binários e chave de cifragem entrarem no b
   Após snapshot `4e602160`, os seis containers Agenda/n8n usam rotação `10m × 5`;
   health, migration `0014`, HTTP e persistência foram aprovados. Baseline final: `0`
   erros, `0` avisos e disco 65%. Decisão: backup/verificação manuais, sem timer/cron;
-  alerta por e-mail aguarda configuração de relay SMTP root-only.
+  resultado registrado no `journald` local com a tag `agenda-observabilidade`.
 - [ ] Verificação de conformidade LGPD/ECA/CFP (consentimento, sigilo, auditoria).
 - [~] Documentar procedimento de restore e plano de contingência. O procedimento e o
   ensaio no mesmo host existem; o operador recusou restore em host/VM separado, então

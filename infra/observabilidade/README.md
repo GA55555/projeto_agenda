@@ -11,6 +11,11 @@ endereços. Ele verifica os seis containers da Agenda/n8n:
 
 ```bash
 ./infra/observabilidade/verificar_runtime.sh
+# execução manual com registro no journald
+./infra/observabilidade/registrar_runtime.sh
+
+# consulta dos registros
+journalctl -t agenda-observabilidade -n 100 --no-pager
 ```
 
 O retorno é `0` sem achados, `1` com erro e `2` somente com avisos. Limiares padrão:
@@ -28,7 +33,6 @@ após o snapshot coordenado `4e602160`; healthchecks, migration e HTTP foram apr
 A stack Portainer separada do n8n também foi atualizada e PostgreSQL, n8n e runner
 foram recriados com a mesma política. A validação final dos seis containers terminou
 com `0` erros e `0` avisos. A decisão operacional é manter backup e verificação manuais
-diários, sem timer/cron por enquanto. O alerta escolhido é e-mail para o operador;
-antes de ativá-lo, configurar um relay SMTP aprovado em arquivo root-only fora do Git,
-com remetente, destinatário, host, porta e política de TLS. Não instalar ou habilitar
-um agente SMTP sem essa configuração explícita.
+diários, sem timer/cron por enquanto, registrando as execuções no `journald` local com
+a tag `agenda-observabilidade`. Não há dependência de e-mail, Telegram ou n8n para
+alertas.
