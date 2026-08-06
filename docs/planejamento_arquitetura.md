@@ -17,11 +17,17 @@
 | Fase corrente | **Fase 9 (hardening e go-live) em progresso.** Hardening defensivo implantado no commit `293a127`, migration `0014` aplicada e receptor permanece despublicado. |
 | Última atualização | 2026-08-05 |
 | Bloqueios ativos | Segredos n8n/HMAC rotacionados, mas a última matriz HTTP precede a rotação de 2026-08-05 e deve ser repetida de forma sintética antes de futura publicação; o receptor permanece despublicado. A LAN física está contida de forma persistente em IPv4 e IPv6 nas seis portas administrativas; o reteste externo preservou o acesso pela Tailscale. Os bindings continuam amplos e Homarr permanece legado com Docker socket gravável; seu backup/rollback está comprovado, mas a stable `v1.73.0` candidata foi bloqueada antes da execução por `2` achados críticos e `19` altos corrigíveis. Os listeners externos `139/445` foram atribuídos ao Samba do host e `3000` ao processo PM2 `mochila` do projeto Ascensão; alcance externo e eventual restrição dependem dos responsáveis por esses serviços. A solicitação de ZDR foi enviada à OpenAI, mas o recurso não está disponível para o projeto; isso mantém o bloqueio de dados reais, sem impedir as demais frentes independentes. Scans de imagens/segredos foram concluídos: frontend corrigido e implantado está limpo, mas imagens upstream de backend/n8n/runner/PostgreSQL/pgvector mantêm CVEs que exigem correção do fornecedor ou exceção formal. O frontend ainda tem exceção temporária para advisory RSC do React Router, caminho não usado pela SPA. |
-| Próximo passo imediato | **Go-live continua bloqueado, mas o hardening pode avançar:** registrar backup/verificação manuais no `journald` local, sem timer e sem alerta externo; não executar Homarr `v1.73.0`; testar `139/445/3000` a partir da LAN e formalizar exceções das imagens. O restore em host/VM separado foi recusado pelo operador; manter a limitação documentada e não processar dado real enquanto ZDR continuar indisponível. |
+| Próximo passo imediato | **Go-live continua bloqueado, mas o hardening pode avançar:** registrar backup/verificação manuais no `journald` local, sem timer e sem alerta externo; não executar Homarr `v1.73.0`; formalizar aceite/revisão das exceções das imagens. O restore em host/VM separado foi recusado pelo operador; manter a limitação documentada e não processar dado real enquanto ZDR continuar indisponível. |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
 ### 🔖 Ponto de Retomada (ler primeiro na próxima sessão)
+
+**Onde paramos (2026-08-06 — teste LAN concluído):** o teste externo a partir do
+Windows na mesma LAN retornou `False` para TCP `139`, `445` e `3000`; nenhum serviço foi
+alterado e nenhum endereço foi registrado no repositório. As três portas ficam bloqueadas
+pela contenção vigente. **Próximo:** aceitar/revisar as exceções de risco e decidir com
+os responsáveis se os bindings amplos devem ser restringidos adicionalmente.
 
 **Onde paramos (2026-08-05 — rotação n8n e logs concluídos):** a stack Portainer do
 n8n foi atualizada com `json-file` `10m × 5` e PostgreSQL, n8n e runner foram recriados;

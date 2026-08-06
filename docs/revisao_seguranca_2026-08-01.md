@@ -215,11 +215,11 @@ host exige senha administrativa.
   `listen` sem endereço de bind. Nenhum contêiner em execução publica essas três portas.
 - A configuração persistida do UFW confirma IPv6 habilitado e políticas padrão `DROP`
   para entrada e encaminhamento. As regras efetivas e os arquivos `user.rules` exigem
-  privilégio administrativo, portanto não foi possível concluir por leitura local se há
-  exceções específicas. Também não houve reteste a partir de outra máquina da LAN.
+  privilégio administrativo. Teste externo em 2026-08-06, a partir de outra máquina da
+  LAN, retornou bloqueio TCP para `139`, `445` e `3000`; nenhum serviço foi alterado.
 - Nenhum serviço, binding ou regra de firewall foi alterado. Restringir Samba ou o
   projeto Ascensão exige validação de uso e autorização dos respectivos responsáveis;
-  até lá, a atribuição está concluída, mas o alcance externo permanece pendente.
+  até lá, a atribuição está concluída e a contenção LAN está comprovada.
 
 ## Baseline de observabilidade — 2026-08-05
 

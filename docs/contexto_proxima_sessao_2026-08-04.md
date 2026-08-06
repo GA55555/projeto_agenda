@@ -190,16 +190,16 @@ estáticas aplicáveis passaram antes do commit.
    críticas e `19` altas corrigíveis. Nenhum candidato foi criado. Retomar quando houver
    nova stable, ou somente após exceção formal com análise de alcançabilidade.
 3. Os listeners externos foram atribuídos sem mudança operacional: `139/445` pertencem
-   ao Samba do host e `3000` ao processo PM2 `mochila`, do projeto Ascensão. Os três
-   mantêm binding amplo; alcance pela LAN e decisão de restrição continuam pendentes
-   com os responsáveis por esses serviços.
+   ao Samba do host e `3000` ao processo PM2 `mochila`, do projeto Ascensão. Teste LAN
+   externo em 2026-08-06 retornou bloqueio (`False`) para as três portas; os bindings
+   continuam amplos e qualquer restrição adicional depende dos responsáveis.
 4. Formalizar exceções temporárias das CVEs sem correção upstream e do advisory RSC não
    alcançável pela SPA.
 5. Rotação `json-file` `10m × 5` está aplicada nos seis containers Agenda/n8n após o
    snapshot `4e602160`. PostgreSQL n8n, n8n, runner e backend foram recriados de forma
    coordenada; todos ficaram estáveis, os 2 workflows permaneceram inativos e o banco
-   terminou com 0 execuções. O verificador fechou em `0` erros e `0` avisos. Falta
-   definir destino/responsável pelo alerta antes de qualquer timer.
+   terminou com 0 execuções. O verificador fechou em `0` erros e `0` avisos; a execução
+   manual também é registrada no `journald` com a tag `agenda-observabilidade`.
 6. Somente quando os critérios de go-live estiverem encerrados, planejar publicação
    controlada do receptor e novo smoke exclusivamente sintético antes de dado real.
 
