@@ -218,10 +218,9 @@ validação final; a configuração efetiva permanece nas fontes operacionais pr
 PostgreSQL n8n, n8n, runner e somente o backend Agenda foram recriados. A validação por
 igualdade confirmou senha PostgreSQL, HMAC e token consistentes entre consumidores, e
 a chave de cifragem permaneceu presente. Todos os serviços ficaram saudáveis ou
-running conforme seu healthcheck, com zero reinícios e zero OOM. Como o receptor deve
-permanecer despublicado, a matriz HTTP não foi reexecutada nesta mudança de
-infraestrutura; ela continua obrigatória, exclusivamente sintética, antes de qualquer
-publicação futura.
+running conforme seu healthcheck, com zero reinícios e zero OOM. A matriz HTTP foi
+reexecutada exclusivamente com payload sintético e passou `401/401/200/200/409`, seguida
+de `0` execuções e `0` payloads; o receptor voltou a ser despublicado e o n8n reiniciado.
 
 ## Guardas operacionais
 

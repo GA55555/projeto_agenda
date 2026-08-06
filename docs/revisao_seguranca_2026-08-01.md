@@ -238,8 +238,8 @@ host exige senha administrativa.
   novos valores. Chave de cifragem e token do runner não foram exibidos. Igualdade entre
   consumidores, saúde, zero reinícios/OOM, 2 workflows inativos e 0 execuções foram
   confirmados; cópias temporárias sensíveis foram removidas depois da validação. A
-  matriz HTTP não foi reexecutada porque o receptor deve permanecer
-  despublicado; novo smoke sintético continua obrigatório antes de futura publicação.
+  matriz HTTP pós-rotação passou `401/401/200/200/409` com payload sintético, seguida
+  de `0` execuções e `0` payloads; o receptor voltou a ser despublicado.
 
 ## Plano da operação de code review
 
