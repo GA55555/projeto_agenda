@@ -16,12 +16,24 @@
 | --- | --- |
 | Fase corrente | **Fase 9 (hardening e go-live) em progresso.** Hardening defensivo implantado no commit `293a127`, migration `0014` aplicada e receptor permanece despublicado. |
 | Última atualização | 2026-08-05 |
-| Bloqueios ativos | Segredos n8n/HMAC rotacionados e matriz pós-rotação aprovada, mas o receptor permanece despublicado. A LAN física está contida de forma persistente em IPv4 e IPv6 nas seis portas administrativas; o reteste externo preservou o acesso pela Tailscale. Os bindings continuam amplos e Homarr permanece legado com Docker socket gravável; seu backup/rollback está comprovado, mas a stable `v1.73.0` candidata foi bloqueada antes da execução por `2` achados críticos e `19` altos corrigíveis. Os listeners externos `139/445` foram atribuídos ao Samba do host e `3000` ao processo PM2 `mochila` do projeto Ascensão; alcance externo e eventual restrição dependem dos responsáveis por esses serviços. A solicitação de ZDR foi enviada à OpenAI, mas o recurso não está disponível para o projeto; isso mantém o bloqueio de dados reais, sem impedir as demais frentes independentes. Scans de imagens/segredos foram concluídos: frontend corrigido e implantado está limpo, mas imagens upstream de backend/n8n/runner/PostgreSQL/pgvector mantêm CVEs que exigem correção do fornecedor ou exceção formal. O frontend ainda tem exceção temporária para advisory RSC do React Router, caminho não usado pela SPA. |
-| Próximo passo imediato | **Go-live continua bloqueado, mas o hardening pode avançar:** não executar Homarr `v1.73.0`; aguardar nova stable e repetir digest/scan, ou formalizar exceção somente após análise de alcançabilidade. Em paralelo, testar `139/445/3000` a partir da LAN, formalizar exceções das demais imagens e avançar observabilidade/restore. Não processar dado real enquanto ZDR continuar indisponível. |
+| Bloqueios ativos | Segredos n8n/HMAC rotacionados, mas a última matriz HTTP precede a rotação de 2026-08-05 e deve ser repetida de forma sintética antes de futura publicação; o receptor permanece despublicado. A LAN física está contida de forma persistente em IPv4 e IPv6 nas seis portas administrativas; o reteste externo preservou o acesso pela Tailscale. Os bindings continuam amplos e Homarr permanece legado com Docker socket gravável; seu backup/rollback está comprovado, mas a stable `v1.73.0` candidata foi bloqueada antes da execução por `2` achados críticos e `19` altos corrigíveis. Os listeners externos `139/445` foram atribuídos ao Samba do host e `3000` ao processo PM2 `mochila` do projeto Ascensão; alcance externo e eventual restrição dependem dos responsáveis por esses serviços. A solicitação de ZDR foi enviada à OpenAI, mas o recurso não está disponível para o projeto; isso mantém o bloqueio de dados reais, sem impedir as demais frentes independentes. Scans de imagens/segredos foram concluídos: frontend corrigido e implantado está limpo, mas imagens upstream de backend/n8n/runner/PostgreSQL/pgvector mantêm CVEs que exigem correção do fornecedor ou exceção formal. O frontend ainda tem exceção temporária para advisory RSC do React Router, caminho não usado pela SPA. |
+| Próximo passo imediato | **Go-live continua bloqueado, mas o hardening pode avançar:** definir destino/responsável pelo alerta antes de agendar o verificador; não executar Homarr `v1.73.0`; testar `139/445/3000` a partir da LAN, formalizar exceções das imagens e avançar restore. Não processar dado real enquanto ZDR continuar indisponível. |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
 ### 🔖 Ponto de Retomada (ler primeiro na próxima sessão)
+
+**Onde paramos (2026-08-05 — rotação n8n e logs concluídos):** a stack Portainer do
+n8n foi atualizada com `json-file` `10m × 5` e PostgreSQL, n8n e runner foram recriados;
+o backend Agenda também foi recriado para receber o HMAC rotacionado. Um filtro textual
+amplo expôs na saída operacional a senha administrativa do PostgreSQL n8n e o HMAC;
+ambos foram substituídos imediatamente, sem registrar os novos valores. Chave de
+cifragem e token do runner não foram expostos. Validação final: seis containers
+monitorados estáveis, zero reinícios/OOM, segredos consistentes, 2 workflows inativos,
+0 execuções e observabilidade em `0` erros/`0` avisos. O receptor não foi publicado e a
+matriz HTTP fica para o smoke sintético obrigatório anterior a qualquer publicação.
+**Próximo:** definir alerta/responsável; depois seguir com listeners, exceções de CVE ou
+restore, mantendo o bloqueio de dados reais por ausência de ZDR.
 
 **Onde paramos (2026-08-05 — ZDR indisponível; frentes independentes liberadas):** o
 recurso ZDR não está disponível para o projeto, portanto não há nova ação nessa frente
@@ -676,10 +688,9 @@ permanece desativado até seu banco, binários e chave de cifragem entrarem no b
 - [~] Obter aprovação/provisionamento e ativar **Zero Data Retention** no projeto/organização OpenAI; registrar projeto, modo efetivo, data e responsável, sem segredos (§3.4 #6). **Solicitação enviada em 2026-08-04; em 2026-08-05 o recurso permanecia indisponível para o projeto, sem nova ação possível nesta retomada.** Ausência de opt-in de treino comprovada em 2026-08-02: os três controles de Sharing estão `Disabled`, assim como `API call logging`. Ainda não há seletor ZDR/MAM; `store=false` sozinho não encerra esta tarefa.
 - [~] Observabilidade mínima: `infra/observabilidade/verificar_runtime.sh` monitora
   manualmente estado/health, reinícios, OOM, limites/uso de RAM, disco e rotação de logs.
-  Após snapshot `4e602160`, PostgreSQL/backend/frontend foram recriados e aprovaram
-  health, migration `0014`, HTTP e rotação `10m × 5`. Baseline pós-deploy: `0` erros,
-  memória máxima ~30% e disco 65%; aviso único agora cobre somente n8n, runner e seu
-  PostgreSQL sem rotação. Alerta externo, responsável/timer e stack n8n permanecem pendentes.
+  Após snapshot `4e602160`, os seis containers Agenda/n8n usam rotação `10m × 5`;
+  health, migration `0014`, HTTP e persistência foram aprovados. Baseline final: `0`
+  erros, `0` avisos e disco 65%. Alerta externo e responsável/timer permanecem pendentes.
 - [ ] Verificação de conformidade LGPD/ECA/CFP (consentimento, sigilo, auditoria).
 - [ ] Documentar procedimento de restore e plano de contingência.
 - [x] Deploy do hardening no servidor Debian 12. *(Commit `293a127`, migration `0014`,
@@ -697,6 +708,7 @@ permanece desativado até seu banco, binários e chave de cifragem entrarem no b
 > Mantenha conciso — este é o resumo que será lido no início das próximas sessões.
 > As linhas são cronológicas: estados 🟡 antigos documentam o momento da entrega e são substituídos pelas linhas ✅ mais recentes; o estado corrente vive no topo deste arquivo.
 
+- 2026-08-05 — [Fase 9/Observabilidade] 🟡 **Rotação de logs concluída nos seis containers; alerta ainda pendente.** Stack Portainer persistida com `json-file` `10m × 5`; PostgreSQL n8n, n8n, runner e backend recriados. Durante uma inspeção estrutural, a senha administrativa PostgreSQL n8n e o HMAC apareceram na saída operacional; ambos foram rotacionados imediatamente sem imprimir os substitutos. Chave n8n/token do runner não foram expostos. Validação: serviços estáveis, zero reinícios/OOM, segredos consistentes, 2 workflows inativos, 0 execuções e verificador em `0` erros/`0` avisos. Receptor permaneceu despublicado; matriz sintética obrigatória antes de futura publicação. **Próximo:** definir destino e responsável pelo alerta antes de timer/cron.
 - 2026-08-05 — [Fase 9/Observabilidade] 🟡 **Rotação aplicada na Agenda; n8n ainda pendente.** Push até `49ba0e8` concluído. Snapshot coordenado pré-recriação `4e602160`; staging desmontado. PostgreSQL/backend/frontend recriados sem rebuild, com volumes preservados, `0014 (head)`, health e HTTP aprovados; os três usam `json-file` `10m × 5`. n8n, runner, Homarr e serviços auxiliares permaneceram saudáveis/sem reinícios. Verificador: `0` erros, disco 65%, memória máxima ~30% e aviso apenas para os três containers n8n sem rotação. **Próximo:** atualizar a stack n8n em janela própria e definir alerta/responsável.
 - 2026-08-05 — [Fase 9/Observabilidade] 🟡 **Baseline manual implementado; rotação preparada sem deploy.** Verificador dos seis containers Agenda/n8n terminou com `0` erros: todos running, health aplicável verde, zero OOM/reinícios, memória máxima ~40% e disco 65%. Único aviso: `json-file` sem limites. Compose Agenda agora prepara `max-size: 10m`/`max-file: 5`, mas nenhum container foi recriado; n8n/runner/PostgreSQL exigem mudança equivalente na stack Portainer. **Próximo:** validar Compose, planejar recriação e definir alerta/responsável antes de timer.
 - 2026-08-05 — [Fase 9/Homarr] 🔴 **Fase B bloqueada antes de executar a stable `v1.73.0`.** Latest oficial confirmado; imagem fixa baixada no digest `sha256:72f98c87…0fdd0`, sem criar container. Trivy `0.70.0` validado e base atualizada encontrou `2C/19A`, todos com correção disponível: `protobufjs` crítico e Next.js alto estão em `app/node_modules`; `tar` crítico está no npm global. Não iniciar, não customizar silenciosamente e não usar build não lançado. **Próximo:** nova stable + novo digest/scan, ou exceção formal após análise individual.

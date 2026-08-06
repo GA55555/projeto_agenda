@@ -195,11 +195,31 @@ estáticas aplicáveis passaram antes do commit.
    com os responsáveis por esses serviços.
 4. Formalizar exceções temporárias das CVEs sem correção upstream e do advisory RSC não
    alcançável pela SPA.
-5. Rotação `json-file` `10m × 5` já está aplicada em PostgreSQL/backend/frontend após o
-   snapshot `4e602160`; aplicar equivalente em n8n/runner/PostgreSQL em janela própria e
+5. Rotação `json-file` `10m × 5` está aplicada nos seis containers Agenda/n8n após o
+   snapshot `4e602160`. PostgreSQL n8n, n8n, runner e backend foram recriados de forma
+   coordenada; todos ficaram estáveis, os 2 workflows permaneceram inativos e o banco
+   terminou com 0 execuções. O verificador fechou em `0` erros e `0` avisos. Falta
    definir destino/responsável pelo alerta antes de qualquer timer.
 6. Somente quando os critérios de go-live estiverem encerrados, planejar publicação
    controlada do receptor e novo smoke exclusivamente sintético antes de dado real.
+
+### 6. Rotação n8n e incidente controlado de credenciais
+
+Durante a inspeção estrutural da stack, um filtro textual excessivamente amplo exibiu
+na saída operacional a senha administrativa do PostgreSQL n8n e o HMAC Agenda↔n8n.
+Nenhum valor foi registrado nestes documentos ou no Git; a chave de cifragem do n8n e
+o token do runner não foram exibidos. Os dois segredos afetados foram substituídos de
+forma coordenada no banco, na stack Portainer e no `.env` local, sem imprimi-los.
+As cópias temporárias de configuração, rollback e scripts foram removidas após a
+validação final; a configuração efetiva permanece nas fontes operacionais próprias.
+
+PostgreSQL n8n, n8n, runner e somente o backend Agenda foram recriados. A validação por
+igualdade confirmou senha PostgreSQL, HMAC e token consistentes entre consumidores, e
+a chave de cifragem permaneceu presente. Todos os serviços ficaram saudáveis ou
+running conforme seu healthcheck, com zero reinícios e zero OOM. Como o receptor deve
+permanecer despublicado, a matriz HTTP não foi reexecutada nesta mudança de
+infraestrutura; ela continua obrigatória, exclusivamente sintética, antes de qualquer
+publicação futura.
 
 ## Guardas operacionais
 

@@ -228,9 +228,18 @@ host exige senha administrativa.
 - Após o snapshot coordenado `4e602160`, PostgreSQL, backend e frontend foram recriados
   sem rebuild e passaram a usar `json-file` com `max-size: 10m` e `max-file: 5`.
   Volumes, migration `0014`, healthchecks e HTTP foram aprovados.
-- n8n, runner e seu PostgreSQL permaneceram saudáveis e sem reinícios, mas ainda usam
-  `json-file` sem limites. A mudança deve ser feita na stack Portainer em janela própria;
-  encaminhamento de alerta, responsável e eventual timer também permanecem pendentes.
+- A stack Portainer foi atualizada na mesma data e PostgreSQL n8n, n8n e runner foram
+  recriados com os mesmos limites. O verificador dos seis containers terminou com
+  `0` erros e `0` avisos; encaminhamento de alerta, responsável e eventual timer ainda
+  permanecem pendentes.
+- Durante a inspeção estrutural, um filtro textual excessivamente amplo exibiu na saída
+  operacional a senha administrativa do PostgreSQL n8n e o HMAC Agenda↔n8n. Ambos
+  foram rotacionados imediatamente e aplicados de forma coordenada, sem imprimir os
+  novos valores. Chave de cifragem e token do runner não foram exibidos. Igualdade entre
+  consumidores, saúde, zero reinícios/OOM, 2 workflows inativos e 0 execuções foram
+  confirmados; cópias temporárias sensíveis foram removidas depois da validação. A
+  matriz HTTP não foi reexecutada porque o receptor deve permanecer
+  despublicado; novo smoke sintético continua obrigatório antes de futura publicação.
 
 ## Plano da operação de code review
 
