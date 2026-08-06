@@ -15,7 +15,7 @@
 | Campo | Valor |
 | --- | --- |
 | Fase corrente | **Fase 9 (hardening e go-live) em progresso.** Hardening defensivo implantado no commit `293a127`, migration `0014` aplicada e receptor permanece despublicado. |
-| Última atualização | 2026-08-05 |
+| Última atualização | 2026-08-06 |
 | Bloqueios ativos | A matriz sintética pós-rotação passou `401/401/200/200/409`, com `0` execuções e `0` payloads; o receptor voltou a ficar despublicado. A LAN física está contida de forma persistente em IPv4 e IPv6 nas seis portas administrativas; o reteste externo preservou o acesso pela Tailscale. Homarr foi removido por decisão do operador, incluindo contêiner, volumes, rede e imagens; o snapshot `707f30a5` preserva a recuperação. ZDR OpenAI não está provisionado, porém o operador aceitou temporariamente esse risco. Restam aceite das exceções de CVE, backup coordenado pré-go-live e decisão de publicação controlada. |
 | Próximo passo imediato | **Preparar o go-live controlado:** o backup coordenado pré-go-live `2d61edfc` já foi concluído; falta aceitar/revisar as exceções de CVE e aprovar explicitamente a janela/publicação. Não enviar dado real antes dessa aprovação final. |
 

@@ -4,6 +4,41 @@ Este documento é o handoff operacional da Fase 9. Ele registra o que foi conclu
 o estado real do servidor e a ordem segura para continuar. Não contém endereços IP,
 credenciais, payloads clínicos nem identificadores reais.
 
+## Encerramento da sessão — 2026-08-06
+
+### Estado alcançado
+
+- Observabilidade manual registrada no `journald` pela tag `agenda-observabilidade`,
+  sem timer/cron e sem canal externo.
+- Teste LAN externo bloqueou TCP `139`, `445` e `3000`; nenhum serviço foi alterado.
+- Segredos n8n/HMAC rotacionados; stack n8n, runner e backend saudáveis.
+- Smoke pós-rotação exclusivamente sintético passou `401/401/200/200/409`.
+- PostgreSQL n8n confirmou `0` execuções e `0` payloads; workflow receptor voltou a
+  ficar inativo; nenhum dado clínico foi usado.
+- Backup coordenado pré-go-live concluído no snapshot Restic `2d61edfc`; staging
+  cifrado desmontado e runtime final em `0 erros / 0 avisos`.
+- Homarr removido por decisão do operador: contêiner, dois volumes, rede e imagens
+  foram apagados. O snapshot `707f30a5` preserva rollback do legado.
+- O operador aceitou temporariamente a ausência de ZDR/MAM como `EXC-03`; isso não
+  comprova ZDR ativo nem autoriza dados reais isoladamente.
+
+### Próxima retomada
+
+1. Revisar/aceitar formalmente `EXC-01` (RSC não alcançável) e `EXC-02` (CVEs upstream
+   sem correção aplicável), sem incluir a antiga candidata Homarr removida.
+2. Confirmar checklist da janela de publicação controlada e responsável operacional.
+3. Se aprovado, publicar o receptor e processar um único evento real controlado,
+   verificando apenas estados/contagens; manter o workflow ativo somente se o operador
+   confirmar a mudança.
+4. Repetir o snapshot coordenado antes de qualquer mudança estrutural relevante.
+
+### Guardas mantidas
+
+- Não registrar segredos, payloads ou identificadores reais em Git, terminal ou chat.
+- Não reativar Homarr sem nova decisão, nova imagem e novo scan.
+- Não introduzir workflows n8n adicionais nem alterar o receptor sem backup e rollback.
+- A aceitação de ZDR é temporária; reavaliar quando OpenAI provisionar ZDR/MAM.
+
 ## Objetivo atual
 
 Encerrar os bloqueios de hardening e obter evidência suficiente para decidir o go-live.
