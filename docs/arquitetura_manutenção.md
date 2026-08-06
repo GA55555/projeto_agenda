@@ -370,8 +370,10 @@ e guardá-las cifradas como artefato de recuperação. Não incluir caches, `nod
 > **Estado atual:** este procedimento é o baseline manual. O staging gocryptfs, o
 > repositório Restic e o wrapper de `infra/backup/` estão configurados no servidor sem
 > senhas persistidas. A execução integrada, `restic check`, hashes, carregamento de imagens
-> e `pg_restore` em recursos Docker exclusivos do mesmo host foram comprovados. O restore
-> em host/VM separado e a medição de RTO continuam pendentes; WAL, retenção e alertas também.
+> e `pg_restore` em recursos Docker exclusivos do mesmo host foram comprovados. O operador
+> recusou restore em host/VM separado; essa limitação de isolamento e a medição de RTO
+> externo ficam registradas como risco aceito. WAL, retenção e alertas continuam sujeitos
+> às decisões operacionais registradas no plano.
 > O diretório
 > de estágio precisa estar em
 > filesystem cifrado; caso o HDD não use criptografia de bloco, não deixar dumps/tar em

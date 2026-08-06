@@ -27,5 +27,8 @@ para PostgreSQL, backend e frontend. A política foi aplicada no runtime em 2026
 após o snapshot coordenado `4e602160`; healthchecks, migration e HTTP foram aprovados.
 A stack Portainer separada do n8n também foi atualizada e PostgreSQL, n8n e runner
 foram recriados com a mesma política. A validação final dos seis containers terminou
-com `0` erros e `0` avisos. Agendamento, destino do alerta e responsável continuam
-pendentes e devem ser definidos juntos, antes de habilitar timer ou cron.
+com `0` erros e `0` avisos. A decisão operacional é manter backup e verificação manuais
+diários, sem timer/cron por enquanto. O alerta escolhido é e-mail para o operador;
+antes de ativá-lo, configurar um relay SMTP aprovado em arquivo root-only fora do Git,
+com remetente, destinatário, host, porta e política de TLS. Não instalar ou habilitar
+um agente SMTP sem essa configuração explícita.
