@@ -17,7 +17,7 @@
 | Fase corrente | **Fase 9 (hardening e go-live) em progresso.** Hardening defensivo implantado no commit `293a127`, migration `0014` aplicada e receptor permanece despublicado. |
 | Última atualização | 2026-08-05 |
 | Bloqueios ativos | A matriz sintética pós-rotação passou `401/401/200/200/409`, com `0` execuções e `0` payloads; o receptor voltou a ficar despublicado. A LAN física está contida de forma persistente em IPv4 e IPv6 nas seis portas administrativas; o reteste externo preservou o acesso pela Tailscale. Os bindings continuam amplos e Homarr permanece legado com Docker socket gravável; sua stable `v1.73.0` foi bloqueada antes da execução por `2` achados críticos e `19` altos corrigíveis. ZDR OpenAI não está provisionado, porém o operador aceitou temporariamente esse risco. Restam aceite das exceções de CVE, backup coordenado pré-go-live e decisão de publicação controlada. |
-| Próximo passo imediato | **Preparar o go-live controlado:** aceitar/revisar as exceções de CVE, executar backup coordenado imediatamente antes da janela e revisar o checklist final. Não publicar o receptor nem enviar dado real até a aprovação explícita da janela e dos critérios restantes. |
+| Próximo passo imediato | **Preparar o go-live controlado:** o backup coordenado pré-go-live `2d61edfc` já foi concluído; falta aceitar/revisar as exceções de CVE e aprovar explicitamente a janela/publicação. Não enviar dado real antes dessa aprovação final. |
 
 > Atualize esta tabela ao fim de cada sessão de trabalho.
 
@@ -33,6 +33,10 @@ os responsáveis se os bindings amplos devem ser restringidos adicionalmente.
 `401/401/200/200/409` com payloads inteiramente sintéticos, e foi despublicado/reiniciado
 logo depois. PostgreSQL confirmou `0` execuções e `0` payloads; n8n terminou saudável,
 workflow inativo e runtime em `0` erros/`0` avisos. Nenhum dado clínico foi usado.
+
+**Backup pré-go-live (2026-08-06):** o wrapper manual concluiu o conjunto coordenado
+Agenda+n8n no snapshot Restic `2d61edfc`; artefatos foram validados, serviços foram
+reiniciados saudáveis e o staging cifrado foi desmontado.
 
 **Rechecagem Homarr (2026-08-06):** a fonte oficial de releases continua apontando
 `v1.73.0` como latest; nenhum candidato foi criado, iniciado ou escaneado novamente.
@@ -744,6 +748,7 @@ permanece desativado até seu banco, binários e chave de cifragem entrarem no b
 - 2026-08-06 — [Fase 9/Homarr] 🟡 **Decisão operacional: aguardar release corrigida.** O legado permanece intacto; não haverá pull, candidato, container, rede ou alteração de volumes até que uma nova stable seja publicada e passe por digest/scan.
 - 2026-08-06 — [Fase 9/OpenAI] 🟡 **Risco de ZDR aceito temporariamente.** O operador aceitou a ausência de ZDR/MAM como `EXC-03`; nenhum dado clínico real foi liberado. Os demais gates de go-live, incluindo matriz sintética pós-rotação, CVEs e Homarr, continuam obrigatórios.
 - 2026-08-06 — [Fase 9/Webhook] ✅ **Matriz pós-rotação aprovada.** Publicação temporária do receptor passou `401/401/200/200/409`; PostgreSQL confirmou `0` execuções e `0` payloads. Workflow foi despublicado e n8n reiniciado/saudável; nenhum dado clínico foi usado.
+- 2026-08-06 — [Fase 9/Backup] ✅ **Snapshot pré-go-live concluído.** Backup coordenado Agenda+n8n validado no Restic como `2d61edfc`; serviços voltaram saudáveis, staging cifrado desmontado e receptor permaneceu inativo com `0` execuções/`0` payloads.
 - 2026-08-05 — [Fase 9/Homarr] ✅ **Fase A concluída e rollback legado preservado.** ZIP oficial, definição/inspect da stack, imagem efetiva e três volumes foram capturados no staging cifrado; somente o Homarr parou durante os TARs e retornou `running/healthy`, com zero reinícios. Checksums passaram, snapshot Restic `707f30a5` criado com tag `homarr-migracao` e `restic check` sem erros. Staging desmontado, upload temporário removido e nenhum auxiliar residual. A primeira tentativa falhou antes da pausa por ausência de `test` no Portainer; `63b4698` corrigiu para `docker cp` e retomou o conjunto cifrado. **Próximo:** Fase B, sem socket e em paralelo privado.
 - 2026-08-05 — [Fase 9/Homarr] 🟡 **Execução segura da Fase A preparada; aguarda transferência privada do ZIP.** O ZIP oficial foi exportado pelo operador e a janela foi autorizada. `infra/homarr/backup_legado_manual.sh` valida arquivo `0600`, staging gocryptfs, stack, imagem, saúde, socket e três volumes antes da pausa; preserva imagem/definição, para somente o Homarr, reinicia por trap, valida checksums, envia ao Restic e executa `restic check`. `bash -n` e `git diff --check` passaram; ShellCheck não está instalado. Homarr continua saudável e não foi parado. **Próximo:** transferir o ZIP por SSH/SFTP para caminho privado e executar o helper interativamente.
 - 2026-08-05 — [Fase 9/Homarr] 🟡 **Pré-flight da Fase A aprovado sem mudança operacional.** Legado permanece saudável, sem reinícios, com três volumes e socket Docker graváveis, sem limite e usando aproximadamente 378 MiB; há cerca de 39 GiB locais livres. A candidata `v1.73.0` ainda não foi baixada. O backup coordenado existente é específico da Agenda/n8n: somente sua fronteira gocryptfs/Restic pode ser reaproveitada, em execução separada que pare apenas o Homarr. Nenhum pull, parada, exportação ou cópia ocorreu. **Próximo:** autorizar janela e exportar o ZIP pela interface antiga antes da captura consistente.

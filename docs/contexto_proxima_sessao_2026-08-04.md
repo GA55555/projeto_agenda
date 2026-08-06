@@ -202,6 +202,8 @@ estáticas aplicáveis passaram antes do commit.
    coordenada; todos ficaram estáveis, os 2 workflows permaneceram inativos e o banco
    terminou com 0 execuções. O verificador fechou em `0` erros e `0` avisos; a execução
    manual também é registrada no `journald` com a tag `agenda-observabilidade`.
+   O backup coordenado pré-go-live foi concluído no snapshot Restic `2d61edfc`; staging
+   cifrado desmontado e serviços saudáveis.
 6. Somente quando os critérios de go-live estiverem encerrados, planejar publicação
    controlada do receptor e novo smoke exclusivamente sintético antes de dado real.
 
