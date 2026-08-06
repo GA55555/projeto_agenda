@@ -38,6 +38,22 @@ de uma imagem bloqueada.
 - **Estado:** exceção temporária proposta para as imagens em produção; não inclui a
   candidata Homarr bloqueada (`2` críticas e `19` altas corrigíveis).
 
+## EXC-03 — ZDR OpenAI indisponível
+
+- **Escopo:** o projeto OpenAI não possui ZDR/MAM provisionado; chamadas elegíveis
+  continuam sujeitas aos controles padrão de monitoramento de abuso.
+- **Aceite:** o operador aceitou explicitamente esse risco em 2026-08-06 para permitir
+  a continuidade do planejamento de go-live. Isso não autoriza por si só o envio de
+  dados clínicos reais, nem altera os gates do webhook, n8n, Drive ou Homarr.
+- **Controles compensatórios:** `store=false` onde aplicável; controles de Sharing e
+  `API call logging` permanecem desativados; pseudonimização local; nenhum dado clínico
+  real até os demais critérios de go-live serem aprovados; revisar Usage e controles do
+  projeto periodicamente.
+- **Gatilho de encerramento:** ZDR/MAM aprovado e selecionado no projeto, ou retirada
+  formal desta aceitação. Reavaliar em cada mudança de política ou arquitetura OpenAI.
+- **Estado:** risco aceito temporariamente pelo operador; não confundir com evidência
+  de ZDR ativo.
+
 ## Governança
 
 - **Revisão:** a cada atualização de imagem/dependência e, no máximo, a cada 30 dias.

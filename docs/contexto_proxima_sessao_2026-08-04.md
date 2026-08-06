@@ -7,12 +7,13 @@ credenciais, payloads clínicos nem identificadores reais.
 ## Objetivo atual
 
 Encerrar os bloqueios de hardening e obter evidência suficiente para decidir o go-live.
-O receptor n8n e qualquer processamento de novos dados reais continuam bloqueados até,
-no mínimo, haver ZDR comprovado no projeto OpenAI e fechamento das validações de rede.
+O receptor n8n e qualquer processamento de novos dados reais continuam bloqueados até
+o fechamento dos gates de go-live. O operador aceitou temporariamente o risco de ZDR
+indisponível em 2026-08-06; isso não comprova ZDR ativo.
 
-Atualização de 2026-08-05: a solicitação de ZDR foi enviada pelo canal oficial, mas o
-recurso não está disponível para o projeto. Não há nova ação de ZDR nesta retomada; o
-bloqueio de dados reais permanece e as demais frentes independentes podem avançar.
+Atualização de 2026-08-06: a solicitação de ZDR foi enviada pelo canal oficial, mas o
+recurso não está disponível para o projeto. O risco foi aceito temporariamente pelo
+operador; os demais gates de go-live e a proibição de dados reais permanecem.
 
 ## Base versionada e deploy concluído
 
@@ -51,7 +52,8 @@ Referência oficial:
 - Solicitar/acompanhar a aprovação de ZDR com a OpenAI.
 - Após provisionamento, selecionar ZDR explicitamente no projeto da Agenda e registrar
   evidência sem capturar chave, ID sensível ou dado clínico.
-- Até essa confirmação, não publicar o receptor nem enviar novo dado real.
+- O aceite de risco não autoriza publicar o receptor nem enviar dado real antes dos
+  demais gates de go-live.
 
 ## Firewall: descoberta e correção
 
