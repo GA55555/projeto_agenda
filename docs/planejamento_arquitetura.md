@@ -34,7 +34,7 @@ monitorados estáveis, zero reinícios/OOM, segredos consistentes, 2 workflows i
 matriz HTTP fica para o smoke sintético obrigatório anterior a qualquer publicação.
 **Próximo:** usar `infra/observabilidade/registrar_runtime.sh` nas execuções manuais e
 consultar a tag `agenda-observabilidade` com `journalctl`; depois seguir com listeners
-e exceções de CVE. Backup e verificação permanecem manuais; o restore em host/VM
+e revisar o [registro de exceções temporárias](./excecoes_risco_2026-08-05.md). Backup e verificação permanecem manuais; o restore em host/VM
 separado foi recusado pelo operador, mantendo a limitação de recuperação no mesmo
 host e o bloqueio de dados reais por ausência de ZDR.
 
@@ -684,6 +684,10 @@ permanece desativado até seu banco, binários e chave de cifragem entrarem no b
   física tem contenção persistente comprovada em IPv4 e IPv6 nas seis portas
   administrativas, com Tailscale preservada; consoles web auxiliares continuam com
   bindings amplos e há CVEs upstream pendentes/excepcionáveis.
+- [~] Registro de exceções temporárias em
+  [`excecoes_risco_2026-08-05.md`](./excecoes_risco_2026-08-05.md): RSC não alcançável
+  e bases upstream sem correção aplicável estão descritos com controles compensatórios;
+  aceite técnico e revisão periódica ainda são necessários.
   A proteção `Cache-Control: no-store, private` para toda a API e o limitador de login
   por IP foram retestados na origem publicada (`401×5`, `429×2`, `Retry-After: 60` e
   warning sem credenciais). O encaminhamento do warning para alerta externo permanece
