@@ -378,7 +378,9 @@ por proxy com permissões mínimas ou remover a integração Docker se não for 
 O inventário somente leitura e o plano paralelo com backup/rollback estão em
 [`plano_migracao_homarr_2026-08-04.md`](./plano_migracao_homarr_2026-08-04.md).
 Em 2026-08-05, ZIP, stack, imagem e três volumes foram preservados no snapshot Restic
-`707f30a5`; o legado voltou saudável e o staging foi desmontado.
+  `707f30a5`; o legado voltou saudável e o staging foi desmontado. Em 2026-08-06, o
+  operador decidiu remover o Homarr: contêiner, volumes, rede e imagens foram apagados;
+  o snapshot permanece como rollback e o achado deixa de existir no runtime.
 No mesmo dia, a stable `v1.73.0` foi baixada por digest e bloqueada antes da execução:
 Trivy encontrou `2` achados críticos e `19` altos, todos com correção disponível nas
 dependências; nenhuma instância candidata foi criada.

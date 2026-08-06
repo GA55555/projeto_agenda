@@ -1,5 +1,10 @@
 # Plano de migração segura do Homarr — 2026-08-04
 
+> **Status encerrado (2026-08-06):** o operador optou por remover o Homarr em vez de
+> migrá-lo. O contêiner, os dois volumes, a rede e as imagens locais foram apagados após
+> confirmação de exclusividade. O snapshot Restic `707f30a5` preserva rollback; este plano
+> fica como histórico e não autoriza recriação automática.
+
 ## Estado e objetivo
 
 O Homarr atual continua saudável e não foi alterado durante este inventário. Ele usa a

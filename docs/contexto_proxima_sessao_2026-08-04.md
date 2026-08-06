@@ -185,12 +185,9 @@ estáticas aplicáveis passaram antes do commit.
 
 1. ZDR não está disponível para o projeto; manter o bloqueio de dados reais sem parar as
    demais frentes independentes.
-2. A Fase A do plano Homarr foi concluída no snapshot Restic `707f30a5`: ZIP, stack,
-   imagem e três volumes validados; legado novamente saudável e staging desmontado.
-   A Fase B de [`plano_migracao_homarr_2026-08-04.md`](./plano_migracao_homarr_2026-08-04.md)
-   confirmou `v1.73.0` como stable e baixou seu digest fixo, mas o scan encontrou `2`
-   críticas e `19` altas corrigíveis. Nenhum candidato foi criado. Retomar quando houver
-   nova stable, ou somente após exceção formal com análise de alcançabilidade.
+2. Homarr foi removido em 2026-08-06 por decisão do operador: contêiner, dois volumes,
+   rede e imagens foram apagados após confirmação de exclusividade. O snapshot Restic
+   `707f30a5` preserva a recuperação do legado; nenhum candidato foi executado.
 3. Os listeners externos foram atribuídos sem mudança operacional: `139/445` pertencem
    ao Samba do host e `3000` ao processo PM2 `mochila`, do projeto Ascensão. Teste LAN
    externo em 2026-08-06 retornou bloqueio (`False`) para as três portas; os bindings
